@@ -2,7 +2,7 @@ import argparse
 from scripts.add_user import add_user
 from scripts.get_user import get_user
 from scripts.update_user import update_user
-from client.oauth_manager import initiate_oauth_flow
+from server.OAuthCallbackServer import initiate_oauth_flow
 from agent.OnboardingAgent import agent
 from module.logger import get_logger
 

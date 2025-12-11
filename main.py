@@ -1,6 +1,6 @@
 from datetime import datetime
 from scripts.add_user import add_user
-from client.oauth_manager import initiate_oauth_flow
+from server.OAuthCallbackServer import initiate_oauth_flow
 from module.logger import get_logger
 
 logger = get_logger(__name__)
