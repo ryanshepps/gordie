@@ -49,6 +49,7 @@ def create_yahoo_league_table(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS yahoo_leagues (
             league_id TEXT PRIMARY KEY,
+            game_key TEXT NOT NULL,
             league_name TEXT NOT NULL,
             league_type TEXT NOT NULL,
             league_settings TEXT NOT NULL,

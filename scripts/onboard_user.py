@@ -49,7 +49,7 @@ def create_new_user(email):
     # Run OAuth flow for the user first to get Yahoo email
     try:
         token_data = initiate_oauth_flow(email)
-        logger.info(f"\n✓ OAuth flow completed for {email}")
+        logger.info(f"✓ OAuth flow completed for {email}")
         logger.info(f"Access token received: {token_data['access_token'][:20]}...")
 
         yahoo_email = token_data.get("yahoo_email")

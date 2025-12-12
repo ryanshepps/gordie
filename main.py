@@ -13,7 +13,7 @@ def main():
     # Run OAuth flow for the user
     try:
         initiate_oauth_flow(email)
-        logger.info(f"\n✓ OAuth flow completed for {email}")
+        logger.info(f"✓ OAuth flow completed for {email}")
     except Exception as e:
         logger.error(f"\n✗ OAuth flow failed: {e}")
         raise

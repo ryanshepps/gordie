@@ -10,6 +10,7 @@ dependencies = [
     "flask>=3.1.2",
     "langchain>=1.1.2",
     "langchain-openai>=1.1.0",
+    "langgraph-checkpoint-sqlite>=3.0.1",
     "nhl-api-py>=3.1.1",
     "pandas>=2.3.3",
     "pydantic>=2.12.5",

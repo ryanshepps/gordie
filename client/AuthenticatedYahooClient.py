@@ -26,7 +26,7 @@ class AuthenticatedYahooClient:
     def __init__(
         self,
         user_email: str,
-        league_id: str | None = None,
+        league_id: int | None = None,
         access_token_json: str | None = None,
     ):
         """
@@ -150,10 +150,10 @@ class AuthenticatedYahooClient:
         logger.warning("No token data found - starting OAuth flow (requires interactive authentication)")
 
         # Use a dummy league_id if none provided (needed for user league queries)
-        query_league_id = self.league_id or "0"
+        query_league_id = self.league_id or 0
 
         return YahooFantasySportsQuery(
-            league_id=query_league_id,
+            league_id=str(query_league_id),
             game_code="nhl",
             game_id=None,
             yahoo_consumer_key=self.consumer_key,
@@ -184,10 +184,10 @@ class AuthenticatedYahooClient:
             }
 
             # Use a dummy league_id if none provided (needed for user league queries)
-            query_league_id = self.league_id or "0"
+            query_league_id = self.league_id or 0
 
             return YahooFantasySportsQuery(
-                league_id=query_league_id,
+                league_id=str(query_league_id),
                 game_code="nhl",
                 game_id=None,
                 yahoo_consumer_key=self.consumer_key,
