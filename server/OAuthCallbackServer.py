@@ -28,6 +28,10 @@ load_dotenv()
 # Suppress Flask's default logging
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
+# Global singleton server instance
+_server_instance: Optional['OAuthCallbackServer'] = None
+_server_lock = threading.Lock()
+
 
 class OAuthCallbackServer:
     """
@@ -51,6 +55,7 @@ class OAuthCallbackServer:
         self.server_thread: Optional[threading.Thread] = None
         self.auth_code: Optional[str] = None
         self.auth_error: Optional[str] = None
+        self.user_email: Optional[str] = None
         self.code_received = threading.Event()
 
         # Set up Flask routes
@@ -69,6 +74,7 @@ class OAuthCallbackServer:
             code = request.args.get('code')
             error = request.args.get('error')
             error_description = request.args.get('error_description')
+            user_email = request.args.get('state')  # user_email passed via state parameter
 
             if error:
                 self.auth_error = error
@@ -87,12 +93,13 @@ class OAuthCallbackServer:
 
             if code:
                 self.auth_code = code
+                self.user_email = user_email
                 self.code_received.set()
                 return """
                 <html>
                     <body>
                         <h1>Authentication Successful!</h1>
-                        <p>You can close this window.</p>
+                        <p>You can close this window and return to your conversation.</p>
                     </body>
                 </html>
                 """
@@ -225,7 +232,7 @@ def initiate_oauth_flow(user_email: str) -> dict:
         logger.info(f"Callback URL: {callback_url}")
 
         nonce = secrets.token_urlsafe(32)
-        auth_url = _build_auth_url(client_id, callback_url, "openid email fspt-r", nonce)
+        auth_url = _build_auth_url(client_id, callback_url, "openid email fspt-r", nonce, state=user_email)
 
         logger.info("Opening browser for authorization...")
         logger.info(f"If browser doesn't open: {auth_url}")
@@ -251,6 +258,9 @@ def initiate_oauth_flow(user_email: str) -> dict:
         _save_tokens(user_email, yahoo_email, token_data)
         logger.info("✓ Tokens saved to database")
 
+        # Notify the OnboardingAgent that OAuth is complete
+        _notify_onboarding_agent(user_email)
+
         logger.info(f"OAuth flow completed for {user_email}")
         return token_data
 
@@ -258,7 +268,7 @@ def initiate_oauth_flow(user_email: str) -> dict:
         server.shutdown()
 
 
-def _build_auth_url(client_id: str, redirect_uri: str, scope: str, nonce: str) -> str:
+def _build_auth_url(client_id: str, redirect_uri: str, scope: str, nonce: str, state: Optional[str] = None) -> str:
     """Build Yahoo OAuth authorization URL."""
     params = {
         "client_id": client_id,
@@ -268,6 +278,8 @@ def _build_auth_url(client_id: str, redirect_uri: str, scope: str, nonce: str) -
         "nonce": nonce,
         "language": "en-us"
     }
+    if state:
+        params["state"] = state
     return f"https://api.login.yahoo.com/oauth2/request_auth?{urlencode(params)}"
 
 
@@ -378,6 +390,44 @@ def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
         conn.close()
 
 
+def _notify_onboarding_agent(user_email: str) -> None:
+    """
+    Notify the OnboardingAgent that OAuth authentication is complete.
+    
+    This function invokes the OnboardingAgent to continue the onboarding process
+    after the user has successfully authenticated with Yahoo.
+    
+    Args:
+        user_email: Email address of the user who just completed OAuth
+    """
+    from agent.OnboardingAgent import agent
+    from agent.AgentGraph import AgentState
+    logger = get_logger(__name__)
+    
+    try:
+        logger.info(f"Notifying OnboardingAgent for user {user_email}...")
+        config = {"configurable": {"thread_id": user_email}}
+        
+        # Send a message to the agent indicating OAuth is complete
+        state: AgentState = {
+            "user_email": user_email,
+            "messages": [{"role": "user", "content": "I've completed the OAuth authentication!"}]
+        }
+        
+        response = agent.invoke(state, config=config)
+        
+        # Log the agent's response
+        if response and "messages" in response:
+            logger.info("OnboardingAgent response after OAuth:")
+            for msg in response["messages"]:
+                if hasattr(msg, "content"):
+                    logger.info(msg.content)
+        
+    except Exception as e:
+        logger.error(f"Failed to notify OnboardingAgent: {e}")
+        # Don't raise - OAuth was successful, agent notification is secondary
+
+
 def load_tokens_from_db(user_email: str) -> Optional[dict]:
     """
     Load OAuth tokens from database.
@@ -405,5 +455,46 @@ def load_tokens_from_db(user_email: str) -> Optional[dict]:
             "token_time": result[2],
             "token_type": result[3]
         }
+    finally:
+        conn.close()
+
+
+def get_oauth_nonce(user_email: str) -> Optional[str]:
+    """
+    Retrieve stored OAuth nonce for a user.
+
+    Args:
+        user_email: Email address of the user
+
+    Returns:
+        The nonce string if found, None otherwise
+    """
+    conn = get_platform_db_connection()
+    try:
+        result = conn.execute("""
+            SELECT nonce FROM oauth_nonces WHERE user_email = ?
+        """, (user_email,)).fetchone()
+
+        return result[0] if result else None
+    finally:
+        conn.close()
+
+
+def delete_oauth_nonce(user_email: str) -> None:
+    """
+    Delete OAuth nonce after use.
+
+    Args:
+        user_email: Email address of the user
+    """
+    conn = get_platform_db_connection()
+    try:
+        conn.execute("""
+            DELETE FROM oauth_nonces WHERE user_email = ?
+        """, (user_email,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise
     finally:
         conn.close()

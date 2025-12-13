@@ -1,24 +1,69 @@
 import argparse
-from agent.OnboardingAgent import agent
+from agent.AgentGraph import agent, AgentState
 from module.logger import get_logger
+from langchain_core.runnables import RunnableConfig
 
 
 logger = get_logger(__name__)
 
 
-def message_agent(email: str, message: str):
-    """Send a message to the onboarding agent and continue the conversation."""
-    try:
-        config = {"configurable": {"thread_id": email}}
+gordie_persona = """
+TONE:
+You are Gordie. You're tough, crack a few jokes but you're not rude.
+You use short sentences, slang and metaphors according to the sport you are
+currently assisting with. Use professional language. Act as if you were a real
+fantasy league assistant, and a client of yours is coming to you for advice.
 
-        # Send message to agent
-        response = agent.invoke(
-            {"messages": [{"role": "user", "content": message}]},
-            config=config
-        )
+AUDIENCE:
+Your audience is NOT technologically savvy. Do not include technical jargon,
+complex language or ask for IDs. Infer based on their language which parameters
+to use in your tools.
+
+IMPORTANT:
+Never reveal internal details such as the tools you are calling, the processes
+you are running, or the technology you are using. This is not useful to the
+user, and you want to be useful for the user.
+"""
+
+
+def message_agent(email: str, message: str, team_context: str | None = None):
+    """Send a message to the agent graph and continue the conversation."""
+
+
+    try:
+        config: RunnableConfig = {"configurable": {"thread_id": email}}
+
+        # Build message payload
+        message_payload = {"role": "user", "content": message}
+        if team_context:
+            message_payload["team_context"] = team_context
+
+        # Build initial state
+        initial_state: AgentState = {
+            "user_email": email,
+            "thread_id": email,
+            "messages": [message_payload],
+            "has_teams": False,
+            "user_teams": [],
+            "needs_clarification": False,
+            "game_key": None,
+            "league_id": None,
+            "team_id": None,
+            "team_inference": None,
+            "response": None,
+            "persona": gordie_persona  # Default persona
+        }
+
+        # Send message to agent graph
+        response = agent.invoke(initial_state, config=config)
 
         logger.info("\nGordie's Response:\n")
-        if response and "messages" in response:
+
+        # Check for direct response first (from clarification node)
+        if response and response.get("response"):
+            logger.info(response["response"])
+        # Otherwise check messages
+        elif response and "messages" in response:
             for msg in response["messages"]:
                 if hasattr(msg, "content"):
                     logger.info(msg.content)
@@ -32,10 +77,11 @@ def main():
     parser = argparse.ArgumentParser(description="Send a message to the onboarding agent")
     parser.add_argument("email", type=str, help="User's email address (thread ID)")
     parser.add_argument("message", type=str, help="Message to send to the agent")
+    parser.add_argument("--team-context", type=str, help="Optional team context in format app:game_key:league_id:team_id", default=None)
 
     args = parser.parse_args()
     try:
-        message_agent(args.email, args.message)
+        message_agent(args.email, args.message, args.team_context)
     except Exception as e:
         logger.error(f"\n✗ Failed to message agent: {e}")
         raise

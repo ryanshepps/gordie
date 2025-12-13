@@ -1,8 +1,7 @@
 import argparse
+from agent.AgentGraph import AgentState
 from scripts.add_user import add_user
 from scripts.get_user import get_user
-from scripts.update_user import update_user
-from server.OAuthCallbackServer import initiate_oauth_flow
 from agent.OnboardingAgent import agent
 from module.logger import get_logger
 
@@ -11,27 +10,30 @@ logger = get_logger(__name__)
 
 
 def onboard_user(email: str):
-    """Onboard a new user by adding them to the system and completing OAuth flow."""
-    if (not get_user(email)):
+    """Onboard a new user by starting the OnboardingAgent conversation."""
+    if not get_user(email):
         logger.info(f"User {email} not found. Creating new user...")
         try:
-            create_new_user(email)
+            add_user(email)
+            logger.info(f"✓ User {email} created")
         except Exception as e:
             logger.error(f"\n✗ Failed to create new user: {e}")
             raise
 
-    # Invoke OnboardingAgent
+    # Invoke OnboardingAgent - it will handle OAuth flow and team selection
     try:
         logger.info(f"\n✓ Starting onboarding agent for {email}...")
         config = {"configurable": {"thread_id": email}}
 
         # Start the agent conversation
-        response = agent.invoke(
-            {"messages": [{"role": "user", "content": f"Hello! My email is {email}"}]},
-            config=config
-        )
+        initial_state: AgentState = {
+            "user_email": email,
+            "messages": [{"role": "user", "content": f"Hello! My email is {email}"}]
+        }
 
-        logger.info("\nGordie's Response:\n")
+        response = agent.invoke(initial_state, config=config)
+
+        logger.info("\nGordie's Response:")
         if response and "messages" in response:
             for msg in response["messages"]:
                 if hasattr(msg, "content"):
@@ -39,25 +41,6 @@ def onboard_user(email: str):
 
     except Exception as e:
         logger.error(f"\n✗ Failed to start onboarding agent: {e}")
-        raise
-
-
-def create_new_user(email):
-
-    add_user(email)
-
-    # Run OAuth flow for the user first to get Yahoo email
-    try:
-        token_data = initiate_oauth_flow(email)
-        logger.info(f"✓ OAuth flow completed for {email}")
-        logger.info(f"Access token received: {token_data['access_token'][:20]}...")
-
-        yahoo_email = token_data.get("yahoo_email")
-        if yahoo_email:
-            logger.info(f"Yahoo email retrieved: {yahoo_email}")
-
-    except Exception as e:
-        logger.error(f"\n✗ OAuth flow failed: {e}")
         raise
 
 

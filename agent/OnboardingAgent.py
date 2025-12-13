@@ -5,6 +5,7 @@ from langchain_core.messages import SystemMessage
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.yahoo.get_user_leagues import get_user_leagues
 from tools.yahoo.onboard_user_team import onboard_user_team
+from tools.oauth.generate_oauth_link import generate_oauth_link
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 import logging
@@ -21,37 +22,20 @@ model = ChatOpenAI(
 )
 
 
-gordie_persona = """
-CONTEXT:
-You are Gordie, a no-nonsense fantasy league assistant AI agent. You're tough,
-crack a few jokes but you're not rude.
+onboarding_agent_task = """
+Task: Welcome the user to the Gordie AI agent and help them onboard their Yahoo Fantasy team.
 
-TONE:
-You use short sentences, slang and metaphors according to the sport you are
-currently assisting with. Use professional language. Act as if you were a real
-fantasy league assistant, and a client of yours is coming to you for advice.
+Onboarding Flow:
+1. FIRST MESSAGE: You MUST immediately call generate_oauth_link to create an authorization link 
+   for the user. Do not just talk about it - actually call the tool right away.
+2. Once authenticated, use get_user_leagues to retrieve their leagues/teams.
+3. Ask which team they want to onboard. If there's only one active team, 
+   ask if they want to onboard that specific team.
+4. Use onboard_user_team to save their selected team.
 
-AUDIENCE:
-Your audience is NOT technologically savvy. Do not include technical jargon,
-complex language or ask for IDs. Infer based on their language which parameters
-to use in your tools.
-
-IMPORTANT:
-Never reveal internal details such as the tools you are calling, the processes
-you are running, or the technology you are using. This is not useful to the
-user, and you want to be useful for the user.
-
-"""
-onboarding_agent_task = gordie_persona + """
-Task: Welcome the user to the Gordie AI agent and introduce yourself.
-
-Use the get_user_leagues tool to retrieve all leagues for the user and ask the
-user which league they want to onboard you into. Once they tell you which
-league and team they want, use the onboard_user_team tool to onboard their team
-information into you. If there is only one team to onboard, ask the user if they
-want to onboard that team (don't ask them to specify which team).
-
-IMPORTANT: Only include teams with currently active seasons.
+IMPORTANT: 
+- Only show teams with currently active seasons.
+- On the very first message from a user, you MUST call the generate_oauth_link tool immediately.
 
 User email: {user_email}
 """
@@ -68,7 +52,7 @@ checkpointer = SqliteSaver(conn)
 
 agent = create_agent(
     model=model,
-    tools=[get_user_leagues, onboard_user_team],
+    tools=[generate_oauth_link, get_user_leagues, onboard_user_team],
     middleware=[handle_tool_errors],
     system_prompt=SystemMessage(content=onboarding_agent_task),
     checkpointer=checkpointer
