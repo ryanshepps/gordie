@@ -540,6 +540,7 @@ def _notify_onboarding_agent(user_email: str) -> None:
             "team_inference": None,
             "needs_clarification": False,
             "response": None,
+            "route_to": None,
         }
 
         response = agent.invoke(initial_state, config=config)

@@ -15,6 +15,9 @@ def create_nhl_player_stats_table(conn: duckdb.DuckDBPyConnection) -> None:
             nhl_api_player_id INTEGER NOT NULL,
             nhl_api_game_id INTEGER NOT NULL,
             game_date DATE NOT NULL,
+            full_name VARCHAR,
+            first_name VARCHAR,
+            last_name VARCHAR,
             goals INTEGER,
             assists INTEGER,
             points INTEGER,
@@ -29,6 +32,9 @@ def create_nhl_player_stats_table(conn: duckdb.DuckDBPyConnection) -> None:
             shifts INTEGER,
             giveaways INTEGER,
             takeaways INTEGER,
+            corsi_for INTEGER,
+            fenwick_for INTEGER,
+            missed_shots INTEGER,
             PRIMARY KEY (nhl_api_player_id, nhl_api_game_id)
         )
     """)

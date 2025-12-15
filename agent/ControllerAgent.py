@@ -3,9 +3,51 @@
 import logging
 from typing import cast
 
+from langchain_openai import ChatOpenAI
+
 from agent.agent_state import AgentState, build_context, get_user_teams
+from agent.routing_schemas import AgentType, RoutingDecision
 
 logger = logging.getLogger(__name__)
+
+
+def classify_user_intent(message: str) -> RoutingDecision:
+    """
+    Use LLM to classify user intent and determine agent routing.
+
+    Args:
+        message: The user's message content
+
+    Returns:
+        RoutingDecision with agent type, confidence score, and reasoning
+    """
+    classifier = ChatOpenAI(
+        model="gpt-4o-mini", temperature=0
+    ).with_structured_output(RoutingDecision)
+
+    prompt = f"""Classify the user's intent and determine which agent should handle this request.
+
+User message: {message}
+
+Available agents:
+- onboarding: Help users connect their Yahoo Fantasy teams, set up authentication, or add new teams
+- player_comparison: Compare NHL players for fantasy hockey decisions (e.g., "who should I start?", "Player A vs Player B", "who's better?")
+- general: General fantasy hockey questions, team stats, player information, or other assistance
+
+Return the most appropriate agent and your confidence (0.0 to 1.0).
+
+Guidelines:
+- Use player_comparison for any question asking to compare or choose between players
+- Use onboarding for account setup, team connection, or authentication issues
+- Use general for informational queries, stats lookups, or unclear intents
+"""
+
+    result = cast(RoutingDecision, classifier.invoke([{"role": "user", "content": prompt}]))
+    logger.info(
+        f"LLM routing classification - Agent: {result.agent}, "
+        f"Confidence: {result.confidence:.2f}, Reasoning: {result.reasoning}"
+    )
+    return result
 
 
 def controller_node(state: AgentState) -> AgentState:
@@ -14,10 +56,11 @@ def controller_node(state: AgentState) -> AgentState:
 
     This node:
     1. Extracts the last user message
-    2. Checks if user has teams (if not, routes to onboarding)
-    3. Builds context from message_id or infers from database
-    4. Determines if clarification is needed
-    5. Updates state with team information
+    2. Checks for comparison intent
+    3. Checks if user has teams (if not, routes to onboarding)
+    4. Builds context from message_id or infers from database
+    5. Determines if clarification is needed
+    6. Updates state with team information
     """
     messages = state.get("messages", [])
     user_email = state.get("user_email")
@@ -39,6 +82,19 @@ def controller_node(state: AgentState) -> AgentState:
 
     logger.info(f"Controller processing message: {message_content[:100]}...")
     logger.info(f"Team context: {team_context}")
+
+    # Use LLM to classify user intent
+    routing = classify_user_intent(message_content)
+
+    # Route to player_comparison if classified with sufficient confidence
+    if routing.agent == AgentType.PLAYER_COMPARISON and routing.confidence > 0.7:
+        logger.info(
+            f"Routing to player_comparison based on LLM classification "
+            f"(confidence: {routing.confidence:.2f})"
+        )
+        state["needs_clarification"] = False
+        state["route_to"] = "player_comparison"
+        return state
 
     # Get user's teams
     user_teams = get_user_teams(user_email)
@@ -90,10 +146,15 @@ def should_ask_for_clarification(state: AgentState) -> str:
     Routing function to determine next step.
 
     Returns:
+        "player_comparison" if comparison intent detected
         "clarify" if clarification needed
         "onboarding" if no teams exist
         "continue" to proceed with normal flow
     """
+    # Check for player comparison routing first
+    if state.get("route_to") == "player_comparison":
+        return "player_comparison"
+
     # If user has no teams, always route to onboarding
     if not state.get("has_teams"):
         return "onboarding"

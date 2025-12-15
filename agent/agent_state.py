@@ -53,6 +53,7 @@ class AgentState(TypedDict):
     )  # Result of team inference {"team": {...}, "confidence": str, "reasoning": str}
     needs_clarification: bool  # True if we need to ask user which team
     response: str | None
+    route_to: str | None  # Target agent for routing (e.g., "player_comparison")
 
 
 def get_user_teams(user_email: str) -> list[dict[str, str]]:

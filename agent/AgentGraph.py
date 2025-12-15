@@ -58,6 +58,7 @@ def build_agent_graph():
         should_ask_for_clarification,
     )
     from agent.OnboardingAgent import agent as onboarding_agent
+    from agent.PlayerComparisonAgent import agent as player_comparison_agent
 
     # Create the graph
     workflow = StateGraph(AgentState)
@@ -65,6 +66,7 @@ def build_agent_graph():
     # Add nodes
     workflow.add_node("controller", controller_node)
     workflow.add_node("clarification", clarification_node)
+
     def onboarding_wrapper(state: AgentState) -> AgentState:
         # The onboarding_agent is a LangChain agent, not a LangGraph node
         # We need to call it with the appropriate input and cast the result
@@ -79,6 +81,18 @@ def build_agent_graph():
 
     workflow.add_node("onboarding", onboarding_wrapper)
 
+    def player_comparison_wrapper(state: AgentState) -> AgentState:
+        # PlayerComparisonAgent wrapper
+        input_dict: dict[str, Any] = {
+            "user_email": state["user_email"],
+            "league_id": state.get("league_id", ""),
+            "messages": state["messages"]
+        }
+        result = player_comparison_agent.invoke(cast(Any, input_dict))
+        return cast(AgentState, result)
+
+    workflow.add_node("player_comparison", player_comparison_wrapper)
+
     # Set entry point
     workflow.set_entry_point("controller")
 
@@ -89,13 +103,15 @@ def build_agent_graph():
         {
             "clarify": "clarification",
             "onboarding": "onboarding",
+            "player_comparison": "player_comparison",
             "continue": END,  # For now, just end - will add more agents later
         },
     )
 
-    # Clarification and onboarding end the conversation
+    # Clarification, onboarding, and player_comparison end the conversation
     workflow.add_edge("clarification", END)
     workflow.add_edge("onboarding", END)
+    workflow.add_edge("player_comparison", END)
 
     # Setup persistent checkpointer
     db_path = os.path.join(

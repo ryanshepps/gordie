@@ -42,6 +42,7 @@ def onboard_user(email: str):
             "team_inference": None,
             "needs_clarification": False,
             "response": None,
+            "route_to": None,
         }
 
         config: RunnableConfig = {"configurable": {"thread_id": email}}

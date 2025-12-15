@@ -61,6 +61,7 @@ def message_agent(email: str, message: str, team_context: str | None = None) -> 
             "team_id": None,
             "team_inference": None,
             "response": None,
+            "route_to": None,
             "persona": gordie_persona,  # Default persona
         }
 
