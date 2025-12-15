@@ -1,7 +1,9 @@
-from client.DuckDbClient import get_platform_db_connection
+from client.duck_db_client import get_platform_db_connection
 
 
-def add_yahoo_league(league_id: int, game_key: str, league_name: str, league_type: str, league_settings: str):
+def add_yahoo_league(
+    league_id: int, game_key: str, league_name: str, league_type: str, league_settings: str
+):
     """
     Add a Yahoo Fantasy league to the database.
 
@@ -16,7 +18,7 @@ def add_yahoo_league(league_id: int, game_key: str, league_name: str, league_typ
 
     conn.execute(
         "INSERT INTO yahoo_leagues (league_id, game_key, league_name, league_type, league_settings) VALUES (?, ?, ?, ?, ?)",
-        [league_id, game_key, league_name, league_type, league_settings]
+        [league_id, game_key, league_name, league_type, league_settings],
     )
 
     conn.commit()

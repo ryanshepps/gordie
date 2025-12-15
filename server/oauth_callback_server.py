@@ -6,30 +6,31 @@ from Yahoo Fantasy Sports API during the authentication process, along with
 the complete OAuth flow orchestration.
 """
 
-import threading
-import webbrowser
-import requests
-import os
-import secrets
 import base64
 import json
+import logging
+import os
+import secrets
+import threading
+import webbrowser
+from datetime import datetime
 from typing import Optional
 from urllib.parse import urlencode
-from datetime import datetime
-from flask import Flask, request, jsonify
-from dotenv import load_dotenv
-import logging
 
-from client.DuckDbClient import get_platform_db_connection
+import requests
+from dotenv import load_dotenv
+from flask import Flask, jsonify, request
+
+from client.duck_db_client import get_platform_db_connection
 from module.logger import get_logger
 
 load_dotenv()
 
 # Suppress Flask's default logging
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 # Global singleton server instance
-_server_instance: Optional['OAuthCallbackServer'] = None
+_server_instance: Optional["OAuthCallbackServer"] = None
 _server_lock = threading.Lock()
 
 
@@ -52,10 +53,10 @@ class OAuthCallbackServer:
         self.host = host
         self.port = port
         self.app = Flask(__name__)
-        self.server_thread: Optional[threading.Thread] = None
-        self.auth_code: Optional[str] = None
-        self.auth_error: Optional[str] = None
-        self.user_email: Optional[str] = None
+        self.server_thread: threading.Thread | None = None
+        self.auth_code: str | None = None
+        self.auth_error: str | None = None
+        self.user_email: str | None = None
         self.code_received = threading.Event()
 
         # Set up Flask routes
@@ -64,17 +65,18 @@ class OAuthCallbackServer:
     def _setup_routes(self):
         """Configure Flask routes for OAuth callback."""
 
-        @self.app.route('/callback')
+        @self.app.route("/callback")
         def callback():
             """Handle OAuth callback from Yahoo."""
             from module.logger import get_logger
+
             logger = get_logger(__name__)
 
             # Check for authorization code
-            code = request.args.get('code')
-            error = request.args.get('error')
-            error_description = request.args.get('error_description')
-            user_email = request.args.get('state')  # user_email passed via state parameter
+            code = request.args.get("code")
+            error = request.args.get("error")
+            error_description = request.args.get("error_description")
+            user_email = request.args.get("state")  # user_email passed via state parameter
 
             if error:
                 self.auth_error = error
@@ -82,14 +84,17 @@ class OAuthCallbackServer:
                 if error_description:
                     logger.error(f"Error Description: {error_description}")
                 self.code_received.set()
-                return f"""
+                return (
+                    f"""
                 <html>
                     <body>
                         <h1>Authentication Error</h1>
-                        <p>{error}: {error_description or 'No description'}</p>
+                        <p>{error}: {error_description or "No description"}</p>
                     </body>
                 </html>
-                """, 400
+                """,
+                    400,
+                )
 
             if code:
                 # Prevent duplicate callbacks (browser double-requests, refreshes, etc.)
@@ -103,7 +108,7 @@ class OAuthCallbackServer:
                         </body>
                     </html>
                     """
-                
+
                 self.auth_code = code
                 self.user_email = user_email
                 self.code_received.set()
@@ -116,83 +121,87 @@ class OAuthCallbackServer:
                 </html>
                 """
 
-            return """
+            return (
+                """
             <html>
                 <body>
                     <h1>Invalid Request</h1>
                     <p>No authorization code received.</p>
                 </body>
             </html>
-            """, 400
+            """,
+                400,
+            )
 
-        @self.app.route('/health')
+        @self.app.route("/health")
         def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
 
-        @self.app.route('/email/webhook', methods=['POST'])
+        @self.app.route("/email/webhook", methods=["POST"])
         def email_webhook():
             """Handle incoming emails from Mailgun webhook."""
             from module.logger import get_logger
+
             logger = get_logger(__name__)
-            
+
             # Extract webhook data
-            sender_email = request.form.get('sender')
-            subject = request.form.get('subject', '')
-            message_body = request.form.get('stripped-text') or request.form.get('body-plain', '')
-            timestamp = request.form.get('timestamp')
-            token = request.form.get('token')
-            signature = request.form.get('signature')
-            
+            sender_email = request.form.get("sender")
+            subject = request.form.get("subject", "")
+            message_body = request.form.get("stripped-text") or request.form.get("body-plain", "")
+            timestamp = request.form.get("timestamp")
+            token = request.form.get("token")
+            signature = request.form.get("signature")
+
             # Validate required fields
             if not all([sender_email, timestamp, token, signature]):
                 logger.error("Missing required webhook fields")
                 return jsonify({"error": "Missing required fields"}), 400
-            
+
             # Verify signature and timestamp
-            from server.WebhookVerification import verify_mailgun_webhook, is_timestamp_fresh
-            
+            from server.webhook_verification import is_timestamp_fresh, verify_mailgun_webhook
+
             if not is_timestamp_fresh(timestamp):
                 logger.error(f"Webhook timestamp too old: {timestamp}")
                 return jsonify({"error": "Timestamp too old"}), 403
-            
+
             if not verify_mailgun_webhook(token, timestamp, signature):
                 logger.error(f"Invalid webhook signature from {sender_email}")
                 return jsonify({"error": "Invalid signature"}), 403
-            
+
             logger.info(f"Received email from {sender_email}: {subject}")
-            
+
             # Process in background thread
             def process_email():
                 try:
                     from scripts.message_agent import message_agent
-                    from server.EmailService import EmailService
-                    
+                    from server.email_service import EmailService
+
                     # Process through agent
                     logger.info(f"Processing email from {sender_email}")
                     response = message_agent(email=sender_email, message=message_body)
-                    
+
                     # Send response email
                     if response:
                         email_service = EmailService()
                         success = email_service.send_email(
                             to_email=sender_email,
                             subject=f"Re: {subject}" if subject else "Fantasy Agent Response",
-                            text_body=response
+                            text_body=response,
                         )
-                        
+
                         if success:
                             logger.info(f"Response sent to {sender_email}")
                         else:
                             logger.error(f"Failed to send response to {sender_email}")
-                    
+
                 except Exception as e:
                     logger.error(f"Error processing email from {sender_email}: {e}", exc_info=True)
-            
+
             # Start background thread
             thread = threading.Thread(target=process_email, daemon=True)
             thread.start()
-            
+
             # Return immediately to Mailgun
             return jsonify({"status": "received"}), 200
 
@@ -203,13 +212,10 @@ class OAuthCallbackServer:
         The server runs in daemon mode so it won't prevent the
         main program from exiting.
         """
+
         def run_server():
             self.app.run(
-                host=self.host,
-                port=self.port,
-                debug=False,
-                use_reloader=False,
-                threaded=True
+                host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True
             )
 
         self.server_thread = threading.Thread(target=run_server, daemon=True)
@@ -217,9 +223,10 @@ class OAuthCallbackServer:
 
         # Give the server a moment to start
         import time
+
         time.sleep(1)
 
-    def wait_for_code(self, timeout: Optional[float] = 300) -> Optional[str]:
+    def wait_for_code(self, timeout: float | None = 300) -> str | None:
         """
         Wait for the OAuth authorization code to be received.
 
@@ -273,11 +280,12 @@ class OAuthCallbackServer:
             'https://abc123.ngrok-free.app/callback'
         """
         # Strip trailing slash if present
-        base_url = base_url.rstrip('/')
+        base_url = base_url.rstrip("/")
         return f"{base_url}/callback"
 
 
 # OAuth Flow Functions
+
 
 def initiate_oauth_flow(user_email: str) -> dict:
     """
@@ -311,7 +319,9 @@ def initiate_oauth_flow(user_email: str) -> dict:
         logger.info(f"Callback URL: {callback_url}")
 
         nonce = secrets.token_urlsafe(32)
-        auth_url = _build_auth_url(client_id, callback_url, "openid email fspt-r", nonce, state=user_email)
+        auth_url = _build_auth_url(
+            client_id, callback_url, "openid email fspt-r", nonce, state=user_email
+        )
 
         logger.info("Opening browser for authorization...")
         logger.info(f"If browser doesn't open: {auth_url}")
@@ -347,7 +357,9 @@ def initiate_oauth_flow(user_email: str) -> dict:
         server.shutdown()
 
 
-def _build_auth_url(client_id: str, redirect_uri: str, scope: str, nonce: str, state: Optional[str] = None) -> str:
+def _build_auth_url(
+    client_id: str, redirect_uri: str, scope: str, nonce: str, state: str | None = None
+) -> str:
     """Build Yahoo OAuth authorization URL."""
     params = {
         "client_id": client_id,
@@ -355,7 +367,7 @@ def _build_auth_url(client_id: str, redirect_uri: str, scope: str, nonce: str, s
         "response_type": "code",
         "scope": scope,
         "nonce": nonce,
-        "language": "en-us"
+        "language": "en-us",
     }
     if state:
         params["state"] = state
@@ -366,14 +378,14 @@ def _validate_nonce(id_token: str, expected_nonce: str) -> None:
     """Validate nonce in ID token."""
     logger = get_logger(__name__)
 
-    parts = id_token.split('.')
+    parts = id_token.split(".")
     if len(parts) != 3:
         raise RuntimeError("Invalid ID token format")
 
     payload = parts[1]
     padding = 4 - len(payload) % 4
     if padding != 4:
-        payload += '=' * padding
+        payload += "=" * padding
 
     claims = json.loads(base64.urlsafe_b64decode(payload))
     token_nonce = claims.get("nonce")
@@ -384,8 +396,9 @@ def _validate_nonce(id_token: str, expected_nonce: str) -> None:
     logger.debug("Nonce validated")
 
 
-def _exchange_code(auth_code: str, client_id: str, client_secret: str,
-                   redirect_uri: str, nonce: str) -> dict:
+def _exchange_code(
+    auth_code: str, client_id: str, client_secret: str, redirect_uri: str, nonce: str
+) -> dict:
     """Exchange authorization code for tokens."""
     logger = get_logger(__name__)
 
@@ -393,28 +406,21 @@ def _exchange_code(auth_code: str, client_id: str, client_secret: str,
 
     headers = {
         "Authorization": f"Basic {credentials}",
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
     }
 
-    data = {
-        "grant_type": "authorization_code",
-        "code": auth_code,
-        "redirect_uri": redirect_uri
-    }
+    data = {"grant_type": "authorization_code", "code": auth_code, "redirect_uri": redirect_uri}
 
     try:
         response = requests.post(
-            "https://api.login.yahoo.com/oauth2/get_token",
-            headers=headers,
-            data=data,
-            timeout=10
+            "https://api.login.yahoo.com/oauth2/get_token", headers=headers, data=data, timeout=10
         )
-        
+
         # Log response details before raising for better debugging
         if response.status_code != 200:
             logger.error(f"Token exchange failed with status {response.status_code}")
             logger.error(f"Response body: {response.text}")
-        
+
         response.raise_for_status()
         token_response = response.json()
 
@@ -422,7 +428,7 @@ def _exchange_code(auth_code: str, client_id: str, client_secret: str,
             "access_token": token_response["access_token"],
             "refresh_token": token_response["refresh_token"],
             "token_time": datetime.now(),
-            "token_type": token_response.get("token_type", "Bearer")
+            "token_type": token_response.get("token_type", "Bearer"),
         }
 
         if "id_token" in token_response:
@@ -436,7 +442,7 @@ def _exchange_code(auth_code: str, client_id: str, client_secret: str,
         raise RuntimeError(f"Token exchange failed: {e}") from e
 
 
-def _get_yahoo_email(access_token: str) -> Optional[str]:
+def _get_yahoo_email(access_token: str) -> str | None:
     """Fetch Yahoo user email from userinfo endpoint."""
     logger = get_logger(__name__)
 
@@ -444,7 +450,7 @@ def _get_yahoo_email(access_token: str) -> Optional[str]:
         response = requests.get(
             "https://api.login.yahoo.com/openid/v1/userinfo",
             headers={"Authorization": f"Bearer {access_token}"},
-            timeout=10
+            timeout=10,
         )
         response.raise_for_status()
         return response.json().get("email")
@@ -459,22 +465,31 @@ def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
     conn = get_platform_db_connection()
     try:
         # Ensure user exists first (to satisfy foreign key constraint)
-        conn.execute("""
-            INSERT INTO users (email) VALUES (?) 
+        conn.execute(
+            """
+            INSERT INTO users (email) VALUES (?)
             ON CONFLICT (email) DO NOTHING
-        """, (user_email,))
-        
+        """,
+            (user_email,),
+        )
+
         # Now insert/update tokens
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO yahoo_tokens (
                 user_email, yahoo_email, access_token, refresh_token,
                 token_time, token_type, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, (
-            user_email, yahoo_email, token_data["access_token"],
-            token_data["refresh_token"], token_data["token_time"],
-            token_data["token_type"]
-        ))
+        """,
+            (
+                user_email,
+                yahoo_email,
+                token_data["access_token"],
+                token_data["refresh_token"],
+                token_data["token_time"],
+                token_data["token_type"],
+            ),
+        )
         conn.commit()
         logger.debug(f"Saved tokens for user {user_email}")
     except Exception as e:
@@ -487,42 +502,43 @@ def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
 def _notify_onboarding_agent(user_email: str) -> None:
     """
     Notify the OnboardingAgent that OAuth authentication is complete.
-    
+
     This function invokes the OnboardingAgent to continue the onboarding process
     after the user has successfully authenticated with Yahoo.
-    
+
     Args:
         user_email: Email address of the user who just completed OAuth
     """
-    from agent.OnboardingAgent import agent
     from agent.AgentGraph import AgentState
+    from agent.OnboardingAgent import agent
+
     logger = get_logger(__name__)
-    
+
     try:
         logger.info(f"Notifying OnboardingAgent for user {user_email}...")
         config = {"configurable": {"thread_id": user_email}}
-        
+
         # Send a message to the agent indicating OAuth is complete
         state: AgentState = {
             "user_email": user_email,
-            "messages": [{"role": "user", "content": "I've completed the OAuth authentication!"}]
+            "messages": [{"role": "user", "content": "I've completed the OAuth authentication!"}],
         }
-        
+
         response = agent.invoke(state, config=config)
-        
+
         # Log the agent's response
         if response and "messages" in response:
             logger.info("OnboardingAgent response after OAuth:")
             for msg in response["messages"]:
                 if hasattr(msg, "content"):
                     logger.info(msg.content)
-        
+
     except Exception as e:
         logger.error(f"Failed to notify OnboardingAgent: {e}")
         # Don't raise - OAuth was successful, agent notification is secondary
 
 
-def load_tokens_from_db(user_email: str) -> Optional[dict]:
+def load_tokens_from_db(user_email: str) -> dict | None:
     """
     Load OAuth tokens from database.
 
@@ -534,11 +550,14 @@ def load_tokens_from_db(user_email: str) -> Optional[dict]:
     """
     conn = get_platform_db_connection()
     try:
-        result = conn.execute("""
+        result = conn.execute(
+            """
             SELECT access_token, refresh_token, token_time, token_type
             FROM yahoo_tokens
             WHERE user_email = ?
-        """, (user_email,)).fetchone()
+        """,
+            (user_email,),
+        ).fetchone()
 
         if not result:
             return None
@@ -547,13 +566,13 @@ def load_tokens_from_db(user_email: str) -> Optional[dict]:
             "access_token": result[0],
             "refresh_token": result[1],
             "token_time": result[2],
-            "token_type": result[3]
+            "token_type": result[3],
         }
     finally:
         conn.close()
 
 
-def get_oauth_nonce(user_email: str) -> Optional[str]:
+def get_oauth_nonce(user_email: str) -> str | None:
     """
     Retrieve stored OAuth nonce for a user.
 
@@ -565,9 +584,12 @@ def get_oauth_nonce(user_email: str) -> Optional[str]:
     """
     conn = get_platform_db_connection()
     try:
-        result = conn.execute("""
+        result = conn.execute(
+            """
             SELECT nonce FROM oauth_nonces WHERE user_email = ?
-        """, (user_email,)).fetchone()
+        """,
+            (user_email,),
+        ).fetchone()
 
         return result[0] if result else None
     finally:
@@ -583,11 +605,14 @@ def delete_oauth_nonce(user_email: str) -> None:
     """
     conn = get_platform_db_connection()
     try:
-        conn.execute("""
+        conn.execute(
+            """
             DELETE FROM oauth_nonces WHERE user_email = ?
-        """, (user_email,))
+        """,
+            (user_email,),
+        )
         conn.commit()
-    except Exception as e:
+    except Exception:
         conn.rollback()
         raise
     finally:

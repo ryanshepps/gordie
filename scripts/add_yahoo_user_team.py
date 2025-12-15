@@ -1,4 +1,4 @@
-from client.DuckDbClient import get_platform_db_connection
+from client.duck_db_client import get_platform_db_connection
 
 
 def add_yahoo_user_team(league_id: int, team_id: int, user_email: str, team_name: str):
@@ -15,7 +15,7 @@ def add_yahoo_user_team(league_id: int, team_id: int, user_email: str, team_name
 
     conn.execute(
         "INSERT INTO yahoo_user_teams (league_id, team_id, user_email, team_name) VALUES (?, ?, ?, ?)",
-        [league_id, team_id, user_email, team_name]
+        [league_id, team_id, user_email, team_name],
     )
 
     conn.commit()

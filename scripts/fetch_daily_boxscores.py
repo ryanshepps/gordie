@@ -18,7 +18,7 @@ from nhlpy import NHLClient
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from data.schemas import get_db_connection, create_player_stats_table
+from data.schemas import create_player_stats_table, get_db_connection
 from module.logger import get_logger
 
 logger = get_logger(__name__, level=logging.INFO)
@@ -39,11 +39,11 @@ def fetch_boxscore_data(date_str: str) -> list[dict]:
     logger.info(f"Fetching games for {date_str}")
     schedule = client.schedule.daily_schedule(date_str)
 
-    if not schedule or 'games' not in schedule:
+    if not schedule or "games" not in schedule:
         logger.warning(f"No games found for {date_str}")
         return []
 
-    games = schedule['games']
+    games = schedule["games"]
 
     if not games:
         logger.warning(f"No games found for {date_str}")
@@ -54,32 +54,32 @@ def fetch_boxscore_data(date_str: str) -> list[dict]:
     all_player_stats = []
 
     for game in games:
-        game_id = game['id']
+        game_id = game["id"]
         logger.info(f"Fetching boxscore for game {game_id}")
 
         try:
             boxscore = client.game_center.boxscore(game_id)
 
-            if not boxscore or 'playerByGameStats' not in boxscore:
+            if not boxscore or "playerByGameStats" not in boxscore:
                 logger.warning(f"No boxscore data for game {game_id}")
                 continue
 
-            player_stats = boxscore['playerByGameStats']
+            player_stats = boxscore["playerByGameStats"]
 
             # Process away team players
-            if 'awayTeam' in player_stats:
-                for position in ['forwards', 'defense']:
-                    if position in player_stats['awayTeam']:
-                        for player in player_stats['awayTeam'][position]:
+            if "awayTeam" in player_stats:
+                for position in ["forwards", "defense"]:
+                    if position in player_stats["awayTeam"]:
+                        for player in player_stats["awayTeam"][position]:
                             player_dict = extract_player_stats(player, game_id, date_str)
                             if player_dict:
                                 all_player_stats.append(player_dict)
 
             # Process home team players
-            if 'homeTeam' in player_stats:
-                for position in ['forwards', 'defense']:
-                    if position in player_stats['homeTeam']:
-                        for player in player_stats['homeTeam'][position]:
+            if "homeTeam" in player_stats:
+                for position in ["forwards", "defense"]:
+                    if position in player_stats["homeTeam"]:
+                        for player in player_stats["homeTeam"][position]:
                             player_dict = extract_player_stats(player, game_id, date_str)
                             if player_dict:
                                 all_player_stats.append(player_dict)
@@ -106,23 +106,23 @@ def extract_player_stats(player: dict, game_id: int, game_date: str) -> dict | N
     """
     try:
         return {
-            'nhl_api_player_id': player.get('playerId'),
-            'nhl_api_game_id': game_id,
-            'game_date': game_date,
-            'goals': player.get('goals', 0),
-            'assists': player.get('assists', 0),
-            'points': player.get('points', 0),
-            'plus_minus': player.get('plusMinus', 0),
-            'pim': player.get('pim', 0),
-            'hits': player.get('hits', 0),
-            'power_play_goals': player.get('powerPlayGoals', 0),
-            'sog': player.get('sog', 0),
-            'faceoff_winning_pctg': player.get('faceoffWinningPctg', 0.0),
-            'toi': player.get('toi', '00:00'),
-            'blocked_shots': player.get('blockedShots', 0),
-            'shifts': player.get('shifts', 0),
-            'giveaways': player.get('giveaways', 0),
-            'takeaways': player.get('takeaways', 0)
+            "nhl_api_player_id": player.get("playerId"),
+            "nhl_api_game_id": game_id,
+            "game_date": game_date,
+            "goals": player.get("goals", 0),
+            "assists": player.get("assists", 0),
+            "points": player.get("points", 0),
+            "plus_minus": player.get("plusMinus", 0),
+            "pim": player.get("pim", 0),
+            "hits": player.get("hits", 0),
+            "power_play_goals": player.get("powerPlayGoals", 0),
+            "sog": player.get("sog", 0),
+            "faceoff_winning_pctg": player.get("faceoffWinningPctg", 0.0),
+            "toi": player.get("toi", "00:00"),
+            "blocked_shots": player.get("blockedShots", 0),
+            "shifts": player.get("shifts", 0),
+            "giveaways": player.get("giveaways", 0),
+            "takeaways": player.get("takeaways", 0),
         }
     except (KeyError, TypeError) as e:
         logger.warning(f"Error extracting stats for player: {e}")
@@ -180,18 +180,10 @@ def insert_player_stats(conn, player_stats: list[dict]) -> None:
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
-        description='Fetch NHL box scores for a date and insert into DuckDB'
+        description="Fetch NHL box scores for a date and insert into DuckDB"
     )
-    parser.add_argument(
-        'date',
-        type=str,
-        help='Date in YYYY-MM-DD format (e.g., 2025-12-06)'
-    )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Enable verbose logging'
-    )
+    parser.add_argument("date", type=str, help="Date in YYYY-MM-DD format (e.g., 2025-12-06)")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
 
@@ -200,7 +192,7 @@ def main():
 
     # Validate date format
     try:
-        datetime.strptime(args.date, '%Y-%m-%d')
+        datetime.strptime(args.date, "%Y-%m-%d")
     except ValueError:
         logger.error(f"Invalid date format: {args.date}. Use YYYY-MM-DD")
         sys.exit(1)

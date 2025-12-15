@@ -1,7 +1,9 @@
-import duckdb
 import logging
+
+import duckdb
+
+from client.duck_db_client import get_nhl_stats_db_connection, get_platform_db_connection
 from module.logger import get_logger
-from client.DuckDbClient import get_nhl_stats_db_connection, get_platform_db_connection
 
 logger = get_logger(__name__, level=logging.DEBUG)
 

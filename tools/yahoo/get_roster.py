@@ -1,10 +1,11 @@
 """Tool to get your current fantasy hockey roster."""
 
 import sys
-from langchain.tools import tool
-from client.AuthenticatedYahooClient import AuthenticatedYahooClient
-from module.logger import get_logger
 
+from langchain.tools import tool
+
+from client.authenticated_yahoo_client import AuthenticatedYahooClient
+from module.logger import get_logger
 
 logger = get_logger(__name__)
 

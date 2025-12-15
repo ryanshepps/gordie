@@ -1,8 +1,9 @@
 import argparse
-from agent.AgentGraph import agent, AgentState
-from module.logger import get_logger
+
 from langchain_core.runnables import RunnableConfig
 
+from agent.AgentGraph import AgentState, agent
+from module.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -29,12 +30,12 @@ user, and you want to be useful for the user.
 def message_agent(email: str, message: str, team_context: str | None = None) -> str:
     """
     Send a message to the agent graph and continue the conversation.
-    
+
     Args:
         email: User's email address (used as thread_id)
         message: Message content to send to the agent
         team_context: Optional team context in format app:game_key:league_id:team_id
-    
+
     Returns:
         Agent's response as a string, or empty string if error occurs
     """
@@ -60,7 +61,7 @@ def message_agent(email: str, message: str, team_context: str | None = None) -> 
             "team_id": None,
             "team_inference": None,
             "response": None,
-            "persona": gordie_persona  # Default persona
+            "persona": gordie_persona,  # Default persona
         }
 
         # Send message to agent graph
@@ -80,7 +81,7 @@ def message_agent(email: str, message: str, team_context: str | None = None) -> 
             response_parts = []
             # The initial_state contains 1 user message
             # So we want messages AFTER the first one (index 0)
-            new_messages = response["messages"][len(initial_state["messages"]):]
+            new_messages = response["messages"][len(initial_state["messages"]) :]
             for msg in new_messages:
                 # Only include assistant/AI messages, not user messages
                 if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
@@ -99,7 +100,12 @@ def main():
     parser = argparse.ArgumentParser(description="Send a message to the onboarding agent")
     parser.add_argument("email", type=str, help="User's email address (thread ID)")
     parser.add_argument("message", type=str, help="Message to send to the agent")
-    parser.add_argument("--team-context", type=str, help="Optional team context in format app:game_key:league_id:team_id", default=None)
+    parser.add_argument(
+        "--team-context",
+        type=str,
+        help="Optional team context in format app:game_key:league_id:team_id",
+        default=None,
+    )
 
     args = parser.parse_args()
     try:

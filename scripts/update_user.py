@@ -1,4 +1,5 @@
-from client.DuckDbClient import get_platform_db_connection
+from client.duck_db_client import get_platform_db_connection
+
 
 def update_user(email):
     """

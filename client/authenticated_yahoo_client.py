@@ -11,10 +11,12 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+
 from dotenv import load_dotenv
 from yfpy.query import YahooFantasySportsQuery
+
+from client.duck_db_client import get_platform_db_connection
 from module.logger import get_logger
-from client.DuckDbClient import get_platform_db_connection
 
 load_dotenv()
 logger = get_logger(__name__)
@@ -48,10 +50,12 @@ class AuthenticatedYahooClient:
 
         # Validate required credentials (league_id is now optional)
         missing = [
-            name for name, value in [
+            name
+            for name, value in [
                 ("YAHOO_CLIENT_ID", self.consumer_key),
                 ("YAHOO_CLIENT_SECRET", self.consumer_secret),
-            ] if not value
+            ]
+            if not value
         ]
         if missing:
             raise ValueError(f"Missing required credentials: {', '.join(missing)}")
@@ -74,11 +78,14 @@ class AuthenticatedYahooClient:
         """
         conn = get_platform_db_connection()
         try:
-            result = conn.execute("""
+            result = conn.execute(
+                """
                 SELECT access_token, refresh_token, token_time, token_type
                 FROM yahoo_tokens
                 WHERE user_email = ?
-            """, [user_email]).fetchone()
+            """,
+                [user_email],
+            ).fetchone()
 
             if not result:
                 raise ValueError(
@@ -89,7 +96,9 @@ class AuthenticatedYahooClient:
             access_token, refresh_token, token_time, token_type = result
 
             # Convert timestamp to Unix epoch float
-            token_time_float = token_time.timestamp() if hasattr(token_time, 'timestamp') else float(token_time)
+            token_time_float = (
+                token_time.timestamp() if hasattr(token_time, "timestamp") else float(token_time)
+            )
 
             token_data = {
                 "access_token": access_token,
@@ -137,7 +146,9 @@ class AuthenticatedYahooClient:
                 if token_data.get("token_time"):
                     token_age_hours = (datetime.now().timestamp() - token_data["token_time"]) / 3600
                     if token_age_hours > 1:
-                        logger.warning(f"Access token expired ({token_age_hours:.1f}h old, will auto-refresh)")
+                        logger.warning(
+                            f"Access token expired ({token_age_hours:.1f}h old, will auto-refresh)"
+                        )
 
                 return self._create_query_with_token(token_data)
             except json.JSONDecodeError as e:
@@ -147,7 +158,9 @@ class AuthenticatedYahooClient:
                 ) from e
 
         # No token found - requires interactive authentication
-        logger.warning("No token data found - starting OAuth flow (requires interactive authentication)")
+        logger.warning(
+            "No token data found - starting OAuth flow (requires interactive authentication)"
+        )
 
         # Use a dummy league_id if none provided (needed for user league queries)
         query_league_id = self.league_id or 0

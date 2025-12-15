@@ -1,10 +1,10 @@
 import argparse
+
 from agent.AgentGraph import AgentState
-from scripts.add_user import add_user
-from scripts.get_user import get_user
 from agent.OnboardingAgent import agent
 from module.logger import get_logger
-
+from scripts.add_user import add_user
+from scripts.get_user import get_user
 
 logger = get_logger(__name__)
 
@@ -28,7 +28,7 @@ def onboard_user(email: str):
         # Start the agent conversation
         initial_state: AgentState = {
             "user_email": email,
-            "messages": [{"role": "user", "content": f"Hello! My email is {email}"}]
+            "messages": [{"role": "user", "content": f"Hello! My email is {email}"}],
         }
 
         response = agent.invoke(initial_state, config=config)
@@ -54,7 +54,6 @@ def main():
     except Exception as e:
         logger.error(f"\n✗ Failed to onboard user: {e}")
         raise
-
 
 
 if __name__ == "__main__":
