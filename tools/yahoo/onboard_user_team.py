@@ -4,12 +4,12 @@ import json
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
-from server.email_service import EmailService
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
+from data.yahoo_league_repository import YahooLeagueRepository
+from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
-from scripts.add_yahoo_league import add_yahoo_league
-from scripts.add_yahoo_user_team import add_yahoo_user_team
+from server.email_service import EmailService
 
 logger = get_logger(__name__)
 
@@ -66,8 +66,9 @@ def onboard_user_team(
             if hasattr(league_settings, "to_json")
             else str(league_settings)
         )
-        add_yahoo_league(
-            league_id=league_id,
+        league_repo = YahooLeagueRepository()
+        league_repo.add_league(
+            league_id=str(league_id),
             game_key=game_key,
             league_name=league_name,
             league_type=league_type,
@@ -75,12 +76,18 @@ def onboard_user_team(
             if isinstance(settings_dict, str)
             else json.dumps(settings_dict),
         )
+        league_repo.close()
         logger.info(f"Saved league {league_name} ({league_id})")
 
         # Save user team to database
-        add_yahoo_user_team(
-            league_id=league_id, team_id=team_id, user_email=user_email, team_name=team_name
+        team_repo = YahooUserTeamRepository()
+        team_repo.add_team(
+            league_id=str(league_id),
+            team_id=str(team_id),
+            user_email=user_email,
+            team_name=team_name,
         )
+        team_repo.close()
         logger.info(f"Saved team {team_name} for user {user_email}")
 
         # Send confirmation email

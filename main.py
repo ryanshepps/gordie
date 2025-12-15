@@ -1,7 +1,7 @@
 from datetime import datetime
 
+from data.user_repository import UserRepository
 from module.logger import get_logger
-from scripts.add_user import add_user
 from server.oauth_callback_server import initiate_oauth_flow
 
 logger = get_logger(__name__)
@@ -10,7 +10,9 @@ logger = get_logger(__name__)
 def main():
     # Create a random user email with date appended
     email = f"user_{datetime.now().strftime('%Y%m%d%H%M%S')}@example.com"
-    add_user(email)
+    user_repo = UserRepository()
+    user_repo.add_user(email)
+    user_repo.close()
 
     # Run OAuth flow for the user
     try:

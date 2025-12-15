@@ -2,23 +2,25 @@ import argparse
 
 from agent.AgentGraph import AgentState
 from agent.OnboardingAgent import agent
+from data.user_repository import UserRepository
 from module.logger import get_logger
-from scripts.add_user import add_user
-from scripts.get_user import get_user
 
 logger = get_logger(__name__)
 
 
 def onboard_user(email: str):
     """Onboard a new user by starting the OnboardingAgent conversation."""
-    if not get_user(email):
+    user_repo = UserRepository()
+    if not user_repo.get_user(email):
         logger.info(f"User {email} not found. Creating new user...")
         try:
-            add_user(email)
+            user_repo.add_user(email)
             logger.info(f"✓ User {email} created")
         except Exception as e:
+            user_repo.close()
             logger.error(f"\n✗ Failed to create new user: {e}")
             raise
+    user_repo.close()
 
     # Invoke OnboardingAgent - it will handle OAuth flow and team selection
     try:
