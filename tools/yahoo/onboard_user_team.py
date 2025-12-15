@@ -4,6 +4,7 @@ from langchain.tools import tool
 from scripts.add_yahoo_league import add_yahoo_league
 from scripts.add_yahoo_user_team import add_yahoo_user_team
 from client.AuthenticatedYahooClient import AuthenticatedYahooClient
+from server.EmailService import EmailService
 from module.logger import get_logger
 from pydantic import BaseModel, Field
 import json
@@ -63,6 +64,26 @@ def onboard_user_team(user_email: str, game_key: str, league_id: int, team_name:
             team_name=team_name
         )
         logger.info(f"Saved team {team_name} for user {user_email}")
+
+        # Send confirmation email
+        try:
+            email_service = EmailService()
+            email_service.send_email(
+                to_email=user_email,
+                subject="Welcome to Gordie AI - Your Team is Ready!",
+                text_body=f"""Hi there!
+
+Your team '{team_name}' in league '{league_name}' has been successfully onboarded to Gordie AI.
+
+You can now start messaging me about your fantasy team!
+
+- Gordie
+"""
+            )
+            logger.info(f"Sent onboarding confirmation email to {user_email}")
+        except Exception as e:
+            logger.error(f"Failed to send onboarding email to {user_email}: {e}")
+            # Don't fail the onboarding if email fails
 
         return f"Successfully saved your team '{team_name}' in league '{league_name}'! You're all set up and ready to roll."
 

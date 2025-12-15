@@ -16,8 +16,13 @@ load_dotenv()
 logger = get_logger(__name__)
 
 
-def handle_oauth_callback(server: OAuthCallbackServer):
-    """Process OAuth callback when received."""
+def handle_oauth_callback(server: OAuthCallbackServer) -> bool:
+    """
+    Process OAuth callback when received.
+    
+    Returns:
+        True if callback was processed successfully, False otherwise
+    """
     logger.info("Waiting for OAuth callback...")
     
     try:
@@ -26,12 +31,12 @@ def handle_oauth_callback(server: OAuthCallbackServer):
         
         if not auth_code:
             logger.error("Failed to receive auth code")
-            return
+            return False
         
         user_email = server.user_email
         if not user_email:
             logger.error("No user email received in callback")
-            return
+            return False
         
         logger.info(f"✓ Authorization code received for user: {user_email}")
         
@@ -39,7 +44,7 @@ def handle_oauth_callback(server: OAuthCallbackServer):
         nonce = get_oauth_nonce(user_email)
         if not nonce:
             logger.error(f"No stored nonce found for user: {user_email}")
-            return
+            return False
         
         # Exchange code for tokens
         client_id = os.getenv("YAHOO_CLIENT_ID")
@@ -54,7 +59,7 @@ def handle_oauth_callback(server: OAuthCallbackServer):
         yahoo_email = _get_yahoo_email(token_data["access_token"])
         if not yahoo_email:
             logger.error("Could not retrieve Yahoo email")
-            return
+            return False
         
         logger.info(f"✓ Yahoo email: {yahoo_email}")
         token_data["yahoo_email"] = yahoo_email
@@ -73,10 +78,15 @@ def handle_oauth_callback(server: OAuthCallbackServer):
         # Reset for next callback
         server.shutdown()
         
+        return True
+        
     except Exception as e:
         logger.error(f"Error processing OAuth callback: {e}")
         import traceback
         traceback.print_exc()
+        # Reset the server state even on error to be ready for next attempt
+        server.shutdown()
+        return False
 
 
 def main():
@@ -94,7 +104,15 @@ def main():
         
         # Keep the server running and process callbacks
         while True:
-            handle_oauth_callback(server)
+            success = handle_oauth_callback(server)
+            
+            # Only continue to next callback if configured for multi-user mode
+            # For now, we continue to accept new callbacks for different users
+            if success:
+                logger.info("Ready to accept another OAuth callback...")
+            else:
+                logger.warning("Previous callback failed, ready to retry...")
+            
             time.sleep(1)  # Brief pause before accepting next callback
             
     except KeyboardInterrupt:

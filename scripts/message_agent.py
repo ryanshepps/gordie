@@ -26,9 +26,18 @@ user, and you want to be useful for the user.
 """
 
 
-def message_agent(email: str, message: str, team_context: str | None = None):
-    """Send a message to the agent graph and continue the conversation."""
-
+def message_agent(email: str, message: str, team_context: str | None = None) -> str:
+    """
+    Send a message to the agent graph and continue the conversation.
+    
+    Args:
+        email: User's email address (used as thread_id)
+        message: Message content to send to the agent
+        team_context: Optional team context in format app:game_key:league_id:team_id
+    
+    Returns:
+        Agent's response as a string, or empty string if error occurs
+    """
 
     try:
         config: RunnableConfig = {"configurable": {"thread_id": email}}
@@ -59,18 +68,31 @@ def message_agent(email: str, message: str, team_context: str | None = None):
 
         logger.info("\nGordie's Response:\n")
 
+        # Extract response text
+        response_text = ""
+
         # Check for direct response first (from clarification node)
         if response and response.get("response"):
-            logger.info(response["response"])
-        # Otherwise check messages
+            response_text = response["response"]
+            logger.info(response_text)
+        # Otherwise check messages - only extract NEW agent messages (not entire history)
         elif response and "messages" in response:
-            for msg in response["messages"]:
-                if hasattr(msg, "content"):
+            response_parts = []
+            # The initial_state contains 1 user message
+            # So we want messages AFTER the first one (index 0)
+            new_messages = response["messages"][len(initial_state["messages"]):]
+            for msg in new_messages:
+                # Only include assistant/AI messages, not user messages
+                if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
+                    response_parts.append(msg.content)
                     logger.info(msg.content)
+            response_text = "\n".join(response_parts)
+
+        return response_text.strip()
 
     except Exception as e:
         logger.error(f"\n✗ Failed to send message to agent: {e}")
-        raise
+        return ""
 
 
 def main():

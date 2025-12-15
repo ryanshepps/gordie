@@ -92,6 +92,18 @@ class OAuthCallbackServer:
                 """, 400
 
             if code:
+                # Prevent duplicate callbacks (browser double-requests, refreshes, etc.)
+                if self.auth_code == code:
+                    logger.warning("Duplicate callback detected, ignoring")
+                    return """
+                    <html>
+                        <body>
+                            <h1>Authentication Successful!</h1>
+                            <p>You can close this window and return to your conversation.</p>
+                        </body>
+                    </html>
+                    """
+                
                 self.auth_code = code
                 self.user_email = user_email
                 self.code_received.set()
@@ -117,6 +129,72 @@ class OAuthCallbackServer:
         def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
+
+        @self.app.route('/email/webhook', methods=['POST'])
+        def email_webhook():
+            """Handle incoming emails from Mailgun webhook."""
+            from module.logger import get_logger
+            logger = get_logger(__name__)
+            
+            # Extract webhook data
+            sender_email = request.form.get('sender')
+            subject = request.form.get('subject', '')
+            message_body = request.form.get('stripped-text') or request.form.get('body-plain', '')
+            timestamp = request.form.get('timestamp')
+            token = request.form.get('token')
+            signature = request.form.get('signature')
+            
+            # Validate required fields
+            if not all([sender_email, timestamp, token, signature]):
+                logger.error("Missing required webhook fields")
+                return jsonify({"error": "Missing required fields"}), 400
+            
+            # Verify signature and timestamp
+            from server.WebhookVerification import verify_mailgun_webhook, is_timestamp_fresh
+            
+            if not is_timestamp_fresh(timestamp):
+                logger.error(f"Webhook timestamp too old: {timestamp}")
+                return jsonify({"error": "Timestamp too old"}), 403
+            
+            if not verify_mailgun_webhook(token, timestamp, signature):
+                logger.error(f"Invalid webhook signature from {sender_email}")
+                return jsonify({"error": "Invalid signature"}), 403
+            
+            logger.info(f"Received email from {sender_email}: {subject}")
+            
+            # Process in background thread
+            def process_email():
+                try:
+                    from scripts.message_agent import message_agent
+                    from server.EmailService import EmailService
+                    
+                    # Process through agent
+                    logger.info(f"Processing email from {sender_email}")
+                    response = message_agent(email=sender_email, message=message_body)
+                    
+                    # Send response email
+                    if response:
+                        email_service = EmailService()
+                        success = email_service.send_email(
+                            to_email=sender_email,
+                            subject=f"Re: {subject}" if subject else "Fantasy Agent Response",
+                            text_body=response
+                        )
+                        
+                        if success:
+                            logger.info(f"Response sent to {sender_email}")
+                        else:
+                            logger.error(f"Failed to send response to {sender_email}")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing email from {sender_email}: {e}", exc_info=True)
+            
+            # Start background thread
+            thread = threading.Thread(target=process_email, daemon=True)
+            thread.start()
+            
+            # Return immediately to Mailgun
+            return jsonify({"status": "received"}), 200
 
     def start(self):
         """
@@ -176,6 +254,7 @@ class OAuthCallbackServer:
         # Reset state
         self.auth_code = None
         self.auth_error = None
+        self.user_email = None
         self.code_received.clear()
 
     def get_callback_url(self, base_url: str) -> str:
@@ -330,6 +409,12 @@ def _exchange_code(auth_code: str, client_id: str, client_secret: str,
             data=data,
             timeout=10
         )
+        
+        # Log response details before raising for better debugging
+        if response.status_code != 200:
+            logger.error(f"Token exchange failed with status {response.status_code}")
+            logger.error(f"Response body: {response.text}")
+        
         response.raise_for_status()
         token_response = response.json()
 
@@ -370,8 +455,16 @@ def _get_yahoo_email(access_token: str) -> Optional[str]:
 
 def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
     """Save OAuth tokens to database."""
+    logger = get_logger(__name__)
     conn = get_platform_db_connection()
     try:
+        # Ensure user exists first (to satisfy foreign key constraint)
+        conn.execute("""
+            INSERT INTO users (email) VALUES (?) 
+            ON CONFLICT (email) DO NOTHING
+        """, (user_email,))
+        
+        # Now insert/update tokens
         conn.execute("""
             INSERT OR REPLACE INTO yahoo_tokens (
                 user_email, yahoo_email, access_token, refresh_token,
@@ -383,6 +476,7 @@ def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
             token_data["token_type"]
         ))
         conn.commit()
+        logger.debug(f"Saved tokens for user {user_email}")
     except Exception as e:
         conn.rollback()
         raise RuntimeError(f"Failed to save tokens: {e}") from e
