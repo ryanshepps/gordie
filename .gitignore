@@ -1,5 +1,8 @@
 data/nhl_stats.db
 data/platform.db
+data/agent_conversations.db
+**.db-shm
+**.db-wal
 
 **/__pycache__/
 
