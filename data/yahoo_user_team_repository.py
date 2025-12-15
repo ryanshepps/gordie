@@ -1,5 +1,6 @@
 """Repository class for Yahoo user team records."""
 
+from typing import Any
 
 import duckdb
 
@@ -38,7 +39,7 @@ class YahooUserTeamRepository(Repository):
             team_name=team_name,
         )
 
-    def get_user_teams(self, user_email: str) -> list[tuple]:
+    def get_user_teams(self, user_email: str) -> list[tuple[Any, ...]]:
         """Get all teams for a user.
 
         Args:
@@ -49,7 +50,7 @@ class YahooUserTeamRepository(Repository):
         """
         return self.get_all(user_email=user_email)
 
-    def get_team(self, league_id: str, team_id: str) -> tuple | None:
+    def get_team(self, league_id: str, team_id: str) -> tuple[Any, ...] | None:
         """Get a specific team.
 
         Args:

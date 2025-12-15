@@ -88,3 +88,21 @@ known-first-party = ["fantasy_hockey_agent", "fantasy_tools", "modules", "tools"
 
 [tool.setuptools.packages.find]
 include = ["tools*", "module*", "client*", "server*"]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.36.1",
+]
+
+[tool.basedpyright]
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+    "data_test_examples",
+]

@@ -1,5 +1,6 @@
 """Generic repository base class for database operations."""
 
+from typing import Any
 
 import duckdb
 
@@ -35,7 +36,7 @@ class Repository:
         )
         self.conn.commit()
 
-    def get_by(self, **filters) -> tuple | None:
+    def get_by(self, **filters: Any) -> tuple[Any, ...] | None:
         """Get a single record by filter conditions.
 
         Args:
@@ -55,7 +56,7 @@ class Repository:
         ).fetchone()
         return result
 
-    def get_all(self, **filters) -> list[tuple]:
+    def get_all(self, **filters: Any) -> list[tuple[Any, ...]]:
         """Get all records matching filter conditions.
 
         Args:
@@ -76,7 +77,7 @@ class Repository:
             ).fetchall()
         return self.conn.execute(f"SELECT * FROM {self.table_name}").fetchall()
 
-    def update(self, filters: dict, **updates) -> None:
+    def update(self, filters: dict[str, Any], **updates: Any) -> None:
         """Update records matching filters.
 
         Args:

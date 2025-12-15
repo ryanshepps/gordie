@@ -1,8 +1,9 @@
 """Controller agent that routes to appropriate sub-agents based on context."""
 
 import logging
+from typing import cast
 
-from agent.AgentGraph import AgentState, build_context, get_user_teams
+from agent.agent_state import AgentState, build_context, get_user_teams
 
 logger = logging.getLogger(__name__)
 
@@ -58,15 +59,15 @@ def controller_node(state: AgentState) -> AgentState:
         if context.get("needs_clarification"):
             # Need to ask user for clarification
             state["needs_clarification"] = True
-            state["response"] = context.get("clarification_message")
+            state["response"] = cast(str | None, context.get("clarification_message"))
             logger.info("Clarification needed - asking user to specify team")
         else:
             # Context successfully built/inferred
-            state["game_key"] = context.get("game_key")
-            state["league_id"] = context.get("league_id")
-            state["team_id"] = context.get("team_id")
+            state["game_key"] = cast(str | None, context.get("game_key"))
+            state["league_id"] = cast(str | None, context.get("league_id"))
+            state["team_id"] = cast(str | None, context.get("team_id"))
             state["needs_clarification"] = False
-            state["team_inference"] = context.get("team_inference")
+            state["team_inference"] = cast(dict[str, str] | None, context.get("team_inference"))
 
             if state["team_inference"]:
                 logger.info(f"Inferred team: {state['team_inference']}")

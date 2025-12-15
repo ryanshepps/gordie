@@ -14,7 +14,7 @@ import secrets
 import threading
 import webbrowser
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlencode
 
 import requests
@@ -158,6 +158,12 @@ class OAuthCallbackServer:
                 logger.error("Missing required webhook fields")
                 return jsonify({"error": "Missing required fields"}), 400
 
+            # Type assertions - we've validated these are not None above
+            assert sender_email is not None
+            assert timestamp is not None
+            assert token is not None
+            assert signature is not None
+
             # Verify signature and timestamp
             from server.webhook_verification import is_timestamp_fresh, verify_mailgun_webhook
 
@@ -287,7 +293,7 @@ class OAuthCallbackServer:
 # OAuth Flow Functions
 
 
-def initiate_oauth_flow(user_email: str) -> dict:
+def initiate_oauth_flow(user_email: str) -> dict[str, Any]:
     """
     Complete OAuth flow: start server, authorize, exchange tokens, save to DB.
 
@@ -398,7 +404,7 @@ def _validate_nonce(id_token: str, expected_nonce: str) -> None:
 
 def _exchange_code(
     auth_code: str, client_id: str, client_secret: str, redirect_uri: str, nonce: str
-) -> dict:
+) -> dict[str, Any]:
     """Exchange authorization code for tokens."""
     logger = get_logger(__name__)
 
@@ -459,13 +465,13 @@ def _get_yahoo_email(access_token: str) -> str | None:
         return None
 
 
-def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
+def _save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, Any]) -> None:
     """Save OAuth tokens to database."""
     logger = get_logger(__name__)
     conn = get_platform_db_connection()
     try:
         # Ensure user exists first (to satisfy foreign key constraint)
-        conn.execute(
+        _ = conn.execute(
             """
             INSERT INTO users (email) VALUES (?)
             ON CONFLICT (email) DO NOTHING
@@ -474,7 +480,7 @@ def _save_tokens(user_email: str, yahoo_email: str, token_data: dict) -> None:
         )
 
         # Now insert/update tokens
-        conn.execute(
+        _ = conn.execute(
             """
             INSERT OR REPLACE INTO yahoo_tokens (
                 user_email, yahoo_email, access_token, refresh_token,
@@ -515,16 +521,28 @@ def _notify_onboarding_agent(user_email: str) -> None:
     logger = get_logger(__name__)
 
     try:
+        from langchain_core.runnables import RunnableConfig
+
         logger.info(f"Notifying OnboardingAgent for user {user_email}...")
-        config = {"configurable": {"thread_id": user_email}}
+        config: RunnableConfig = {"configurable": {"thread_id": user_email}}
 
         # Send a message to the agent indicating OAuth is complete
-        state: AgentState = {
+        initial_state: AgentState = {
+            "persona": "Gordie",
             "user_email": user_email,
+            "game_key": None,
+            "league_id": None,
+            "team_id": None,
+            "thread_id": user_email,
             "messages": [{"role": "user", "content": "I've completed the OAuth authentication!"}],
+            "has_teams": False,
+            "user_teams": [],
+            "team_inference": None,
+            "needs_clarification": False,
+            "response": None,
         }
 
-        response = agent.invoke(state, config=config)
+        response = agent.invoke(initial_state, config=config)
 
         # Log the agent's response
         if response and "messages" in response:
@@ -538,7 +556,7 @@ def _notify_onboarding_agent(user_email: str) -> None:
         # Don't raise - OAuth was successful, agent notification is secondary
 
 
-def load_tokens_from_db(user_email: str) -> dict | None:
+def load_tokens_from_db(user_email: str) -> dict[str, Any] | None:
     """
     Load OAuth tokens from database.
 
@@ -605,13 +623,13 @@ def delete_oauth_nonce(user_email: str) -> None:
     """
     conn = get_platform_db_connection()
     try:
-        conn.execute(
+        _ = conn.execute(
             """
             DELETE FROM oauth_nonces WHERE user_email = ?
         """,
             (user_email,),
         )
-        conn.commit()
+        _ = conn.commit()
     except Exception:
         conn.rollback()
         raise

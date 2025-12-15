@@ -1,5 +1,6 @@
 """Repository class for user records."""
 
+from typing import Any
 
 import duckdb
 
@@ -28,7 +29,7 @@ class UserRepository(Repository):
         """
         self.insert(email=email)
 
-    def get_user(self, email: str) -> tuple | None:
+    def get_user(self, email: str) -> tuple[Any, ...] | None:
         """Get a user by email.
 
         Args:

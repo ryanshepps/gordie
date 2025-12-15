@@ -55,6 +55,11 @@ def handle_oauth_callback(server: OAuthCallbackServer) -> bool:
         # Exchange code for tokens
         client_id = os.getenv("YAHOO_CLIENT_ID")
         client_secret = os.getenv("YAHOO_CLIENT_SECRET")
+
+        if not client_id or not client_secret:
+            logger.error("YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET must be set")
+            return False
+
         oauth_base_url = os.getenv("OAUTH_BASE_URL", "http://localhost:8000")
         callback_url = server.get_callback_url(oauth_base_url)
 

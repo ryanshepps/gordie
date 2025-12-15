@@ -1,5 +1,6 @@
 """Repository class for Yahoo league records."""
 
+from typing import Any
 
 import duckdb
 
@@ -45,7 +46,7 @@ class YahooLeagueRepository(Repository):
             league_settings=league_settings,
         )
 
-    def get_league(self, league_id: str) -> tuple | None:
+    def get_league(self, league_id: str) -> tuple[Any, ...] | None:
         """Get a league by ID.
 
         Args:

@@ -175,7 +175,7 @@ class AuthenticatedYahooClient:
             save_token_data_to_env_file=True,
         )
 
-    def _create_query_with_token(self, token_data: dict) -> YahooFantasySportsQuery:
+    def _create_query_with_token(self, token_data: dict[str, str]) -> YahooFantasySportsQuery:
         """
         Create YahooFantasySportsQuery with existing token data.
 
@@ -250,7 +250,7 @@ class AuthenticatedYahooClient:
         return json_str
 
     @staticmethod
-    def check_token_health() -> dict:
+    def check_token_health() -> dict[str, str | bool | float]:
         """
         Check the health of current OAuth tokens.
 

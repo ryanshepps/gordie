@@ -1,5 +1,6 @@
 """Repository class for Yahoo OAuth token records."""
 
+from typing import Any
 
 import duckdb
 
@@ -49,7 +50,7 @@ class YahooTokenRepository(Repository):
             token_type=token_type,
         )
 
-    def get_token(self, user_email: str) -> tuple | None:
+    def get_token(self, user_email: str) -> tuple[Any, ...] | None:
         """Get OAuth tokens for a user.
 
         Args:

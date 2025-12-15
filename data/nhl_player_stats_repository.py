@@ -1,5 +1,6 @@
 """Repository class for NHL player statistics."""
 
+from typing import Any
 
 import duckdb
 
@@ -44,7 +45,7 @@ class NHLPlayerStatsRepository(Repository):
 
     def get_player_stats(
         self, nhl_api_player_id: int, nhl_api_game_id: int
-    ) -> tuple | None:
+    ) -> tuple[Any, ...] | None:
         """Get stats for a specific player in a specific game.
 
         Args:
@@ -58,7 +59,7 @@ class NHLPlayerStatsRepository(Repository):
             nhl_api_player_id=nhl_api_player_id, nhl_api_game_id=nhl_api_game_id
         )
 
-    def get_player_games(self, nhl_api_player_id: int) -> list[tuple]:
+    def get_player_games(self, nhl_api_player_id: int) -> list[tuple[Any, ...]]:
         """Get all game stats for a player.
 
         Args:

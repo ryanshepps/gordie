@@ -43,7 +43,7 @@ class EmailService:
         html_body: str | None = None,
         track_opens: bool = True,
         track_clicks: bool = True,
-        custom_data: dict | None = None,
+        custom_data: dict[str, str] | None = None,
     ) -> bool:
         """
         Send email via Mailgun API.
@@ -80,6 +80,11 @@ class EmailService:
             if custom_data:
                 for key, value in custom_data.items():
                     data[f"v:{key}"] = str(value)
+
+            # Validate api_key before making request
+            if not self.api_key:
+                logger.error("MAILGUN_API_KEY is not set")
+                return False
 
             response = requests.post(url, auth=("api", self.api_key), data=data, timeout=10)
 

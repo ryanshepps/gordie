@@ -1,7 +1,9 @@
 import argparse
 
-from agent.AgentGraph import AgentState
-from agent.OnboardingAgent import agent
+from langchain_core.runnables import RunnableConfig
+
+from agent.agent_state import AgentState
+from agent.AgentGraph import agent
 from data.user_repository import UserRepository
 from module.logger import get_logger
 
@@ -25,14 +27,24 @@ def onboard_user(email: str):
     # Invoke OnboardingAgent - it will handle OAuth flow and team selection
     try:
         logger.info(f"\n✓ Starting onboarding agent for {email}...")
-        config = {"configurable": {"thread_id": email}}
 
-        # Start the agent conversation
+        # Start the agent conversation - provide minimal state, controller will set the rest
         initial_state: AgentState = {
+            "persona": "Gordie",
             "user_email": email,
+            "game_key": None,
+            "league_id": None,
+            "team_id": None,
+            "thread_id": email,
             "messages": [{"role": "user", "content": f"Hello! My email is {email}"}],
+            "has_teams": False,
+            "user_teams": [],
+            "team_inference": None,
+            "needs_clarification": False,
+            "response": None,
         }
 
+        config: RunnableConfig = {"configurable": {"thread_id": email}}
         response = agent.invoke(initial_state, config=config)
 
         logger.info("\nGordie's Response:")

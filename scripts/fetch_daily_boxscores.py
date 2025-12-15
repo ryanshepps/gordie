@@ -13,18 +13,20 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 from nhlpy import NHLClient
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from data.schemas import create_player_stats_table, get_db_connection
+from client.duck_db_client import get_nhl_stats_db_connection
+from data.schemas import create_nhl_player_stats_table
 from module.logger import get_logger
 
 logger = get_logger(__name__, level=logging.INFO)
 
 
-def fetch_boxscore_data(date_str: str) -> list[dict]:
+def fetch_boxscore_data(date_str: str) -> list[dict[str, int | str | float | None]]:
     """
     Fetch box score data for all players from all games on a given date.
 
@@ -92,7 +94,7 @@ def fetch_boxscore_data(date_str: str) -> list[dict]:
     return all_player_stats
 
 
-def extract_player_stats(player: dict, game_id: int, game_date: str) -> dict | None:
+def extract_player_stats(player: dict[str, int | str | float], game_id: int, game_date: str) -> dict[str, int | str | float | None] | None:
     """
     Extract relevant stats from a player boxscore dictionary.
 
@@ -129,7 +131,7 @@ def extract_player_stats(player: dict, game_id: int, game_date: str) -> dict | N
         return None
 
 
-def insert_player_stats(conn, player_stats: list[dict]) -> None:
+def insert_player_stats(conn: duckdb.DuckDBPyConnection, player_stats: list[dict[str, int | str | float | None]]) -> None:
     """
     Insert player stats into DuckDB using efficient DataFrame ingestion.
 
@@ -152,7 +154,7 @@ def insert_player_stats(conn, player_stats: list[dict]) -> None:
     # DuckDB can directly query the DataFrame variable
     # Using INSERT OR REPLACE to handle PRIMARY KEY conflicts
     conn.execute("""
-        INSERT OR REPLACE INTO player_stats
+        INSERT OR REPLACE INTO nhl_player_stats
         SELECT
             nhl_api_player_id,
             nhl_api_game_id,
@@ -198,8 +200,8 @@ def main():
         sys.exit(1)
 
     # Connect to database and ensure table exists
-    conn = get_db_connection()
-    create_player_stats_table(conn)
+    conn = get_nhl_stats_db_connection()
+    create_nhl_player_stats_table(conn)
 
     try:
         # Fetch box score data

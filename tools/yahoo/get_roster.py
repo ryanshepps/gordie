@@ -24,7 +24,7 @@ def get_roster(user_email: str, league_id: str, team_id: str) -> str:
         JSON string with roster information including player names, positions,
         NHL teams, fantasy points, and injury status.
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=league_id, user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
     yahoo_query = yahoo_client.query
 
     try:
