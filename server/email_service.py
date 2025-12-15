@@ -35,6 +35,32 @@ class EmailService:
         if not self.from_email:
             self.from_email = f"Gordie <gordie@{self.domain}>"
 
+    def _text_to_html(self, text: str) -> str:
+        """
+        Convert plain text to simple HTML email.
+
+        Args:
+            text: Plain text email body
+
+        Returns:
+            HTML formatted email body
+        """
+        import html
+
+        # Escape HTML characters to prevent injection
+        escaped_text = html.escape(text)
+
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="white-space: pre-wrap;">{escaped_text}</div>
+</body>
+</html>"""
+
     def send_email(
         self,
         to_email: str,
@@ -73,7 +99,13 @@ class EmailService:
                 "o:tracking-clicks": "yes" if track_clicks else "no",
             }
 
+            # If no HTML body provided, auto-generate from text body
+            # This ensures tracking pixels work (Mailgun needs HTML to inject pixels)
             if html_body:
+                data["html"] = html_body
+            else:
+                # Convert text to simple HTML with proper formatting
+                html_body = self._text_to_html(text_body)
                 data["html"] = html_body
 
             # Add custom metadata for tracking specific campaigns/users
