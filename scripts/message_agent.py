@@ -63,6 +63,10 @@ def message_agent(email: str, message: str, team_context: str | None = None) -> 
             "response": None,
             "route_to": None,
             "persona": gordie_persona,  # Default persona
+            "agent_flow": [],
+            "current_agent_index": 0,
+            "flow_complete": False,
+            "flow_reasoning": None,
         }
 
         # Send message to agent graph

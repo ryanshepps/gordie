@@ -43,6 +43,10 @@ def onboard_user(email: str):
             "needs_clarification": False,
             "response": None,
             "route_to": None,
+            "agent_flow": [],
+            "current_agent_index": 0,
+            "flow_complete": False,
+            "flow_reasoning": None,
         }
 
         config: RunnableConfig = {"configurable": {"thread_id": email}}

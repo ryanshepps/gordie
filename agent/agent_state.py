@@ -54,6 +54,11 @@ class AgentState(TypedDict):
     needs_clarification: bool  # True if we need to ask user which team
     response: str | None
     route_to: str | None  # Target agent for routing (e.g., "player_comparison")
+    # Flow tracking fields
+    agent_flow: list[str]  # Ordered sequence: ["onboarding", "player_comparison"]
+    current_agent_index: int  # Current position in flow (0-based)
+    flow_complete: bool  # Explicit completion flag
+    flow_reasoning: str | None  # LLM reasoning for agent flow decision
 
 
 def get_user_teams(user_email: str) -> list[dict[str, str]]:

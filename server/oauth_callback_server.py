@@ -541,6 +541,10 @@ def _notify_onboarding_agent(user_email: str) -> None:
             "needs_clarification": False,
             "response": None,
             "route_to": None,
+            "agent_flow": [],
+            "current_agent_index": 0,
+            "flow_complete": False,
+            "flow_reasoning": None,
         }
 
         response = agent.invoke(initial_state, config=config)

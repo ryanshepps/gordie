@@ -6,7 +6,7 @@ from typing import cast
 from langchain_openai import ChatOpenAI
 
 from agent.agent_state import AgentState, build_context, get_user_teams
-from agent.routing_schemas import AgentType, RoutingDecision
+from agent.routing_schemas import AgentFlowDecision, AgentType, RoutingDecision
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +32,56 @@ User message: {message}
 Available agents:
 - onboarding: Help users connect their Yahoo Fantasy teams, set up authentication, or add new teams
 - player_comparison: Compare NHL players for fantasy hockey decisions (e.g., "who should I start?", "Player A vs Player B", "who's better?")
-- general: General fantasy hockey questions, team stats, player information, or other assistance
 
 Return the most appropriate agent and your confidence (0.0 to 1.0).
 
 Guidelines:
 - Use player_comparison for any question asking to compare or choose between players
 - Use onboarding for account setup, team connection, or authentication issues
-- Use general for informational queries, stats lookups, or unclear intents
+- If the request is unclear or doesn't match these capabilities, return an empty flow (the system will ask for clarification)
 """
 
     result = cast(RoutingDecision, classifier.invoke([{"role": "user", "content": prompt}]))
     logger.info(
         f"LLM routing classification - Agent: {result.agent}, "
+        f"Confidence: {result.confidence:.2f}, Reasoning: {result.reasoning}"
+    )
+    return result
+
+
+def determine_agent_flow(
+    message: str, has_teams: bool, user_email: str | None
+) -> AgentFlowDecision:
+    """
+    Use LLM to determine the complete agent flow for handling this request.
+
+    Args:
+        message: The user's message content
+        has_teams: Whether the user has any teams connected
+        user_email: The user's email address
+
+    Returns:
+        AgentFlowDecision with ordered agent sequence, confidence, and reasoning
+    """
+    flow_classifier = ChatOpenAI(
+        model="gpt-4o-mini", temperature=0
+    ).with_structured_output(AgentFlowDecision)
+
+    prompt = f"""Determine the complete flow of agents needed to handle this user request.
+
+User message: {message}
+User has teams connected: {has_teams}
+User email available: {user_email is not None}
+
+Note: If the user has no teams connected, use the onboarding agent only.
+"""
+
+    result = cast(
+        AgentFlowDecision,
+        flow_classifier.invoke([{"role": "user", "content": prompt}]),
+    )
+    logger.info(
+        f"LLM flow determination - Flow: {[agent.value for agent in result.agent_flow]}, "
         f"Confidence: {result.confidence:.2f}, Reasoning: {result.reasoning}"
     )
     return result
@@ -56,11 +93,11 @@ def controller_node(state: AgentState) -> AgentState:
 
     This node:
     1. Extracts the last user message
-    2. Checks for comparison intent
-    3. Checks if user has teams (if not, routes to onboarding)
-    4. Builds context from message_id or infers from database
-    5. Determines if clarification is needed
-    6. Updates state with team information
+    2. Gets user's teams to check if they have any
+    3. Calls determine_agent_flow() to get the complete flow
+    4. Initializes flow tracking in state
+    5. Builds context from team_context or infers from database
+    6. Determines if clarification is needed
     """
     messages = state.get("messages", [])
     user_email = state.get("user_email")
@@ -83,29 +120,55 @@ def controller_node(state: AgentState) -> AgentState:
     logger.info(f"Controller processing message: {message_content[:100]}...")
     logger.info(f"Team context: {team_context}")
 
-    # Use LLM to classify user intent
-    routing = classify_user_intent(message_content)
-
-    # Route to player_comparison if classified with sufficient confidence
-    if routing.agent == AgentType.PLAYER_COMPARISON and routing.confidence > 0.7:
-        logger.info(
-            f"Routing to player_comparison based on LLM classification "
-            f"(confidence: {routing.confidence:.2f})"
-        )
-        state["needs_clarification"] = False
-        state["route_to"] = "player_comparison"
-        return state
-
     # Get user's teams
     user_teams = get_user_teams(user_email)
     state["user_teams"] = user_teams
     state["has_teams"] = len(user_teams) > 0
 
-    # If user has no teams, route directly to onboarding
-    if not state["has_teams"]:
-        logger.info("User has no teams - routing to onboarding agent")
-        # Don't set needs_clarification - we want to go straight to onboarding
-        state["needs_clarification"] = False
+    # Determine agent flow using LLM
+    try:
+        flow_decision = determine_agent_flow(
+            message_content, state["has_teams"], user_email
+        )
+
+        # Convert enum values to strings
+        agent_flow = [agent.value for agent in flow_decision.agent_flow]
+
+        # Validate flow length
+        from agent.routing_schemas import MAX_FLOW_LENGTH
+        if len(agent_flow) > MAX_FLOW_LENGTH:
+            logger.error(
+                f"Flow length {len(agent_flow)} exceeds maximum {MAX_FLOW_LENGTH}. "
+                "Truncating to max length."
+            )
+            agent_flow = agent_flow[:MAX_FLOW_LENGTH]
+
+        # Handle empty flow - route to clarification
+        if not agent_flow:
+            logger.warning("LLM returned empty agent flow. Routing to clarification.")
+            state["agent_flow"] = []
+            state["current_agent_index"] = 0
+            state["flow_complete"] = True
+            state["flow_reasoning"] = flow_decision.reasoning
+            state["needs_clarification"] = True
+            # Don't set a hardcoded response - let clarification_node handle it
+            return state
+
+        # Initialize flow tracking in state
+        state["agent_flow"] = agent_flow
+        state["current_agent_index"] = 0
+        state["flow_complete"] = False
+        state["flow_reasoning"] = flow_decision.reasoning
+
+        logger.info(f"Initialized flow: {state['agent_flow']}")
+
+    except Exception as e:
+        logger.error(f"Error determining agent flow: {e}", exc_info=True)
+        # Route to clarification on error
+        state["agent_flow"] = []
+        state["current_agent_index"] = 0
+        state["flow_complete"] = True
+        state["needs_clarification"] = True
         return state
 
     # Build context from team_context or infer from message
@@ -129,41 +192,68 @@ def controller_node(state: AgentState) -> AgentState:
                 logger.info(f"Inferred team: {state['team_inference']}")
     else:
         # No team_context provided - will need to infer or ask
-        if not user_teams:
+        # If user has no teams AND the flow is not onboarding, ask for clarification
+        # The onboarding agent is designed to handle users without teams
+        if not user_teams and agent_flow != ["onboarding"]:
             state["needs_clarification"] = True
             state["response"] = (
                 "I couldn't find any teams associated with your account. Would you like to onboard a team first?"
             )
         else:
-            # Try to infer from context in downstream nodes
+            # Try to infer from context in downstream nodes, or let onboarding handle it
             state["needs_clarification"] = False
 
     return state
 
 
-def should_ask_for_clarification(state: AgentState) -> str:
+def route_to_next_agent(state: AgentState) -> str:
     """
-    Routing function to determine next step.
+    Routing function to determine the next agent in the flow.
 
     Returns:
-        "player_comparison" if comparison intent detected
-        "clarify" if clarification needed
-        "onboarding" if no teams exist
-        "continue" to proceed with normal flow
+        - "clarification" if clarification is needed
+        - "email" if flow is complete (always send email at end)
+        - "end" if flow is empty or current_agent_index exceeds flow length
+        - Next agent name from agent_flow (e.g., "onboarding", "player_comparison")
     """
-    # Check for player comparison routing first
-    if state.get("route_to") == "player_comparison":
-        return "player_comparison"
-
-    # If user has no teams, always route to onboarding
-    if not state.get("has_teams"):
-        return "onboarding"
-
-    # Otherwise check if clarification is needed
+    # If clarification is needed, route to clarification
     if state.get("needs_clarification"):
-        return "clarify"
+        return "clarification"
 
-    return "continue"
+    # If flow is complete, route to email
+    if state.get("flow_complete"):
+        return "email"
+
+    # Check if we have a valid flow
+    agent_flow = state.get("agent_flow", [])
+    if not agent_flow:
+        logger.warning("Empty agent flow, routing to end")
+        return "end"
+
+    # Check if we've exceeded the flow length
+    current_index = state.get("current_agent_index", 0)
+    if current_index >= len(agent_flow):
+        logger.warning(
+            f"Current agent index {current_index} exceeds flow length {len(agent_flow)}"
+        )
+        return "end"
+
+    # Return the next agent in the flow
+    next_agent = agent_flow[current_index]
+
+    # Validate agent name is known
+    valid_agents = {agent.value for agent in AgentType}
+    if next_agent not in valid_agents:
+        logger.error(
+            f"Invalid agent name '{next_agent}' in flow at index {current_index}. "
+            f"Valid agents: {valid_agents}. Skipping to end."
+        )
+        return "end"
+
+    logger.info(
+        f"Routing to next agent: {next_agent} (index {current_index}/{len(agent_flow) - 1})"
+    )
+    return next_agent
 
 
 def clarification_node(state: AgentState) -> AgentState:
