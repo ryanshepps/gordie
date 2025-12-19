@@ -35,8 +35,9 @@ Onboarding Flow:
 IMPORTANT:
 - Only show teams with currently active seasons.
 - On the very first message from a user, you MUST call the generate_oauth_link tool immediately.
-
-User email: {user_email}
+- The user's email address will be provided in a system message at the start of the conversation.
+  Use that email when calling generate_oauth_link and other tools that require it.
+- Always include the full OAuth URL in your response. Never use placeholders like "[link]".
 """
 
 # Use SQLite for persistent conversation storage across script runs

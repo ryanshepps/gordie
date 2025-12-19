@@ -109,6 +109,39 @@ class OAuthCallbackServer:
                     </html>
                     """
 
+                # Validate that we have a stored nonce for this user before accepting the callback
+                # This prevents infinite loops when old/stale OAuth links are clicked
+                if not user_email:
+                    logger.error("No user email (state) in callback")
+                    return (
+                        """
+                    <html>
+                        <body>
+                            <h1>Authentication Error</h1>
+                            <p>Invalid OAuth callback: missing user information.</p>
+                            <p>Please request a new authentication link.</p>
+                        </body>
+                    </html>
+                    """,
+                        400,
+                    )
+
+                nonce = get_oauth_nonce(user_email)
+                if not nonce:
+                    logger.error(f"No stored nonce found for user: {user_email}")
+                    return (
+                        """
+                    <html>
+                        <body>
+                            <h1>Authentication Link Expired</h1>
+                            <p>This OAuth link is no longer valid. It may have already been used or expired.</p>
+                            <p>Please request a new authentication link.</p>
+                        </body>
+                    </html>
+                    """,
+                        400,
+                    )
+
                 self.auth_code = code
                 self.user_email = user_email
                 self.code_received.set()
@@ -501,8 +534,7 @@ def _notify_onboarding_agent(user_email: str) -> None:
     Args:
         user_email: Email address of the user who just completed OAuth
     """
-    from agent.AgentGraph import AgentState
-    from agent.OnboardingAgent import agent
+    from agent.AgentGraph import AgentState, agent
 
     logger = get_logger(__name__)
 

@@ -165,9 +165,21 @@ def build_agent_graph():
     ) -> Command[AgentDestination]:
         """Wrapper for onboarding agent that returns a Command for routing."""
         try:
+            from langchain_core.messages import SystemMessage
+
+            user_email = state["user_email"]
+            messages = state["messages"]
+
+            # Inject user context as a system message so the agent knows the actual email
+            # This is needed because the agent's system prompt has a static {user_email} placeholder
+            user_context_msg = SystemMessage(
+                content=f"Current user email for this session: {user_email}"
+            )
+            messages_with_context = [user_context_msg, *list(messages)]
+
             input_dict: dict[str, Any] = {
-                "user_email": state["user_email"],
-                "messages": state["messages"],
+                "user_email": user_email,
+                "messages": messages_with_context,
             }
             result = onboarding_agent.invoke(cast(Any, input_dict))
             # Merge result into state
