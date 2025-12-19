@@ -1,12 +1,16 @@
 """Controller agent that routes to appropriate sub-agents based on context."""
 
 import logging
-from typing import cast
+from typing import Literal, cast
 
 from langchain_openai import ChatOpenAI
+from langgraph.types import Command
 
 from agent.agent_state import AgentState, build_context, get_user_teams
 from agent.routing_schemas import AgentFlowDecision, AgentType, RoutingDecision
+
+# Use literal string for END to satisfy type checker
+END_NODE: Literal["__end__"] = "__end__"
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +91,9 @@ Note: If the user has no teams connected, use the onboarding agent only.
     return result
 
 
-def controller_node(state: AgentState) -> AgentState:
+def controller_node(
+    state: AgentState,
+) -> Command[Literal["onboarding", "player_comparison", "clarification", "email", "__end__"]]:
     """
     Controller node that determines routing based on user context.
 
@@ -98,13 +104,14 @@ def controller_node(state: AgentState) -> AgentState:
     4. Initializes flow tracking in state
     5. Builds context from team_context or infers from database
     6. Determines if clarification is needed
+    7. Returns a Command to route to the appropriate next node
     """
     messages = state.get("messages", [])
     user_email = state.get("user_email")
 
     if not messages:
         logger.warning("No messages in state")
-        return state
+        return Command(goto=END_NODE, update=state)
 
     # Get the last user message
     last_message = messages[-1]
@@ -136,6 +143,7 @@ def controller_node(state: AgentState) -> AgentState:
 
         # Validate flow length
         from agent.routing_schemas import MAX_FLOW_LENGTH
+
         if len(agent_flow) > MAX_FLOW_LENGTH:
             logger.error(
                 f"Flow length {len(agent_flow)} exceeds maximum {MAX_FLOW_LENGTH}. "
@@ -151,8 +159,7 @@ def controller_node(state: AgentState) -> AgentState:
             state["flow_complete"] = True
             state["flow_reasoning"] = flow_decision.reasoning
             state["needs_clarification"] = True
-            # Don't set a hardcoded response - let clarification_node handle it
-            return state
+            return Command(goto="clarification", update=state)
 
         # Initialize flow tracking in state
         state["agent_flow"] = agent_flow
@@ -169,7 +176,7 @@ def controller_node(state: AgentState) -> AgentState:
         state["current_agent_index"] = 0
         state["flow_complete"] = True
         state["needs_clarification"] = True
-        return state
+        return Command(goto="clarification", update=state)
 
     # Build context from team_context or infer from message
     if team_context:
@@ -186,7 +193,9 @@ def controller_node(state: AgentState) -> AgentState:
             state["league_id"] = cast(str | None, context.get("league_id"))
             state["team_id"] = cast(str | None, context.get("team_id"))
             state["needs_clarification"] = False
-            state["team_inference"] = cast(dict[str, str] | None, context.get("team_inference"))
+            state["team_inference"] = cast(
+                dict[str, str] | None, context.get("team_inference")
+            )
 
             if state["team_inference"]:
                 logger.info(f"Inferred team: {state['team_inference']}")
@@ -203,65 +212,52 @@ def controller_node(state: AgentState) -> AgentState:
             # Try to infer from context in downstream nodes, or let onboarding handle it
             state["needs_clarification"] = False
 
-    return state
-
-
-def route_to_next_agent(state: AgentState) -> str:
-    """
-    Routing function to determine the next agent in the flow.
-
-    Returns:
-        - "clarification" if clarification is needed
-        - "email" if flow is complete (always send email at end)
-        - "end" if flow is empty or current_agent_index exceeds flow length
-        - Next agent name from agent_flow (e.g., "onboarding", "player_comparison")
-    """
-    # If clarification is needed, route to clarification
+    # Determine routing based on state
     if state.get("needs_clarification"):
-        return "clarification"
+        return Command(goto="clarification", update=state)
 
-    # If flow is complete, route to email
     if state.get("flow_complete"):
-        return "email"
+        return Command(goto="email", update=state)
 
-    # Check if we have a valid flow
+    # Route to next agent in flow
     agent_flow = state.get("agent_flow", [])
-    if not agent_flow:
-        logger.warning("Empty agent flow, routing to end")
-        return "end"
-
-    # Check if we've exceeded the flow length
     current_index = state.get("current_agent_index", 0)
-    if current_index >= len(agent_flow):
-        logger.warning(
-            f"Current agent index {current_index} exceeds flow length {len(agent_flow)}"
-        )
-        return "end"
 
-    # Return the next agent in the flow
+    if not agent_flow or current_index >= len(agent_flow):
+        logger.warning("Empty or exhausted agent flow, routing to end")
+        return Command(goto=END_NODE, update=state)
+
     next_agent = agent_flow[current_index]
 
-    # Validate agent name is known
+    # Validate agent name
     valid_agents = {agent.value for agent in AgentType}
     if next_agent not in valid_agents:
         logger.error(
             f"Invalid agent name '{next_agent}' in flow at index {current_index}. "
-            f"Valid agents: {valid_agents}. Skipping to end."
+            f"Valid agents: {valid_agents}. Routing to end."
         )
-        return "end"
+        return Command(goto=END_NODE, update=state)
 
     logger.info(
         f"Routing to next agent: {next_agent} (index {current_index}/{len(agent_flow) - 1})"
     )
-    return next_agent
+    # Cast to satisfy type checker - we've already validated next_agent is valid
+    return Command(
+        goto=cast(
+            Literal["onboarding", "player_comparison", "clarification", "email"],
+            next_agent,
+        ),
+        update=state,
+    )
 
 
-def clarification_node(state: AgentState) -> AgentState:
+def clarification_node(state: AgentState) -> Command[Literal["__end__"]]:
     """
-    Node that returns clarification message to user.
+    Node that returns clarification message to user and ends the flow.
+    User must respond before the flow can continue.
     """
     # The response should already be set by controller
     if not state.get("response"):
         state["response"] = "I need more information. Which team are you asking about?"
 
-    return state
+    return Command(goto=END_NODE, update=state)

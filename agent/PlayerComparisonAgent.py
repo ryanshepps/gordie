@@ -22,9 +22,6 @@ if not os.environ.get("OPENAI_API_KEY"):
     logger.error("OPENAI_API_KEY environment variable not set")
     raise ValueError("OPENAI_API_KEY environment variable not set")
 
-# Use GPT-4o for complex comparison analysis
-model = ChatOpenAI(model="gpt-4o")
-
 
 player_comparison_task = """
 Task: Compare NHL players to help the user make informed fantasy hockey decisions.
@@ -50,7 +47,7 @@ conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 checkpointer = SqliteSaver(conn)
 
 agent = create_agent(
-    model=model,
+    model=ChatOpenAI(model="gpt-4o"),
     tools=[resolve_player_names, get_player_stats, calculate_fantasy_points, compare_players_comprehensive],
     middleware=[handle_tool_errors],
     system_prompt=SystemMessage(content=player_comparison_task),
