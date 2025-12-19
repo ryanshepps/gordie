@@ -3,7 +3,7 @@ import argparse
 from langchain_core.runnables import RunnableConfig
 
 from agent.agent_state import AgentState
-from agent.AgentGraph import agent
+from agent.graph_builder import agent
 from data.user_repository import UserRepository
 from module.logger import get_logger
 

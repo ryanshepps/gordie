@@ -2,7 +2,7 @@ import argparse
 
 from langchain_core.runnables import RunnableConfig
 
-from agent.AgentGraph import AgentState, agent
+from agent.graph_builder import AgentState, agent
 from module.logger import get_logger
 
 logger = get_logger(__name__)

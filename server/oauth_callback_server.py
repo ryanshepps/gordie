@@ -534,7 +534,7 @@ def _notify_onboarding_agent(user_email: str) -> None:
     Args:
         user_email: Email address of the user who just completed OAuth
     """
-    from agent.AgentGraph import AgentState, agent
+    from agent.graph_builder import AgentState, agent
 
     logger = get_logger(__name__)
 
