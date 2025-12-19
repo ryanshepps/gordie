@@ -181,25 +181,11 @@ class OAuthCallbackServer:
             def process_email():
                 try:
                     from scripts.message_agent import message_agent
-                    from server.email_service import EmailService
 
-                    # Process through agent
+                    # Process through agent - email sending is handled by the agent graph's email_node
                     logger.info(f"Processing email from {sender_email}")
-                    response = message_agent(email=sender_email, message=message_body)
-
-                    # Send response email
-                    if response:
-                        email_service = EmailService()
-                        success = email_service.send_email(
-                            to_email=sender_email,
-                            subject=f"Re: {subject}" if subject else "Fantasy Agent Response",
-                            text_body=response,
-                        )
-
-                        if success:
-                            logger.info(f"Response sent to {sender_email}")
-                        else:
-                            logger.error(f"Failed to send response to {sender_email}")
+                    message_agent(email=sender_email, message=message_body)
+                    logger.info(f"Agent processing complete for {sender_email}")
 
                 except Exception as e:
                     logger.error(f"Error processing email from {sender_email}: {e}", exc_info=True)
