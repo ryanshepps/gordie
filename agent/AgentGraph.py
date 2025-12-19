@@ -1,7 +1,14 @@
+"""Agent graph for the fantasy hockey assistant.
+
+Uses a simplified supervisor pattern where sub-agents are invoked as tools
+rather than separate graph nodes. This provides deterministic routing
+through explicit tool calls.
+"""
+
 import logging
 import os
 import sqlite3
-from typing import Any, Literal, cast
+from typing import Literal
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
@@ -11,9 +18,6 @@ from agent.agent_state import AgentState
 
 # Use literal string for END to satisfy type checker
 END_NODE: Literal["__end__"] = "__end__"
-
-# Type alias for valid agent destinations
-AgentDestination = Literal["onboarding", "player_comparison", "clarification", "email", "__end__"]
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +35,6 @@ def is_first_message_in_thread(thread_id: str) -> bool:
     db_path = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "data", "agent_conversations.db"
     )
-
 
     if not os.path.exists(db_path):
         return True
@@ -56,30 +59,6 @@ def is_first_message_in_thread(thread_id: str) -> bool:
     except sqlite3.OperationalError:
         # Table doesn't exist yet
         return True
-
-
-def get_next_destination(state: AgentState) -> str:
-    """
-    Determine the next destination after an agent completes.
-
-    Increments the current_agent_index and returns the next agent
-    or "email" if the flow is complete.
-    """
-    agent_flow = state.get("agent_flow", [])
-    current_index = state.get("current_agent_index", 0)
-
-    # Increment index for next agent
-    next_index = current_index + 1
-    state["current_agent_index"] = next_index
-
-    if next_index >= len(agent_flow):
-        state["flow_complete"] = True
-        logger.info(f"Flow complete. Processed {next_index} agents.")
-        return "email"
-
-    next_agent = agent_flow[next_index]
-    logger.info(f"Next agent in flow: {next_agent} (index {next_index}/{len(agent_flow) - 1})")
-    return next_agent
 
 
 def email_node(state: AgentState) -> Command[Literal["__end__"]]:
@@ -115,11 +94,11 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
     else:
         message_content = str(last_ai_message)
 
-    # Compose email subject based on agent flow
-    agent_flow = state.get("agent_flow", [])
-    if "player_comparison" in agent_flow:
+    # Determine email subject based on message content
+    message_lower = message_content.lower()
+    if "comparison" in message_lower or "vs" in message_lower or "recommend" in message_lower:
         subject = "Fantasy Hockey Player Comparison"
-    elif "onboarding" in agent_flow:
+    elif "onboard" in message_lower or "connect" in message_lower or "authenticate" in message_lower:
         subject = "Fantasy Hockey Team Setup"
     else:
         subject = "Fantasy Hockey Assistant Response"
@@ -139,99 +118,30 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
 
 
 def build_agent_graph():
-    """Build and return the agent graph with controller and sub-agents.
+    """Build and return the simplified agent graph.
 
-    Uses Command-based routing instead of conditional edges for dynamic
-    agent handoffs. Each node returns a Command that specifies both
-    state updates and the next node to execute.
+    The graph now has only 3 nodes:
+    - controller: Supervisor that handles requests via sub-agent tools
+    - clarification: Asks user for more information when needed
+    - email: Sends the response to the user
+
+    Sub-agents (onboarding, player_comparison) are now invoked as tools
+    by the supervisor rather than being separate graph nodes.
     """
     from agent.ControllerAgent import (
         clarification_node,
         controller_node,
     )
-    from agent.OnboardingAgent import agent as onboarding_agent
-    from agent.PlayerComparisonAgent import agent as player_comparison_agent
 
     # Create the graph
     workflow = StateGraph(AgentState)
 
-    # Add nodes - no edges needed, Commands handle routing
+    # Add nodes - sub-agents are now tools, not nodes
     workflow.add_node("controller", controller_node)
     workflow.add_node("clarification", clarification_node)
     workflow.add_node("email", email_node)
 
-    def onboarding_wrapper(
-        state: AgentState,
-    ) -> Command[AgentDestination]:
-        """Wrapper for onboarding agent that returns a Command for routing."""
-        try:
-            from langchain_core.messages import SystemMessage
-
-            user_email = state["user_email"]
-            messages = state["messages"]
-
-            # Inject user context as a system message so the agent knows the actual email
-            # This is needed because the agent's system prompt has a static {user_email} placeholder
-            user_context_msg = SystemMessage(
-                content=f"Current user email for this session: {user_email}"
-            )
-            messages_with_context = [user_context_msg, *list(messages)]
-
-            input_dict: dict[str, Any] = {
-                "user_email": user_email,
-                "messages": messages_with_context,
-            }
-            result = onboarding_agent.invoke(cast(Any, input_dict))
-            # Merge result into state
-            if isinstance(result, dict):
-                for key, value in result.items():
-                    if key in state:
-                        state[key] = value  # type: ignore[literal-required]
-        except Exception as e:
-            logger.error(f"Error in onboarding agent: {e}", exc_info=True)
-            state["flow_complete"] = True
-            state["needs_clarification"] = True
-            return Command(goto="clarification", update=state)
-
-        # Determine next destination and route
-        next_dest = get_next_destination(state)
-        logger.info(f"Onboarding complete, routing to: {next_dest}")
-        # Cast to satisfy type checker - get_next_destination returns valid destinations
-        return Command(goto=cast(AgentDestination, next_dest), update=state)
-
-    workflow.add_node("onboarding", onboarding_wrapper)
-
-    def player_comparison_wrapper(
-        state: AgentState,
-    ) -> Command[AgentDestination]:
-        """Wrapper for player comparison agent that returns a Command for routing."""
-        try:
-            input_dict: dict[str, Any] = {
-                "user_email": state["user_email"],
-                "league_id": state.get("league_id", ""),
-                "messages": state["messages"],
-            }
-            result = player_comparison_agent.invoke(cast(Any, input_dict))
-            # Merge result into state
-            if isinstance(result, dict):
-                for key, value in result.items():
-                    if key in state:
-                        state[key] = value  # type: ignore[literal-required]
-        except Exception as e:
-            logger.error(f"Error in player comparison agent: {e}", exc_info=True)
-            state["flow_complete"] = True
-            state["needs_clarification"] = True
-            return Command(goto="clarification", update=state)
-
-        # Determine next destination and route
-        next_dest = get_next_destination(state)
-        logger.info(f"Player comparison complete, routing to: {next_dest}")
-        # Cast to satisfy type checker - get_next_destination returns valid destinations
-        return Command(goto=cast(AgentDestination, next_dest), update=state)
-
-    workflow.add_node("player_comparison", player_comparison_wrapper)
-
-    # Set entry point - Commands handle all routing from here
+    # Set entry point
     workflow.set_entry_point("controller")
 
     # Setup persistent checkpointer

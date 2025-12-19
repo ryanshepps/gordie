@@ -9,6 +9,8 @@ from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+from agent.agent_state import AgentState
+from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.player_comparison.calculate_fantasy_points import calculate_fantasy_points
 from tools.player_comparison.compare_players_comprehensive import compare_players_comprehensive
@@ -49,7 +51,8 @@ checkpointer = SqliteSaver(conn)
 agent = create_agent(
     model=ChatOpenAI(model="gpt-4o"),
     tools=[resolve_player_names, get_player_stats, calculate_fantasy_points, compare_players_comprehensive],
-    middleware=[handle_tool_errors],
+    middleware=[StateLoggingMiddleware("player_comparison"), handle_tool_errors],
     system_prompt=SystemMessage(content=player_comparison_task),
     checkpointer=checkpointer,
+    state_schema=AgentState,
 )

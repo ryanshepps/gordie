@@ -1,7 +1,7 @@
 """Shared agent state and utility functions."""
 
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph.message import add_messages
@@ -37,17 +37,31 @@ TeamContext = Annotated[
 ]
 
 
-class AgentState(TypedDict):
+# JumpTo type matches langchain's middleware types
+JumpTo = Literal["tools", "model", "end"]
+
+
+class _AgentStateRequired(TypedDict):
+    """Required fields for AgentState."""
+
+    messages: Annotated[list[Any], add_messages]  # List of message objects or dicts
+
+
+class AgentState(_AgentStateRequired, total=False):
+    """Agent state with required messages and optional custom fields."""
+
+    # Optional fields from langchain's AgentState
+    jump_to: JumpTo | None  # Used by middleware for flow control
+    structured_response: Any  # Used by middleware for structured output
+    # Custom fields
     persona: str
     user_email: str
     game_key: str | None
     league_id: str | None
     team_id: str | None
     thread_id: str
-    messages: Annotated[list[Any], add_messages]  # List of message objects or dicts
     has_teams: bool
     user_teams: list[dict[str, str]]  # List of all user's teams
-    # intent: Optional[str]  # "onboarding", "player_assessment", "trade_waiver", "lineup_optimizer"
     team_inference: (
         dict[str, str] | None
     )  # Result of team inference {"team": {...}, "confidence": str, "reasoning": str}

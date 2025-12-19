@@ -7,6 +7,8 @@ from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+from agent.agent_state import AgentState
+from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.oauth.generate_oauth_link import generate_oauth_link
 from tools.yahoo.get_user_leagues import get_user_leagues
@@ -53,7 +55,8 @@ checkpointer = SqliteSaver(conn)
 agent = create_agent(
     model=model,
     tools=[generate_oauth_link, get_user_leagues, onboard_user_team],
-    middleware=[handle_tool_errors],
+    middleware=[StateLoggingMiddleware("onboarding"), handle_tool_errors],
     system_prompt=SystemMessage(content=onboarding_agent_task),
     checkpointer=checkpointer,
+    state_schema=AgentState,
 )

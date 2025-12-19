@@ -1,4 +1,4 @@
-"""Controller agent that routes to appropriate sub-agents based on context."""
+"""Supervisor agent that coordinates sub-agents via tool calls."""
 
 import logging
 import os
@@ -12,8 +12,9 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from agent.agent_state import AgentState, build_context, get_user_teams
-from agent.routing_schemas import AgentFlowDecision, AgentType
+from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
+from tools.subagents import compare_players, handle_onboarding
 from tools.yahoo.get_roster import get_roster
 
 # Use literal string for END to satisfy type checker
@@ -21,18 +22,34 @@ END_NODE: Literal["__end__"] = "__end__"
 
 logger = logging.getLogger(__name__)
 
-# System prompt for the controller agent
-CONTROLLER_SYSTEM_PROMPT = """You are a helpful fantasy hockey assistant controller. Your role is to:
+# System prompt for the supervisor agent
+SUPERVISOR_SYSTEM_PROMPT = """You are a helpful fantasy hockey assistant.
 
-1. Understand what the user is asking for
-2. Use your tools to gather information when needed (e.g., fetch their roster)
-3. Either answer the user's question directly OR determine which specialized agent should handle it
+You have access to specialized tools to help users:
 
-When you have enough information to answer the user directly, respond with the answer.
+1. **compare_players**: Use this for ANY question involving player comparisons, including:
+   - "Compare Player A vs Player B"
+   - "Who should I start?"
+   - "Which player is better?"
+   - "Player recommendations"
+   - Any question about choosing between players
 
-When the user needs specialized help, indicate in your response which agent should handle it:
-- Use [ROUTE:onboarding] for account setup, team connection, or authentication issues
-- Use [ROUTE:player_comparison] for comparing players or "who should I start?" questions
+2. **handle_onboarding**: Use this for account and team setup, including:
+   - Connecting Yahoo Fantasy account
+   - Adding a new team to track
+   - Authentication issues
+   - First-time user setup
+
+3. **get_roster**: Use this to fetch the user's current roster when they ask:
+   - "Who's on my team?"
+   - "Show me my roster"
+   - General roster queries
+
+IMPORTANT RULES:
+- When a user asks to compare players or wants advice on who to start, ALWAYS use the compare_players tool.
+- When a user needs to set up their account or connect a team, ALWAYS use handle_onboarding tool.
+- Pass the full user request to the sub-agent tools so they have complete context.
+- After a sub-agent tool returns, summarize or present the results to the user.
 
 The user's email and team context will be provided in system messages.
 """
@@ -45,81 +62,42 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 checkpointer = SqliteSaver(conn)
 
-# Create the controller agent with tools
+# Create the supervisor agent with sub-agent tools
 if not os.environ.get("OPENAI_API_KEY"):
     logger.error("OPENAI_API_KEY environment variable not set")
     raise ValueError("OPENAI_API_KEY environment variable not set")
 
-controller_agent = create_agent(
+supervisor_agent = create_agent(
     model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-    tools=[get_roster],
-    middleware=[handle_tool_errors],
-    system_prompt=SystemMessage(content=CONTROLLER_SYSTEM_PROMPT),
+    tools=[get_roster, compare_players, handle_onboarding],
+    middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
+    system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
     checkpointer=checkpointer,
+    state_schema=AgentState,  # type: ignore[arg-type]
 )
-
-
-def determine_agent_flow(
-    message: str, has_teams: bool, user_email: str | None
-) -> AgentFlowDecision:
-    """
-    Use LLM to determine the complete agent flow for handling this request.
-
-    Args:
-        message: The user's message content
-        has_teams: Whether the user has any teams connected
-        user_email: The user's email address
-
-    Returns:
-        AgentFlowDecision with ordered agent sequence, confidence, and reasoning
-    """
-    flow_classifier = ChatOpenAI(
-        model="gpt-4o-mini", temperature=0
-    ).with_structured_output(AgentFlowDecision)
-
-    prompt = f"""Determine the complete flow of agents needed to handle this user request.
-
-User message: {message}
-User has teams connected: {has_teams}
-User email available: {user_email is not None}
-
-Available agents:
-- onboarding: Help users connect their Yahoo Fantasy teams, set up authentication, or add new teams
-- player_comparison: Compare NHL players for fantasy hockey decisions (e.g., "who should I start?", "Player A vs Player B", "who's better?")
-
-Note: If the user has no teams connected, use the onboarding agent only.
-Note: If the user is simply asking about their roster (e.g., "who's on my team?"), return an EMPTY flow - the controller can handle this directly.
-"""
-
-    result = cast(
-        AgentFlowDecision,
-        flow_classifier.invoke([{"role": "user", "content": prompt}]),
-    )
-    logger.info(
-        f"LLM flow determination - Flow: {[agent.value for agent in result.agent_flow]}, "
-        f"Confidence: {result.confidence:.2f}, Reasoning: {result.reasoning}"
-    )
-    return result
 
 
 def controller_node(
     state: AgentState,
-) -> Command[Literal["onboarding", "player_comparison", "clarification", "email", "__end__"]]:
+) -> Command[Literal["clarification", "email", "__end__"]]:
     """
-    Controller node that determines routing based on user context.
+    Supervisor node that handles user requests via sub-agent tools.
 
     This node:
-    1. Extracts the last user message
-    2. Gets user's teams to check if they have any
-    3. Calls determine_agent_flow() to get the complete flow
-    4. If flow is empty, runs the controller agent to handle directly with tools
-    5. Otherwise routes to the appropriate sub-agent
+    1. Extracts the last user message and user context
+    2. Builds context (user email, league ID, team ID)
+    3. Invokes the supervisor agent which will call appropriate sub-agent tools
+    4. Routes to email node with the response
     """
     messages = state.get("messages", [])
-    user_email = state.get("user_email")
+    user_email = state.get("user_email") or ""
 
     if not messages:
         logger.warning("No messages in state")
+        return Command(goto=END_NODE, update=state)
+
+    if not user_email:
+        logger.warning("No user_email in state")
         return Command(goto=END_NODE, update=state)
 
     # Get the last user message
@@ -133,7 +111,7 @@ def controller_node(
         else getattr(last_message, "team_context", None)
     )
 
-    logger.info(f"Controller processing message: {message_content[:100]}...")
+    logger.info(f"Supervisor processing message: {message_content[:100]}...")
     logger.info(f"Team context: {team_context}")
 
     # Get user's teams
@@ -171,102 +149,34 @@ def controller_node(
             state["team_id"] = team.get("team_id")
             state["needs_clarification"] = False
 
-    # Determine agent flow using LLM
-    try:
-        flow_decision = determine_agent_flow(
-            message_content, state["has_teams"], user_email
-        )
-        agent_flow = [agent.value for agent in flow_decision.agent_flow]
-
-        # Validate flow length
-        from agent.routing_schemas import MAX_FLOW_LENGTH
-
-        if len(agent_flow) > MAX_FLOW_LENGTH:
-            logger.error(
-                f"Flow length {len(agent_flow)} exceeds maximum {MAX_FLOW_LENGTH}. "
-                "Truncating to max length."
-            )
-            agent_flow = agent_flow[:MAX_FLOW_LENGTH]
-
-        # Handle empty flow - controller handles directly with tools
-        if not agent_flow:
-            logger.info("Empty agent flow - controller will handle directly with tools")
-            return _handle_with_controller_agent(state, user_email, message_content)
-
-        # Initialize flow tracking in state
-        state["agent_flow"] = agent_flow
-        state["current_agent_index"] = 0
-        state["flow_complete"] = False
-        state["flow_reasoning"] = flow_decision.reasoning
-
-        logger.info(f"Initialized flow: {state['agent_flow']}")
-
-    except Exception as e:
-        logger.error(f"Error determining agent flow: {e}", exc_info=True)
-        state["agent_flow"] = []
-        state["current_agent_index"] = 0
-        state["flow_complete"] = True
-        state["needs_clarification"] = True
-        return Command(goto="clarification", update=state)
-
-    # Route to next agent in flow
-    current_index = state.get("current_agent_index", 0)
-
-    if not agent_flow or current_index >= len(agent_flow):
-        logger.warning("Empty or exhausted agent flow, routing to end")
-        return Command(goto=END_NODE, update=state)
-
-    next_agent = agent_flow[current_index]
-
-    # Validate agent name
-    valid_agents = {agent.value for agent in AgentType}
-    if next_agent not in valid_agents:
-        logger.error(
-            f"Invalid agent name '{next_agent}' in flow at index {current_index}. "
-            f"Valid agents: {valid_agents}. Routing to end."
-        )
-        return Command(goto=END_NODE, update=state)
-
-    logger.info(
-        f"Routing to next agent: {next_agent} (index {current_index}/{len(agent_flow) - 1})"
-    )
-    return Command(
-        goto=cast(
-            Literal["onboarding", "player_comparison", "clarification", "email"],
-            next_agent,
-        ),
-        update=state,
-    )
-
-
-def _handle_with_controller_agent(
-    state: AgentState, user_email: str | None, message_content: str
-) -> Command[Literal["onboarding", "player_comparison", "clarification", "email", "__end__"]]:
-    """
-    Use the controller agent with tools to handle the request directly.
-
-    Returns a Command to either end (if handled) or route to a sub-agent.
-    """
+    # Invoke the supervisor agent with sub-agent tools
     try:
         # Build context message for the agent
         context_parts = [f"User email: {user_email}"]
-        if state.get("league_id"):
-            context_parts.append(f"League ID: {state['league_id']}")
-        if state.get("team_id"):
-            context_parts.append(f"Team ID: {state['team_id']}")
-        if state.get("user_teams"):
+        league_id = state.get("league_id")
+        team_id = state.get("team_id")
+        user_teams_list = state.get("user_teams")
+        if league_id:
+            context_parts.append(f"League ID: {league_id}")
+        if team_id:
+            context_parts.append(f"Team ID: {team_id}")
+        if user_teams_list:
             teams_info = ", ".join(
-                f"{t['team_name']} ({t['league_name']})" for t in state["user_teams"]
+                f"{t['team_name']} ({t['league_name']})" for t in user_teams_list
             )
             context_parts.append(f"User's teams: {teams_info}")
+        if not state.get("has_teams"):
+            context_parts.append("Note: User has no teams connected yet. Use handle_onboarding if they need to set up.")
 
         context_msg = SystemMessage(content="\n".join(context_parts))
 
-        # Invoke the controller agent
-        input_dict: dict[str, Any] = {
-            "messages": [context_msg, *list(state.get("messages", []))],
-        }
-        result = controller_agent.invoke(cast(Any, input_dict))
+        # Invoke the supervisor agent with full state
+        # Create a copy of state and update messages with context
+        input_state: dict[str, Any] = dict(state)
+        input_state["messages"] = [context_msg, *list(state.get("messages", []))]
+
+        logger.info("Invoking supervisor agent with sub-agent tools...")
+        result = supervisor_agent.invoke(cast(Any, input_state))
 
         # Extract the response
         if isinstance(result, dict) and "messages" in result:
@@ -275,34 +185,21 @@ def _handle_with_controller_agent(
                 last_msg = result_messages[-1]
                 if isinstance(last_msg, AIMessage):
                     response_content = str(last_msg.content)
-
-                    # Check if agent wants to route to a sub-agent
-                    if "[ROUTE:onboarding]" in response_content:
-                        state["agent_flow"] = ["onboarding"]
-                        state["current_agent_index"] = 0
-                        state["flow_complete"] = False
-                        return Command(goto="onboarding", update=state)
-                    elif "[ROUTE:player_comparison]" in response_content:
-                        state["agent_flow"] = ["player_comparison"]
-                        state["current_agent_index"] = 0
-                        state["flow_complete"] = False
-                        return Command(goto="player_comparison", update=state)
-
-                    # Agent handled it directly - set response and go to email
                     state["response"] = response_content
                     state["messages"] = result_messages
-                    state["flow_complete"] = True
+                    logger.info(f"Supervisor response: {response_content[:200]}...")
                     return Command(goto="email", update=state)
 
+        # No valid response - ask for clarification
+        state["needs_clarification"] = True
+        state["response"] = "I couldn't process your request. Could you please rephrase?"
+        return Command(goto="clarification", update=state)
+
     except Exception as e:
-        logger.error(f"Error in controller agent: {e}", exc_info=True)
+        logger.error(f"Error in supervisor agent: {e}", exc_info=True)
         state["needs_clarification"] = True
         state["response"] = "I encountered an error processing your request. Could you please try again?"
         return Command(goto="clarification", update=state)
-
-    # Fallback - ask for clarification
-    state["needs_clarification"] = True
-    return Command(goto="clarification", update=state)
 
 
 def clarification_node(state: AgentState) -> Command[Literal["__end__"]]:
