@@ -49,16 +49,42 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
 
     def before_model(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Log state before each model call."""
-        # Debug: log raw state keys and types
-        logger.info(f"[{self.agent_name}:DEBUG] state type: {type(state)}, keys: {list(state.keys())}")
         state_str = _format_state(state)
         logger.info(f"[{self.agent_name}:BEFORE_MODEL] {state_str}")
         return None
 
     def after_model(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
-        """Log state after each model call."""
+        """Log state after each model call, including reasoning and tool decisions."""
         state_str = _format_state(state)
         logger.info(f"[{self.agent_name}:AFTER_MODEL] {state_str}")
+
+        # Log agent reasoning from the latest AI message
+        messages = state.get("messages", [])
+        if messages:
+            last_message = messages[-1]
+
+            # Log the agent's thinking/reasoning (the content of its response)
+            if hasattr(last_message, "content") and last_message.content:
+                content = last_message.content
+                # Truncate long content for readability
+                if isinstance(content, str) and len(content) > 500:
+                    content = content[:500] + "..."
+                logger.info(f"[{self.agent_name}:THINKING] {content}")
+
+            # Log tool call decisions (only AIMessage has tool_calls)
+            tool_calls = getattr(last_message, "tool_calls", None)
+            if tool_calls:
+                for tool_call in tool_calls:
+                    tool_name = tool_call.get("name", "unknown")
+                    tool_args = tool_call.get("args", {})
+                    # Truncate long args for readability
+                    args_str = str(tool_args)
+                    if len(args_str) > 300:
+                        args_str = args_str[:300] + "..."
+                    logger.info(
+                        f"[{self.agent_name}:TOOL_DECISION] Calling '{tool_name}' with args: {args_str}"
+                    )
+
         return None
 
     def before_agent(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
