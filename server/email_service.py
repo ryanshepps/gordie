@@ -6,12 +6,22 @@ Mailgun's HTTP API.
 """
 
 import os
+from dataclasses import dataclass
 
 import requests
 
 from module.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class EmailResult:
+    """Result of sending an email."""
+
+    success: bool
+    message_id: str | None = None
+    error: str | None = None
 
 
 class EmailService:
@@ -70,7 +80,9 @@ class EmailService:
         track_opens: bool = True,
         track_clicks: bool = True,
         custom_data: dict[str, str] | None = None,
-    ) -> bool:
+        in_reply_to: str | None = None,
+        references: str | None = None,
+    ) -> EmailResult:
         """
         Send email via Mailgun API.
 
@@ -82,9 +94,11 @@ class EmailService:
             track_opens: Enable open tracking (default: True)
             track_clicks: Enable click tracking (default: True)
             custom_data: Optional custom metadata to attach to the email
+            in_reply_to: Message-ID of email being replied to (for threading)
+            references: Space-separated list of Message-IDs in thread chain
 
         Returns:
-            True if sent successfully, False otherwise
+            EmailResult with success status and message_id if successful
         """
         try:
             url = f"https://api.mailgun.net/v3/{self.domain}/messages"
@@ -98,6 +112,12 @@ class EmailService:
                 "o:tracking-opens": "yes" if track_opens else "no",
                 "o:tracking-clicks": "yes" if track_clicks else "no",
             }
+
+            # Add threading headers for proper email client threading
+            if in_reply_to:
+                data["h:In-Reply-To"] = in_reply_to
+            if references:
+                data["h:References"] = references
 
             # If no HTML body provided, auto-generate from text body
             # This ensures tracking pixels work (Mailgun needs HTML to inject pixels)
@@ -116,14 +136,23 @@ class EmailService:
             # Validate api_key before making request
             if not self.api_key:
                 logger.error("MAILGUN_API_KEY is not set")
-                return False
+                return EmailResult(success=False, error="MAILGUN_API_KEY is not set")
 
             response = requests.post(url, auth=("api", self.api_key), data=data, timeout=10)
 
             response.raise_for_status()
-            logger.info(f"Email sent to {to_email}: {response.json()}")
-            return True
+            response_data = response.json()
+            logger.info(f"Email sent to {to_email}: {response_data}")
+
+            # Extract Message-ID from Mailgun response
+            # Mailgun returns: {"id": "<message-id@domain>", "message": "Queued..."}
+            message_id = response_data.get("id")
+            if message_id:
+                # Clean the Message-ID (remove angle brackets)
+                message_id = message_id.strip("<>")
+
+            return EmailResult(success=True, message_id=message_id)
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send email to {to_email}: {e}")
-            return False
+            return EmailResult(success=False, error=str(e))

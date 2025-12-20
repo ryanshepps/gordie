@@ -73,6 +73,9 @@ class AgentState(_AgentStateRequired, total=False):
     current_agent_index: int  # Current position in flow (0-based)
     flow_complete: bool  # Explicit completion flag
     flow_reasoning: str | None  # LLM reasoning for agent flow decision
+    # Email threading fields
+    original_subject: str | None  # Original email subject for reply threading
+    original_message: str | None  # Original user message for quoting in replies
 
 
 def get_user_teams(user_email: str) -> list[dict[str, str]]:

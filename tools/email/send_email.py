@@ -43,18 +43,18 @@ def send_email(to_email: str, subject: str, message: str) -> str:
             extras=["tables", "fenced-code-blocks", "strike", "cuddled-lists"],
         )
 
-        success = email_service.send_email(
+        result = email_service.send_email(
             to_email=to_email,
             subject=subject,
             text_body=message,
             html_body=html_body,
         )
 
-        if success:
+        if result.success:
             logger.info(f"Email sent successfully to {to_email}")
             return f"Email sent successfully to {to_email}"
         else:
-            logger.error(f"Failed to send email to {to_email}")
+            logger.error(f"Failed to send email to {to_email}: {result.error}")
             return f"Failed to send email to {to_email}"
 
     except Exception as e:

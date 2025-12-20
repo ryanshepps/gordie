@@ -14,6 +14,7 @@ from langgraph.types import Command
 from agent.agent_state import AgentState, build_context, get_user_teams
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
+from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.subagents import compare_players, handle_onboarding, handle_player_add
 from tools.yahoo.get_roster import get_roster
 
@@ -42,10 +43,19 @@ AVAILABLE TOOLS:
 3. **handle_onboarding** - USE THIS FOR:
    - Account setup and Yahoo connection
    - First-time user setup
+   - Returns JSON with 'status', 'message', and optionally 'oauth_url'
+   - **IMPORTANT**: If 'oauth_url' is present in the response, you MUST include this exact URL in your message to the user. Never paraphrase or omit URLs.
 
 4. **get_roster** - USE THIS FOR:
    - Simple roster queries ONLY ("who's on my team", "show my roster")
    - DO NOT use this for trades, waivers, or any decision-making
+
+5. **search_past_conversations** - USE THIS FOR:
+   - When the user references a previous conversation ("remember when...", "last time we talked about...")
+   - When you want to check if similar advice was given before
+   - When the user asks about a player they previously discussed
+   - When the user can't find an old email and asks you to remind them
+   - When providing context-aware advice that builds on previous discussions
 
 CRITICAL RULES:
 
@@ -60,7 +70,9 @@ CRITICAL RULES:
 
 3. YOU ARE NOT ALLOWED to give trade/waiver advice yourself. You MUST delegate to handle_player_add.
 
-4. When you receive a response from a sub-agent tool, return that response directly to the user.
+4. When you receive a response from a sub-agent tool, use that information to craft an appropriate response to the user. You may rephrase and adapt the message, but you MUST preserve any URLs, links, or specific data exactly as provided.
+
+5. Use search_past_conversations proactively when it would help provide better context-aware advice.
 
 The user's email and team context will be provided in system messages.
 """
@@ -73,19 +85,33 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 checkpointer = SqliteSaver(conn)
 
-# Create the supervisor agent with sub-agent tools
-if not os.environ.get("OPENAI_API_KEY"):
-    logger.error("OPENAI_API_KEY environment variable not set")
-    raise ValueError("OPENAI_API_KEY environment variable not set")
+# Supervisor agent singleton - lazily initialized
+_supervisor_agent = None
 
-supervisor_agent = create_agent(
-    model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-    tools=[get_roster, compare_players, handle_player_add, handle_onboarding],
-    middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
-    system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
-    checkpointer=checkpointer,
-    state_schema=AgentState,  # type: ignore[arg-type]
-)
+
+def get_supervisor_agent():
+    """Get or create the supervisor agent singleton."""
+    global _supervisor_agent
+    if _supervisor_agent is None:
+        if not os.environ.get("OPENAI_API_KEY"):
+            logger.error("OPENAI_API_KEY environment variable not set")
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+
+        # Import from memory_store module to avoid circular import with graph_builder
+        from agent.memory_store import get_memory_store
+
+        # Create the search tool with access to the memory store
+        search_past_conversations = create_search_past_conversations_tool(get_memory_store())
+
+        _supervisor_agent = create_agent(
+            model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
+            tools=[get_roster, compare_players, handle_player_add, handle_onboarding, search_past_conversations],
+            middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
+            system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
+            checkpointer=checkpointer,
+            state_schema=AgentState,  # type: ignore[arg-type]
+        )
+    return _supervisor_agent
 
 
 def controller_node(
@@ -196,7 +222,7 @@ def controller_node(
         input_state["messages"] = [*system_messages, *list(state.get("messages", []))]
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
-        result = supervisor_agent.invoke(cast(Any, input_state))
+        result = get_supervisor_agent().invoke(cast(Any, input_state))
 
         # Extract the response
         if isinstance(result, dict) and "messages" in result:

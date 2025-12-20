@@ -102,6 +102,35 @@ def create_yahoo_tokens_table(conn: duckdb.DuckDBPyConnection) -> None:
     logger.debug("Created yahoo_tokens table")
 
 
+def create_email_threads_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create table for tracking email thread Message-IDs.
+
+    This table maps Mailgun Message-IDs to conversation thread_ids,
+    enabling proper email threading when users reply to emails.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS email_threads (
+            message_id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            user_email TEXT NOT NULL,
+            subject TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_email) REFERENCES users(email)
+        )
+    """)
+    # Create index for faster lookups by thread_id
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_email_threads_thread_id
+        ON email_threads(thread_id)
+    """)
+    # Create index for lookups by user_email
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_email_threads_user_email
+        ON email_threads(user_email)
+    """)
+    logger.debug("Created email_threads table")
+
+
 if __name__ == "__main__":
     nhl_stats_conn = get_nhl_stats_db_connection()
     create_nhl_player_stats_table(nhl_stats_conn)
@@ -112,6 +141,7 @@ if __name__ == "__main__":
     create_yahoo_league_table(platform_conn)
     create_yahoo_user_teams_table(platform_conn)
     create_yahoo_tokens_table(platform_conn)
+    create_email_threads_table(platform_conn)
     platform_conn.close()
 
     logger.info("Database setup complete")

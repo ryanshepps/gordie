@@ -6,6 +6,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
+from pydantic import BaseModel, Field
 
 from agent.agent_state import AgentState
 from middleware.state_logger import StateLoggingMiddleware
@@ -17,29 +18,28 @@ from tools.yahoo.onboard_user_team import onboard_user_team
 logger = logging.getLogger(__name__)
 
 
+class OnboardingResponse(BaseModel):
+    """Structured response from the onboarding agent."""
+
+    message: str = Field(description="The message to send to the user")
+    oauth_url: str | None = Field(default=None, description="The OAuth URL if one was generated")
+
+
 if not os.environ.get("OPENAI_API_KEY"):
     logger.error("OPENAI_API_KEY environment variable not set")
     raise ValueError("OPENAI_API_KEY environment variable not set")
-model = ChatOpenAI(model="gpt-5-nano-2025-08-07")
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 
 onboarding_agent_task = """
-Task: Welcome the user to the Gordie AI agent and help them onboard their Yahoo Fantasy team.
+Help users connect their Yahoo Fantasy account.
 
-Onboarding Flow:
-1. FIRST MESSAGE: You MUST immediately call generate_oauth_link to create an authorization link
-   for the user. Do not just talk about it - actually call the tool right away.
+Flow:
+1. Call generate_oauth_link to create an authorization link.
 2. Once authenticated, use get_user_leagues to retrieve their leagues/teams.
-3. Ask which team they want to onboard. If there's only one active team,
-   ask if they want to onboard that specific team.
-4. Use onboard_user_team to save their selected team.
+3. Use onboard_user_team to save their selected team.
 
-IMPORTANT:
-- Only show teams with currently active seasons.
-- On the very first message from a user, you MUST call the generate_oauth_link tool immediately.
-- The user's email address will be provided in a system message at the start of the conversation.
-  Use that email when calling generate_oauth_link and other tools that require it.
-- Always include the full OAuth URL in your response. Never use placeholders like "[link]".
+The user's email will be provided in a system message.
 """
 
 # Use SQLite for persistent conversation storage across script runs
@@ -59,4 +59,5 @@ agent = create_agent(
     system_prompt=SystemMessage(content=onboarding_agent_task),
     checkpointer=checkpointer,
     state_schema=AgentState,
+    response_format=OnboardingResponse,
 )

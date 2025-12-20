@@ -186,6 +186,11 @@ class OAuthCallbackServer:
             token = request.form.get("token")
             signature = request.form.get("signature")
 
+            # Extract email threading headers
+            in_reply_to = request.form.get("In-Reply-To")
+            references = request.form.get("References")
+            _ = request.form.get("Message-Id")  # Extracted but not currently used
+
             # Validate required fields
             if not all([sender_email, timestamp, token, signature]):
                 logger.error("Missing required webhook fields")
@@ -209,6 +214,23 @@ class OAuthCallbackServer:
                 return jsonify({"error": "Invalid signature"}), 403
 
             logger.info(f"Received email from {sender_email}: {subject}")
+            if in_reply_to:
+                logger.info(f"Email is a reply to: {in_reply_to}")
+
+            # Resolve thread_id based on email headers
+            from server.email_thread_manager import resolve_thread
+
+            thread_info = resolve_thread(
+                user_email=sender_email,
+                in_reply_to=in_reply_to,
+                references=references,
+                subject=subject,
+            )
+
+            logger.info(
+                f"Thread resolved: {thread_info.thread_id} "
+                f"(new={thread_info.is_new_thread}, subject={thread_info.subject})"
+            )
 
             # Process in background thread
             def process_email():
@@ -217,7 +239,13 @@ class OAuthCallbackServer:
 
                     # Process through agent - email sending is handled by the agent graph's email_node
                     logger.info(f"Processing email from {sender_email}")
-                    message_agent(email=sender_email, message=message_body)
+                    message_agent(
+                        email=sender_email,
+                        message=message_body,
+                        thread_id=thread_info.thread_id,
+                        original_subject=thread_info.subject,
+                        original_message=message_body,
+                    )
                     logger.info(f"Agent processing complete for {sender_email}")
 
                 except Exception as e:

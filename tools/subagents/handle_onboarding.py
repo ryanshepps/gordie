@@ -1,8 +1,10 @@
 """Tool wrapper for the onboarding sub-agent."""
 
+import json
 from typing import Annotated, Any, cast
 
 from langchain.tools import InjectedState, tool
+from langchain_core.runnables import RunnableConfig
 
 from module.logger import get_logger
 
@@ -29,7 +31,8 @@ def handle_onboarding(
         user_email: The user's email address for authentication
 
     Returns:
-        The onboarding agent's response with instructions or confirmation
+        JSON with 'status', 'message', and optionally 'oauth_url'.
+        If oauth_url is present, you MUST include this exact URL in your response to the user.
     """
     # Import here to avoid circular imports
     from langchain_core.messages import SystemMessage
@@ -57,14 +60,37 @@ def handle_onboarding(
         "messages": [*system_messages, {"role": "user", "content": request}],
     }
 
-    result = onboarding_agent.invoke(cast(Any, input_state))
+    # Build config with thread_id for conversation isolation
+    thread_id = state.get("thread_id", user_email) if state else user_email
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
-    # Extract the last AI message content
+    result = onboarding_agent.invoke(cast(Any, input_state), config)
+
+    # Extract structured response and return as JSON
+    structured = result.get("structured_response")
+    if structured:
+        response_data = {
+            "status": "success",
+            "message": structured.message,
+        }
+        if structured.oauth_url:
+            response_data["oauth_url"] = structured.oauth_url
+        logger.info(f"[handle_onboarding] Response: {response_data}")
+        return json.dumps(response_data)
+
+    # Fallback to last AI message
     messages = result.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        response = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
-        logger.info(f"[handle_onboarding] Response: {response[:200]}...")
-        return response
+        message = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+        response_data = {
+            "status": "success",
+            "message": message,
+        }
+        logger.info(f"[handle_onboarding] Response: {response_data}")
+        return json.dumps(response_data)
 
-    return "I encountered an issue processing your onboarding request. Please try again."
+    return json.dumps({
+        "status": "error",
+        "message": "I encountered an issue processing your onboarding request. Please try again."
+    })

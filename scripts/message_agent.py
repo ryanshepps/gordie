@@ -27,21 +27,33 @@ user, and you want to be useful for the user.
 """
 
 
-def message_agent(email: str, message: str, team_context: str | None = None) -> str:
+def message_agent(
+    email: str,
+    message: str,
+    team_context: str | None = None,
+    thread_id: str | None = None,
+    original_subject: str | None = None,
+    original_message: str | None = None,
+) -> str:
     """
     Send a message to the agent graph and continue the conversation.
 
     Args:
-        email: User's email address (used as thread_id)
+        email: User's email address
         message: Message content to send to the agent
         team_context: Optional team context in format app:game_key:league_id:team_id
+        thread_id: Conversation thread ID (defaults to email for backwards compatibility)
+        original_subject: Original email subject line for reply threading
+        original_message: Original user message for quoting in replies
 
     Returns:
         Agent's response as a string, or empty string if error occurs
     """
 
     try:
-        config: RunnableConfig = {"configurable": {"thread_id": email}}
+        # Use provided thread_id or fall back to email for backwards compatibility
+        resolved_thread_id = thread_id or email
+        config: RunnableConfig = {"configurable": {"thread_id": resolved_thread_id}}
 
         # Build message payload
         message_payload = {"role": "user", "content": message}
@@ -51,7 +63,7 @@ def message_agent(email: str, message: str, team_context: str | None = None) -> 
         # Build initial state
         initial_state: AgentState = {
             "user_email": email,
-            "thread_id": email,
+            "thread_id": resolved_thread_id,
             "messages": [message_payload],
             "has_teams": False,
             "user_teams": [],
@@ -67,6 +79,8 @@ def message_agent(email: str, message: str, team_context: str | None = None) -> 
             "current_agent_index": 0,
             "flow_complete": False,
             "flow_reasoning": None,
+            "original_subject": original_subject,
+            "original_message": original_message or message,
         }
 
         # Send message to agent graph
