@@ -56,10 +56,15 @@ def get_league_teams(
                         "is_commissioner": getattr(manager, "is_commissioner", False),
                     })
 
+            # Handle team name which may be returned as bytes
+            team_name = getattr(team, "name", None)
+            if isinstance(team_name, bytes):
+                team_name = team_name.decode("utf-8")
+
             team_info = {
                 "team_id": getattr(team, "team_id", None),
                 "team_key": getattr(team, "team_key", None),
-                "name": getattr(team, "name", None),
+                "name": team_name,
                 "managers": manager_info,
                 "waiver_priority": getattr(team, "waiver_priority", None),
                 "number_of_moves": getattr(team, "number_of_moves", None),

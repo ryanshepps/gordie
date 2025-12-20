@@ -93,7 +93,15 @@ include = ["tools*", "module*", "client*", "server*"]
 [dependency-groups]
 dev = [
     "basedpyright>=1.36.1",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.14.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"
 
 [tool.basedpyright]
 exclude = [

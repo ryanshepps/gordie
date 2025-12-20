@@ -12,6 +12,27 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
+# Mapping from Yahoo stat display names to our internal stat keys
+YAHOO_STAT_NAME_MAP = {
+    "G": "goals",
+    "A": "assists",
+    "PIM": "pim",
+    "+/-": "plus_minus",
+    "PPG": "power_play_goals",
+    "PPA": "power_play_assists",
+    "PPP": "power_play_points",
+    "SHG": "short_handed_goals",
+    "SHA": "short_handed_assists",
+    "SHP": "short_handed_points",
+    "GWG": "game_winning_goals",
+    "SOG": "sog",
+    "HIT": "hits",
+    "BLK": "blocked_shots",
+    "FW": "faceoffs_won",
+    "FL": "faceoffs_lost",
+}
+
+
 class CalculateFantasyPointsInput(BaseModel):
     """Input schema for calculate_fantasy_points tool."""
 
@@ -24,6 +45,80 @@ class CalculateFantasyPointsInput(BaseModel):
     user_email: str = Field(
         description="User's email address for OAuth token lookup"
     )
+
+
+def extract_scoring_settings(settings) -> dict[str, float]:
+    """
+    Extract scoring settings from Yahoo league settings.
+
+    Args:
+        settings: Yahoo Settings object from get_league_settings()
+
+    Returns:
+        Dictionary mapping stat abbreviations to point values
+
+    Raises:
+        ValueError: If stat_modifiers is missing or empty
+    """
+    if not hasattr(settings, "stat_modifiers") or settings.stat_modifiers is None:
+        raise ValueError("League settings missing stat_modifiers")
+
+    stat_modifiers = settings.stat_modifiers
+    if not hasattr(stat_modifiers, "stats") or not stat_modifiers.stats:
+        raise ValueError("League stat_modifiers has no stats defined")
+
+    scoring = {}
+    for stat in stat_modifiers.stats:
+        # stat.value contains the point value for this stat
+        # stat.stat_id is the unique ID, but we need to map it to abbreviation
+        # The stat object should have display_name or abbr from stat_categories
+        if hasattr(stat, "value") and stat.value is not None:
+            # Try to get the stat abbreviation
+            abbr = getattr(stat, "abbr", None) or getattr(stat, "display_name", None)
+            if abbr:
+                scoring[abbr] = float(stat.value)
+
+    if not scoring:
+        raise ValueError("Could not extract any scoring categories from league settings")
+
+    return scoring
+
+
+def calculate_player_points(
+    player_data: dict[str, Any],
+    scoring: dict[str, float],
+) -> dict[str, Any]:
+    """
+    Calculate fantasy points for a single player.
+
+    Args:
+        player_data: Player stats dictionary
+        scoring: Scoring settings mapping stat abbr to point value
+
+    Returns:
+        Dictionary with total_fantasy_points, breakdown, games_played, fantasy_points_per_game
+    """
+    fantasy_points = 0.0
+    breakdown = {}
+
+    for yahoo_abbr, internal_key in YAHOO_STAT_NAME_MAP.items():
+        if yahoo_abbr in scoring and internal_key in player_data:
+            stat_value = player_data[internal_key]
+            points = stat_value * scoring[yahoo_abbr]
+            fantasy_points += points
+            breakdown[internal_key] = points
+
+    games_played = player_data.get("games_played", 0)
+    points_per_game = (
+        round(fantasy_points / games_played, 2) if games_played > 0 else 0
+    )
+
+    return {
+        "total_fantasy_points": round(fantasy_points, 2),
+        "breakdown": breakdown,
+        "games_played": games_played,
+        "fantasy_points_per_game": points_per_game,
+    }
 
 
 @tool(args_schema=CalculateFantasyPointsInput)
@@ -43,94 +138,28 @@ def calculate_fantasy_points(player_stats: str, league_id: str, user_email: str)
         JSON string with fantasy points breakdown per player
     """
     try:
-        # Parse player stats
         logger.info(f"Received player_stats type: {type(player_stats)}")
         logger.info(f"Received player_stats (first 200 chars): {str(player_stats)[:200]}")
 
-        # Handle case where player_stats might already be a dict
+        # Parse player stats
         stats_dict = player_stats if isinstance(player_stats, dict) else json.loads(player_stats)
 
-        # Get league settings
+        # Get league settings from Yahoo
         yahoo_client = AuthenticatedYahooClient(
             league_id=int(league_id),
             user_email=user_email
         )
-        yahoo_query = yahoo_client.query
+        settings = yahoo_client.query.get_league_settings()
 
-        # Fetch league settings
-        yahoo_query.get_league_settings()
-
-        results: dict[str, Any] = {}
-
-        # Default scoring (NHL standard categories if we can't fetch settings)
-        default_scoring = {
-            "G": 3.0,
-            "A": 2.0,
-            "PPP": 1.0,
-            "SOG": 0.2,
-            "HIT": 0.2,
-            "BLK": 0.2,
-            "+/-": 0.5,
-        }
-
-        # Extract scoring from league settings (this will need adjustment based on actual API response)
-        scoring_categories = default_scoring
-        logger.info(f"Using scoring categories: {scoring_categories}")
+        # Extract scoring settings - will raise ValueError if not available
+        scoring = extract_scoring_settings(settings)
+        logger.info(f"Extracted scoring categories from league: {scoring}")
 
         # Calculate fantasy points for each player
+        results: dict[str, Any] = {}
         for player_id, player_data in stats_dict.items():
             if isinstance(player_data, dict) and player_data.get("status") != "error":
-                fantasy_points = 0.0
-                breakdown = {}
-
-                # Goals
-                if "goals" in player_data:
-                    points_from_goals = player_data["goals"] * scoring_categories.get("G", 3.0)
-                    fantasy_points += points_from_goals
-                    breakdown["goals"] = points_from_goals
-
-                # Assists
-                if "assists" in player_data:
-                    points_from_assists = player_data["assists"] * scoring_categories.get("A", 2.0)
-                    fantasy_points += points_from_assists
-                    breakdown["assists"] = points_from_assists
-
-                # Power play goals (counted as PPP)
-                if "power_play_goals" in player_data:
-                    points_from_ppp = player_data["power_play_goals"] * scoring_categories.get("PPP", 1.0)
-                    fantasy_points += points_from_ppp
-                    breakdown["power_play_points"] = points_from_ppp
-
-                # Shots on goal
-                if "sog" in player_data:
-                    points_from_sog = player_data["sog"] * scoring_categories.get("SOG", 0.2)
-                    fantasy_points += points_from_sog
-                    breakdown["shots"] = points_from_sog
-
-                # Hits
-                if "hits" in player_data:
-                    points_from_hits = player_data["hits"] * scoring_categories.get("HIT", 0.2)
-                    fantasy_points += points_from_hits
-                    breakdown["hits"] = points_from_hits
-
-                # Blocked shots
-                if "blocked_shots" in player_data:
-                    points_from_blocks = player_data["blocked_shots"] * scoring_categories.get("BLK", 0.2)
-                    fantasy_points += points_from_blocks
-                    breakdown["blocks"] = points_from_blocks
-
-                # Plus/minus
-                if "plus_minus" in player_data:
-                    points_from_plusminus = player_data["plus_minus"] * scoring_categories.get("+/-", 0.5)
-                    fantasy_points += points_from_plusminus
-                    breakdown["plus_minus"] = points_from_plusminus
-
-                results[player_id] = {
-                    "total_fantasy_points": round(fantasy_points, 2),
-                    "breakdown": breakdown,
-                    "games_played": player_data.get("games_played", 0),
-                    "fantasy_points_per_game": round(fantasy_points / player_data.get("games_played", 1), 2) if player_data.get("games_played", 0) > 0 else 0
-                }
+                results[player_id] = calculate_player_points(player_data, scoring)
             else:
                 results[player_id] = player_data
 
@@ -138,20 +167,21 @@ def calculate_fantasy_points(player_stats: str, league_id: str, user_email: str)
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error in calculate_fantasy_points: {e}")
-        logger.error(f"Problematic input - player_stats type: {type(player_stats)}")
-        logger.error(f"Problematic input - player_stats value: {player_stats}")
         return json.dumps({
             "status": "error",
             "error": f"Invalid JSON in player_stats: {e!s}",
-            "note": "Please ensure player_stats is valid JSON"
+        }, indent=2)
+    except ValueError as e:
+        logger.error(f"Failed to get league scoring settings: {e}")
+        return json.dumps({
+            "status": "error",
+            "error": f"Could not fetch league scoring settings: {e!s}",
         }, indent=2)
     except Exception as e:
         logger.error(f"Error calculating fantasy points: {e}")
-        logger.error(f"Error type: {type(e).__name__}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return json.dumps({
             "status": "error",
             "error": str(e),
-            "note": "Using default NHL scoring if league settings unavailable"
         }, indent=2)
