@@ -59,7 +59,7 @@ IMPORTANT RULES:
 - When a user asks about available players, waivers, free agents, or who to pick up, ALWAYS use handle_player_add tool.
 - When a user needs to set up their account or connect a team, ALWAYS use handle_onboarding tool.
 - Pass the full user request to the sub-agent tools so they have complete context.
-- After a sub-agent tool returns, summarize or present the results to the user.
+- When a sub-agent tool returns a response, incorporate its content into your response.
 
 The user's email and team context will be provided in system messages.
 """
@@ -183,7 +183,16 @@ def controller_node(
         # Invoke the supervisor agent with full state
         # Create a copy of state and update messages with context
         input_state: dict[str, Any] = dict(state)
-        input_state["messages"] = [context_msg, *list(state.get("messages", []))]
+
+        # Build system messages list - include persona if available
+        system_messages = []
+        persona = state.get("persona", "")
+        if persona:
+            system_messages.append(SystemMessage(content=persona))
+            logger.info("[ControllerAgent] Persona injected into supervisor")
+        system_messages.append(context_msg)
+
+        input_state["messages"] = [*system_messages, *list(state.get("messages", []))]
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
         result = supervisor_agent.invoke(cast(Any, input_state))

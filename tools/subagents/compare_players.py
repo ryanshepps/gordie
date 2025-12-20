@@ -1,7 +1,8 @@
 """Tool wrapper for the player comparison sub-agent."""
 
-from langchain.agents.middleware.types import _InputAgentState
-from langchain.tools import tool
+from typing import Annotated, Any, cast
+
+from langchain.tools import InjectedState, tool
 
 from module.logger import get_logger
 
@@ -13,6 +14,7 @@ def compare_players(
     request: str,
     user_email: str,
     league_id: str = "",
+    state: Annotated[dict[str, Any], InjectedState] | None = None,
 ) -> str:
     """Compare NHL players for fantasy hockey decisions.
 
@@ -39,19 +41,28 @@ def compare_players(
 
     logger.info(f"[compare_players] Processing request for {user_email}: {request[:100]}...")
 
-    # Inject user context as a system message
+    # Get persona from state if available
+    persona = state.get("persona", "") if state else ""
+
+    # Inject persona and user context as system messages
+    system_messages = []
+
+    if persona:
+        system_messages.append(SystemMessage(content=persona))
+
     context_parts = [f"User email: {user_email}"]
     if league_id:
         context_parts.append(f"League ID: {league_id}")
 
     user_context_msg = SystemMessage(content="\n".join(context_parts))
+    system_messages.append(user_context_msg)
 
     # Build input state with required messages field
-    input_state: _InputAgentState = {
-        "messages": [user_context_msg, {"role": "user", "content": request}],
+    input_state = {
+        "messages": [*system_messages, {"role": "user", "content": request}],
     }
 
-    result = player_comparison_agent.invoke(input_state)
+    result = player_comparison_agent.invoke(cast(Any, input_state))
 
     # Extract the last AI message content
     messages = result.get("messages", [])

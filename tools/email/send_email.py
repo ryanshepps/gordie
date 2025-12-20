@@ -1,5 +1,6 @@
 """Tool to send email responses to users."""
 
+import markdown2
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
@@ -35,10 +36,18 @@ def send_email(to_email: str, subject: str, message: str) -> str:
     """
     try:
         email_service = EmailService()
+
+        # Convert markdown to HTML for proper email formatting
+        html_body = markdown2.markdown(
+            message,
+            extras=["tables", "fenced-code-blocks", "strike", "cuddled-lists"],
+        )
+
         success = email_service.send_email(
             to_email=to_email,
             subject=subject,
             text_body=message,
+            html_body=html_body,
         )
 
         if success:

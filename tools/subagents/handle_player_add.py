@@ -1,7 +1,8 @@
 """Tool wrapper for the player add sub-agent."""
 
-from langchain.agents.middleware.types import _InputAgentState
-from langchain.tools import tool
+from typing import Annotated, Any, cast
+
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
@@ -24,6 +25,7 @@ class PlayerAddInput(BaseModel):
     team_id: str = Field(
         description="The Yahoo Fantasy team ID (numeric string, e.g., '7'). Required to compare against the user's current roster."
     )
+    state: Annotated[dict[str, Any], InjectedState] | None = Field(default=None)
 
 
 @tool(args_schema=PlayerAddInput)
@@ -32,6 +34,7 @@ def handle_player_add(
     user_email: str,
     league_id: str,
     team_id: str,
+    state: Annotated[dict[str, Any], InjectedState] | None = None,
 ) -> str:
     """Find and evaluate players to add to your fantasy hockey roster.
 
@@ -69,7 +72,20 @@ def handle_player_add(
 
     logger.info(f"[handle_player_add] Processing request for {user_email} (league={league_id}, team={team_id}): {request[:100]}...")
 
-    # Inject user context as a system message
+    # Debug: log the injected state
+    logger.info(f"[handle_player_add] Injected state: {state}")
+    logger.info(f"[handle_player_add] State keys: {state.keys() if state else 'None'}")
+
+    # Get persona from state if available
+    persona = state.get("persona", "") if state else ""
+    logger.info(f"[handle_player_add] Persona found: {bool(persona)}")
+
+    # Inject persona and user context as system messages
+    system_messages = []
+
+    if persona:
+        system_messages.append(SystemMessage(content=persona))
+
     context_parts = [
         f"User email: {user_email}",
         f"League ID: {league_id}",
@@ -77,13 +93,14 @@ def handle_player_add(
     ]
 
     user_context_msg = SystemMessage(content="\n".join(context_parts))
+    system_messages.append(user_context_msg)
 
     # Build input state with required messages field
-    input_state: _InputAgentState = {
-        "messages": [user_context_msg, {"role": "user", "content": request}],
+    input_state = {
+        "messages": [*system_messages, {"role": "user", "content": request}],
     }
 
-    result = player_add_agent.invoke(input_state)
+    result = player_add_agent.invoke(cast(Any, input_state))
 
     # Extract the last AI message content
     messages = result.get("messages", [])
