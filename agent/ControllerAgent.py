@@ -14,7 +14,7 @@ from langgraph.types import Command
 from agent.agent_state import AgentState, build_context, get_user_teams
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
-from tools.subagents import compare_players, handle_onboarding
+from tools.subagents import compare_players, handle_onboarding, handle_player_add
 from tools.yahoo.get_roster import get_roster
 
 # Use literal string for END to satisfy type checker
@@ -34,19 +34,29 @@ You have access to specialized tools to help users:
    - "Player recommendations"
    - Any question about choosing between players
 
-2. **handle_onboarding**: Use this for account and team setup, including:
+2. **handle_player_add**: Use this for finding and evaluating players to add, including:
+   - "Who is available on waivers?"
+   - "Who should I pick up?"
+   - "Is Player X available?"
+   - "Find me a center to add"
+   - "Who are the best free agents?"
+   - "Should I pick up Player Y?"
+   - Any question about adding players, free agents, or waiver claims
+
+3. **handle_onboarding**: Use this for account and team setup, including:
    - Connecting Yahoo Fantasy account
    - Adding a new team to track
    - Authentication issues
    - First-time user setup
 
-3. **get_roster**: Use this to fetch the user's current roster when they ask:
+4. **get_roster**: Use this to fetch the user's current roster when they ask:
    - "Who's on my team?"
    - "Show me my roster"
    - General roster queries
 
 IMPORTANT RULES:
 - When a user asks to compare players or wants advice on who to start, ALWAYS use the compare_players tool.
+- When a user asks about available players, waivers, free agents, or who to pick up, ALWAYS use handle_player_add tool.
 - When a user needs to set up their account or connect a team, ALWAYS use handle_onboarding tool.
 - Pass the full user request to the sub-agent tools so they have complete context.
 - After a sub-agent tool returns, summarize or present the results to the user.
@@ -69,7 +79,7 @@ if not os.environ.get("OPENAI_API_KEY"):
 
 supervisor_agent = create_agent(
     model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-    tools=[get_roster, compare_players, handle_onboarding],
+    tools=[get_roster, compare_players, handle_player_add, handle_onboarding],
     middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
     system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
     checkpointer=checkpointer,
