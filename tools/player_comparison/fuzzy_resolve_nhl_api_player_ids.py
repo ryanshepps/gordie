@@ -1,0 +1,223 @@
+"""Tool to resolve player names to NHL API player IDs."""
+
+import json
+from dataclasses import dataclass
+from typing import Literal
+
+import requests
+from langchain.tools import tool
+from pydantic import Any, BaseModel, Field
+
+from data.nhl_player_stats_repository import NHLPlayerStatsRepository
+from module.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class PlayerMatch:
+    """A matched player from local database or NHL API."""
+
+    player_id: int
+    full_name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    games_in_db: int | None = None
+    team_abbrev: str | None = None
+    position: str | None = None
+    active: bool | None = None
+
+
+class FuzzyResolveNHLApiPlayerIdsInput(BaseModel):
+    """Input schema for fuzzy_resolve_nhl_api_player_ids tool."""
+
+    player_names: list[str] = Field(
+        description="List of player names to resolve (e.g., ['McDavid', 'Draisaitl'])"
+    )
+
+
+class PlayerMatchDict(BaseModel):
+    """A player match with all optional fields included."""
+
+    player_id: int
+    full_name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    games_in_db: int | None = None
+    team_abbrev: str | None = None
+    position: str | None = None
+    active: bool | None = None
+
+
+class SingleMatchResult(BaseModel):
+    """Result when exactly one player match is found."""
+
+    status: Literal["success"]
+    source: str
+    player_id: int
+    full_name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    games_in_db: int | None = None
+    team_abbrev: str | None = None
+    position: str | None = None
+    active: bool | None = None
+    message: str | None = None
+
+
+class MultipleMatchResult(BaseModel):
+    """Result when multiple player matches are found."""
+
+    status: Literal["multiple_matches"]
+    source: str
+    matches: list[PlayerMatchDict]
+    message: str
+
+
+BuildResultOutput = SingleMatchResult | MultipleMatchResult
+
+
+def _search_local_database(repo, player_name: str) -> list[PlayerMatch]:
+    """Search local database for players matching the name."""
+    search_term = f"%{player_name}%"
+    query = """
+        SELECT DISTINCT
+            nhl_api_player_id,
+            full_name,
+            first_name,
+            last_name,
+            COUNT(*) as games_in_db
+        FROM nhl_player_stats
+        WHERE full_name ILIKE ? OR last_name ILIKE ?
+        GROUP BY nhl_api_player_id, full_name, first_name, last_name
+        ORDER BY games_in_db DESC
+        LIMIT 5
+    """
+    rows = repo.conn.execute(query, [search_term, search_term]).fetchall()
+    return [
+        PlayerMatch(
+            player_id=row[0],
+            full_name=row[1],
+            first_name=row[2],
+            last_name=row[3],
+            games_in_db=row[4],
+        )
+        for row in rows
+    ]
+
+
+def _search_nhl_api(player_name: str) -> list[PlayerMatch] | None:
+    """Search NHL API for players matching the name. Returns None on error."""
+    try:
+        url = f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={player_name}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        results = response.json()
+        return [
+            PlayerMatch(
+                player_id=int(p.get("playerId", 0)),
+                full_name=p.get("name", ""),
+                team_abbrev=p.get("teamAbbrev"),
+                position=p.get("positionCode"),
+                active=p.get("active", False),
+            )
+            for p in results
+        ]
+    except requests.RequestException as e:
+        logger.error(f"NHL API error for '{player_name}': {e}")
+        return None
+
+
+def _build_result(matches: list[PlayerMatch], source: str) -> BuildResultOutput:
+    """Build result dict for single or multiple matches."""
+    if len(matches) == 1:
+        match = matches[0]
+        return SingleMatchResult(
+            status="success",
+            source=source,
+            player_id=match.player_id,
+            full_name=match.full_name,
+            first_name=match.first_name,
+            last_name=match.last_name,
+            games_in_db=match.games_in_db,
+            team_abbrev=match.team_abbrev,
+            position=match.position,
+            active=match.active,
+            message="Player found via NHL API. Stats may not be in local database yet." if source == "nhl_api" else None,
+        )
+
+    # Multiple matches
+    return MultipleMatchResult(
+        status="multiple_matches",
+        source=source,
+        matches=[
+            PlayerMatchDict(
+                player_id=m.player_id,
+                full_name=m.full_name,
+                first_name=m.first_name,
+                last_name=m.last_name,
+                games_in_db=m.games_in_db,
+                team_abbrev=m.team_abbrev,
+                position=m.position,
+                active=m.active,
+            )
+            for m in matches
+        ],
+        message=f"Found {len(matches)} possible matches. Please be more specific.",
+    )
+
+
+@tool(args_schema=FuzzyResolveNHLApiPlayerIdsInput)
+def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
+    """
+    Resolve player names to NHL API player IDs using local database and NHL search API.
+
+    This tool uses a two-tier approach:
+    1. First searches the local nhl_player_stats table with fuzzy matching
+    2. Falls back to NHL search API if not found locally
+
+    Args:
+        player_names: List of player names to search for (e.g., ['McDavid', 'Draisaitl'])
+
+    Returns:
+        JSON string containing resolved player information with player_id, full_name, and match details
+    """
+    repo = NHLPlayerStatsRepository()
+    results = {}
+
+    try:
+        for player_name in player_names:
+            try:
+                logger.info(f"Searching for player: {player_name}")
+
+                local_matches = _search_local_database(repo, player_name)
+                if local_matches:
+                    logger.info(f"Found {len(local_matches)} local match(es) for '{player_name}'")
+                    results[player_name] = _build_result(local_matches, "local_database").model_dump(exclude_none=True)
+                    continue
+
+                logger.info(f"No local match for '{player_name}', trying NHL API")
+                api_matches = _search_nhl_api(player_name)
+
+                if api_matches is None:
+                    results[player_name] = {"status": "error", "message": "Could not search NHL API"}
+                    continue
+
+                if not api_matches:
+                    logger.warning(f"No matches found for '{player_name}'")
+                    results[player_name] = {
+                        "status": "not_found",
+                        "message": f"No player found matching '{player_name}' in database or NHL API",
+                    }
+                    continue
+
+                logger.info(f"Found {len(api_matches)} NHL API match(es) for '{player_name}'")
+                results[player_name] = _build_result(api_matches, "nhl_api").model_dump(exclude_none=True)
+
+            except Exception as e:
+                logger.error(f"Error resolving '{player_name}': {e}")
+                results[player_name] = {"status": "error", "error": str(e)}
+    finally:
+        repo.close()
+
+    return json.dumps(results, indent=2)

@@ -14,8 +14,10 @@ from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.player_comparison.calculate_fantasy_points import calculate_fantasy_points
 from tools.player_comparison.compare_players_comprehensive import compare_players_comprehensive
+from tools.player_comparison.fuzzy_resolve_nhl_api_player_ids import (
+    fuzzy_resolve_nhl_api_player_ids,
+)
 from tools.player_comparison.get_player_stats import get_player_stats
-from tools.player_comparison.resolve_player_names import resolve_player_names
 from tools.subagents.compare_players import compare_players
 from tools.yahoo.filter_players_by_nhl_team import filter_players_by_nhl_team
 from tools.yahoo.get_available_players import get_available_players
@@ -107,7 +109,7 @@ agent = create_agent(
         # Player comparison sub-agent
         compare_players,
         # Direct player stats tools (for detailed analysis)
-        resolve_player_names,
+        fuzzy_resolve_nhl_api_player_ids,
         get_player_stats,
         calculate_fantasy_points,
         compare_players_comprehensive,
