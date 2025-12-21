@@ -2,7 +2,7 @@ from datetime import datetime
 
 from data.user_repository import UserRepository
 from module.logger import get_logger
-from server.oauth_callback_server import initiate_oauth_flow
+from server.oauth import initiate_oauth_flow
 
 logger = get_logger(__name__)
 

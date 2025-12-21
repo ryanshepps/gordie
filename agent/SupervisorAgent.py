@@ -12,10 +12,10 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from agent.agent_state import AgentState, build_context, get_user_teams
+from agent.subagents import compare_players, handle_onboarding, handle_player_add
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
-from tools.subagents import compare_players, handle_onboarding, handle_player_add
 from tools.yahoo.get_roster import get_roster
 
 # Use literal string for END to satisfy type checker
@@ -85,144 +85,115 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 checkpointer = SqliteSaver(conn)
 
-# Supervisor agent singleton - lazily initialized
-_supervisor_agent = None
+def create_supervisor_agent():
+    """Create a new supervisor agent instance."""
+    if not os.environ.get("OPENAI_API_KEY"):
+        logger.error("OPENAI_API_KEY environment variable not set")
+        raise ValueError("OPENAI_API_KEY environment variable not set")
 
+    # Import from memory_store module to avoid circular import with graph_builder
+    from agent.memory_store import get_memory_store
 
-def get_supervisor_agent():
-    """Get or create the supervisor agent singleton."""
-    global _supervisor_agent
-    if _supervisor_agent is None:
-        if not os.environ.get("OPENAI_API_KEY"):
-            logger.error("OPENAI_API_KEY environment variable not set")
-            raise ValueError("OPENAI_API_KEY environment variable not set")
+    # Create the search tool with access to the memory store
+    search_past_conversations = create_search_past_conversations_tool(get_memory_store())
 
-        # Import from memory_store module to avoid circular import with graph_builder
-        from agent.memory_store import get_memory_store
-
-        # Create the search tool with access to the memory store
-        search_past_conversations = create_search_past_conversations_tool(get_memory_store())
-
-        _supervisor_agent = create_agent(
-            model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-            tools=[get_roster, compare_players, handle_player_add, handle_onboarding, search_past_conversations],
-            middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
-            system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
-            checkpointer=checkpointer,
-            state_schema=AgentState,  # type: ignore[arg-type]
-        )
-    return _supervisor_agent
-
-
-def supervisor_node(
-    state: AgentState,
-) -> Command[Literal["clarification", "email", "__end__"]]:
-    """
-    Supervisor node that handles user requests via sub-agent tools.
-
-    This node:
-    1. Extracts the last user message and user context
-    2. Builds context (user email, league ID, team ID)
-    3. Invokes the supervisor agent which will call appropriate sub-agent tools
-    4. Routes to email node with the response
-    """
-    messages = state.get("messages", [])
-    user_email = state.get("user_email") or ""
-
-    if not messages:
-        logger.warning("No messages in state")
-        return Command(goto=END_NODE, update=state)
-
-    if not user_email:
-        logger.warning("No user_email in state")
-        return Command(goto=END_NODE, update=state)
-
-    # Get the last user message
-    last_message = messages[-1]
-    message_content = (
-        last_message.content if hasattr(last_message, "content") else str(last_message)
-    )
-    team_context = (
-        last_message.get("team_context")
-        if isinstance(last_message, dict)
-        else getattr(last_message, "team_context", None)
+    return create_agent(
+        model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
+        tools=[get_roster, compare_players, handle_player_add, handle_onboarding, search_past_conversations],
+        middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
+        system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
+        checkpointer=checkpointer,
+        state_schema=AgentState,  # type: ignore[arg-type]
     )
 
-    logger.info(f"Supervisor processing message: {message_content[:100]}...")
-    logger.info(f"Team context: {team_context}")
 
-    # Get user's teams
+def _get_team_context(message: Any) -> Any:
+    """Extract team_context from a message."""
+    if isinstance(message, dict):
+        return message.get("team_context")
+    return getattr(message, "team_context", None)
+
+
+def _resolve_team_context(
+    state: AgentState, team_context: Any, message_content: str, user_email: str
+) -> Command[Literal["clarification", "email", "__end__"]] | None:
+    """
+    Resolve team context and update state.
+
+    Returns a Command if clarification is needed, otherwise None.
+    """
     user_teams = get_user_teams(user_email)
     state["user_teams"] = user_teams
     state["has_teams"] = len(user_teams) > 0
 
-    # Build context from team_context or infer from message
     if team_context:
         context = build_context(team_context, message_content, user_email)
-
         if context.get("needs_clarification"):
-            state["needs_clarification"] = True
             state["response"] = cast(str | None, context.get("clarification_message"))
             logger.info("Clarification needed - asking user to specify team")
             return Command(goto="clarification", update=state)
-        else:
-            state["game_key"] = cast(str | None, context.get("game_key"))
-            state["league_id"] = cast(str | None, context.get("league_id"))
-            state["team_id"] = cast(str | None, context.get("team_id"))
-            state["needs_clarification"] = False
-            state["team_inference"] = cast(
-                dict[str, str] | None, context.get("team_inference")
-            )
-    else:
-        # No team_context - check if user has teams
-        if not user_teams:
-            # No teams, will likely need onboarding
-            state["needs_clarification"] = False
-        elif len(user_teams) == 1:
-            # Single team - use it automatically
-            team = user_teams[0]
-            state["game_key"] = team.get("game_key")
-            state["league_id"] = team.get("league_id")
-            state["team_id"] = team.get("team_id")
-            state["needs_clarification"] = False
+        state.update({
+            "league_id": cast(str | None, context.get("league_id")),
+            "team_id": cast(str | None, context.get("team_id")),
+        })
+    elif len(user_teams) == 1:
+        team = user_teams[0]
+        state.update({
+            "league_id": team.get("league_id"),
+            "team_id": team.get("team_id"),
+        })
 
-    # Invoke the supervisor agent with sub-agent tools
+    return None
+
+
+def _build_context_message(state: AgentState, user_email: str) -> SystemMessage:
+    """Build the context system message for the supervisor agent."""
+    parts = [f"User email: {user_email}"]
+
+    if league_id := state.get("league_id"):
+        parts.append(f"League ID: {league_id}")
+    if team_id := state.get("team_id"):
+        parts.append(f"Team ID: {team_id}")
+    if user_teams := state.get("user_teams"):
+        teams_info = ", ".join(
+            f"{t['team_name']} ({t['league_name']})" for t in user_teams
+        )
+        parts.append(f"User's teams: {teams_info}")
+    if not state.get("has_teams"):
+        parts.append(
+            "Note: User has no teams connected yet. "
+            "Use handle_onboarding if they need to set up."
+        )
+
+    return SystemMessage(content="\n".join(parts))
+
+
+def _prepare_input_state(
+    state: AgentState, context_msg: SystemMessage
+) -> dict[str, Any]:
+    """Prepare input state with system messages for the supervisor agent."""
+    input_state: dict[str, Any] = dict(state)
+    system_messages: list[SystemMessage] = []
+
+    if persona := state.get("persona", ""):
+        system_messages.append(SystemMessage(content=persona))
+        logger.info("[SupervisorAgent] Persona injected into supervisor")
+    system_messages.append(context_msg)
+
+    input_state["messages"] = [*system_messages, *list(state.get("messages", []))]
+    return input_state
+
+
+def _invoke_supervisor(
+    state: AgentState, user_email: str
+) -> Command[Literal["clarification", "email", "__end__"]]:
+    """Invoke the supervisor agent and return the appropriate command."""
     try:
-        # Build context message for the agent
-        context_parts = [f"User email: {user_email}"]
-        league_id = state.get("league_id")
-        team_id = state.get("team_id")
-        user_teams_list = state.get("user_teams")
-        if league_id:
-            context_parts.append(f"League ID: {league_id}")
-        if team_id:
-            context_parts.append(f"Team ID: {team_id}")
-        if user_teams_list:
-            teams_info = ", ".join(
-                f"{t['team_name']} ({t['league_name']})" for t in user_teams_list
-            )
-            context_parts.append(f"User's teams: {teams_info}")
-        if not state.get("has_teams"):
-            context_parts.append("Note: User has no teams connected yet. Use handle_onboarding if they need to set up.")
-
-        context_msg = SystemMessage(content="\n".join(context_parts))
-
-        # Invoke the supervisor agent with full state
-        # Create a copy of state and update messages with context
-        input_state: dict[str, Any] = dict(state)
-
-        # Build system messages list - include persona if available
-        system_messages = []
-        persona = state.get("persona", "")
-        if persona:
-            system_messages.append(SystemMessage(content=persona))
-            logger.info("[SupervisorAgent] Persona injected into supervisor")
-        system_messages.append(context_msg)
-
-        input_state["messages"] = [*system_messages, *list(state.get("messages", []))]
+        context_msg = _build_context_message(state, user_email)
+        input_state = _prepare_input_state(state, context_msg)
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
-        result = get_supervisor_agent().invoke(cast(Any, input_state))
+        result = create_supervisor_agent().invoke(cast(Any, input_state))
 
         # Extract the response
         if isinstance(result, dict) and "messages" in result:
@@ -236,16 +207,45 @@ def supervisor_node(
                     logger.info(f"Supervisor response: {response_content[:200]}...")
                     return Command(goto="email", update=state)
 
-        # No valid response - ask for clarification
-        state["needs_clarification"] = True
+        # No valid response
         state["response"] = "I couldn't process your request. Could you please rephrase?"
         return Command(goto="clarification", update=state)
 
     except Exception as e:
         logger.error(f"Error in supervisor agent: {e}", exc_info=True)
-        state["needs_clarification"] = True
-        state["response"] = "I encountered an error processing your request. Could you please try again?"
+        state["response"] = (
+            "I encountered an error processing your request. Could you please try again?"
+        )
         return Command(goto="clarification", update=state)
+
+
+def supervisor_node(
+    state: AgentState,
+) -> Command[Literal["clarification", "email", "__end__"]]:
+    """Supervisor node that routes user requests to appropriate sub-agents."""
+    messages = state.get("messages", [])
+    user_email = state.get("user_email") or ""
+
+    # Early exit for invalid state
+    if not messages or not user_email:
+        logger.warning(f"Missing {'messages' if not messages else 'user_email'} in state")
+        return Command(goto=END_NODE, update=state)
+
+    # Extract message content and team context
+    last_message = messages[-1]
+    message_content = (
+        last_message.content if hasattr(last_message, "content") else str(last_message)
+    )
+    team_context = _get_team_context(last_message)
+
+    logger.info(f"Supervisor processing: {message_content[:100]}...")
+
+    # Resolve team context (may return early with clarification)
+    if cmd := _resolve_team_context(state, team_context, message_content, user_email):
+        return cmd
+
+    # Invoke supervisor agent
+    return _invoke_supervisor(state, user_email)
 
 
 def clarification_node(state: AgentState) -> Command[Literal["__end__"]]:

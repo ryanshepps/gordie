@@ -7,22 +7,21 @@ import time
 from dotenv import load_dotenv
 
 from module.logger import get_logger
-from server.oauth_callback_server import (
-    OAuthCallbackServer,
-    _exchange_code,
-    _get_yahoo_email,
-    _notify_onboarding_agent,
-    _save_tokens,
-    delete_oauth_nonce,
-    get_oauth_nonce,
+from server.oauth import (
+    exchange_code,
+    get_yahoo_email,
+    notify_onboarding_agent,
+    save_tokens,
 )
+from server.oauth_nonce import delete_oauth_nonce, get_oauth_nonce
+from server.server import Server
 
 load_dotenv()
 
 logger = get_logger(__name__)
 
 
-def handle_oauth_callback(server: OAuthCallbackServer) -> bool:
+def handle_oauth_callback(server: Server) -> bool:
     """
     Process OAuth callback when received.
 
@@ -63,11 +62,11 @@ def handle_oauth_callback(server: OAuthCallbackServer) -> bool:
         oauth_base_url = os.getenv("OAUTH_BASE_URL", "http://localhost:8000")
         callback_url = server.get_callback_url(oauth_base_url)
 
-        token_data = _exchange_code(auth_code, client_id, client_secret, callback_url, nonce)
+        token_data = exchange_code(auth_code, client_id, client_secret, callback_url, nonce)
         logger.info("✓ Access tokens received")
 
         # Get Yahoo email
-        yahoo_email = _get_yahoo_email(token_data["access_token"])
+        yahoo_email = get_yahoo_email(token_data["access_token"])
         if not yahoo_email:
             logger.error("Could not retrieve Yahoo email")
             return False
@@ -76,14 +75,14 @@ def handle_oauth_callback(server: OAuthCallbackServer) -> bool:
         token_data["yahoo_email"] = yahoo_email
 
         # Save tokens
-        _save_tokens(user_email, yahoo_email, token_data)
+        save_tokens(user_email, yahoo_email, token_data)
         logger.info("✓ Tokens saved to database")
 
         # Delete the used nonce
         delete_oauth_nonce(user_email)
 
         # Notify the OnboardingAgent
-        _notify_onboarding_agent(user_email)
+        notify_onboarding_agent(user_email)
         logger.info("✓ OnboardingAgent notified")
 
         # Reset for next callback
@@ -107,7 +106,7 @@ def main():
     port = 8000
 
     logger.info(f"Starting OAuth callback server on {host}:{port}...")
-    server = OAuthCallbackServer(host=host, port=port)
+    server = Server(host=host, port=port)
 
     try:
         server.start()

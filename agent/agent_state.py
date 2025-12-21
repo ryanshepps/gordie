@@ -56,16 +56,11 @@ class AgentState(_AgentStateRequired, total=False):
     # Custom fields
     persona: str
     user_email: str
-    game_key: str | None
     league_id: str | None
     team_id: str | None
     thread_id: str
     has_teams: bool
     user_teams: list[dict[str, str]]  # List of all user's teams
-    team_inference: (
-        dict[str, str] | None
-    )  # Result of team inference {"team": {...}, "confidence": str, "reasoning": str}
-    needs_clarification: bool  # True if we need to ask user which team
     response: str | None
     route_to: str | None  # Target agent for routing (e.g., "player_comparison")
     # Flow tracking fields
@@ -196,8 +191,6 @@ def build_context(team_context: TeamContext, last_message: str, user_email: str)
         if not user_teams:
             # No teams found - need to ask user to onboard
             return {
-                "app": app,
-                "game_key": None,
                 "league_id": None,
                 "team_id": None,
                 "needs_clarification": True,
@@ -216,12 +209,9 @@ def build_context(team_context: TeamContext, last_message: str, user_email: str)
                 team_name = team.get("team_name")
                 if str(team) == inferred_team_str or (team_name and team_name in inferred_team_str):
                     return {
-                        "app": "Yahoo",
-                        "game_key": team["game_key"],
                         "league_id": team["league_id"],
                         "team_id": team["team_id"],
                         "needs_clarification": False,
-                        "team_inference": str(inference_result),
                     }
 
         # Cannot determine team - ask user to specify
@@ -233,8 +223,6 @@ def build_context(team_context: TeamContext, last_message: str, user_email: str)
         )
 
         return {
-            "app": "Yahoo",
-            "game_key": None,
             "league_id": None,
             "team_id": None,
             "needs_clarification": True,
@@ -242,8 +230,6 @@ def build_context(team_context: TeamContext, last_message: str, user_email: str)
         }
 
     return {
-        "app": app,
-        "game_key": game_key,
         "league_id": league_id,
         "team_id": team_id,
         "needs_clarification": False,

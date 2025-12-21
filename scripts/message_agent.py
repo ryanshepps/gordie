@@ -2,7 +2,8 @@ import argparse
 
 from langchain_core.runnables import RunnableConfig
 
-from agent.graph_builder import AgentState, agent
+from agent.agent_state import AgentState
+from agent.graph_builder import agent
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -67,11 +68,8 @@ def message_agent(
             "messages": [message_payload],
             "has_teams": False,
             "user_teams": [],
-            "needs_clarification": False,
-            "game_key": None,
             "league_id": None,
             "team_id": None,
-            "team_inference": None,
             "response": None,
             "route_to": None,
             "persona": gordie_persona,  # Default persona

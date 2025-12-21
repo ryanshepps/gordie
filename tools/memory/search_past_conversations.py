@@ -4,24 +4,10 @@ from langchain.tools import tool
 from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field
 
+from agent.memory_store import _sanitize_namespace_label
 from module.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def _sanitize_namespace_label(label: str) -> str:
-    """
-    Sanitize a string for use in LangGraph store namespace.
-
-    LangGraph namespaces cannot contain periods, so we replace them.
-
-    Args:
-        label: The label to sanitize (e.g., email address)
-
-    Returns:
-        Sanitized label safe for namespace use
-    """
-    return label.replace(".", "_dot_").replace("@", "_at_")
 
 
 class SearchPastConversationsInput(BaseModel):
