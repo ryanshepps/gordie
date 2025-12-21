@@ -6,7 +6,7 @@ from typing import Literal
 
 import requests
 from langchain.tools import tool
-from pydantic import Any, BaseModel, Field
+from pydantic import BaseModel, Field
 
 from data.nhl_player_stats_repository import NHLPlayerStatsRepository
 from module.logger import get_logger

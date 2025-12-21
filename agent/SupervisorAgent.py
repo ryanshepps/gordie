@@ -114,7 +114,7 @@ def get_supervisor_agent():
     return _supervisor_agent
 
 
-def controller_node(
+def supervisor_node(
     state: AgentState,
 ) -> Command[Literal["clarification", "email", "__end__"]]:
     """
@@ -216,7 +216,7 @@ def controller_node(
         persona = state.get("persona", "")
         if persona:
             system_messages.append(SystemMessage(content=persona))
-            logger.info("[ControllerAgent] Persona injected into supervisor")
+            logger.info("[SupervisorAgent] Persona injected into supervisor")
         system_messages.append(context_msg)
 
         input_state["messages"] = [*system_messages, *list(state.get("messages", []))]

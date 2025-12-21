@@ -368,21 +368,21 @@ def build_agent_graph():
     Sub-agents (onboarding, player_comparison) are now invoked as tools
     by the supervisor rather than being separate graph nodes.
     """
-    from agent.ControllerAgent import (
+    from agent.SupervisorAgent import (
         clarification_node,
-        controller_node,
+        supervisor_node,
     )
 
     # Create the graph
     workflow = StateGraph(AgentState)
 
     # Add nodes - sub-agents are now tools, not nodes
-    workflow.add_node("controller", controller_node)
+    workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("clarification", clarification_node)
     workflow.add_node("email", email_node)
 
     # Set entry point
-    workflow.set_entry_point("controller")
+    workflow.set_entry_point("supervisor")
 
     # Setup persistent checkpointer
     db_path = os.path.join(
