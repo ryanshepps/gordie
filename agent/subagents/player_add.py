@@ -156,13 +156,9 @@ def handle_player_add(
     logger.info(f"[handle_player_add] Injected state: {state}")
     logger.info(f"[handle_player_add] State keys: {state.keys() if state else 'None'}")
 
-    persona = state.get("persona", "") if state else ""
-    logger.info(f"[handle_player_add] Persona found: {bool(persona)}")
-
     result = invoke_subagent(
         agent=_agent,
         request=request,
-        state=state,
         context_parts=[
             f"User email: {user_email}",
             f"League ID: {league_id}",

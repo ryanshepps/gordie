@@ -263,7 +263,6 @@ def notify_onboarding_agent(user_email: str) -> None:
 
         # Send a message to the agent indicating OAuth is complete
         initial_state: AgentState = {
-            "persona": "Gordie",
             "user_email": user_email,
             "league_id": None,
             "team_id": None,

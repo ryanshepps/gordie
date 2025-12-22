@@ -71,7 +71,6 @@ def handle_onboarding(
     result = invoke_subagent(
         agent=_agent,
         request=request,
-        state=state,
         context_parts=[f"Current user email for this session: {user_email}"],
         thread_id=thread_id,
     )

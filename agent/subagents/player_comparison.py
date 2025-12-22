@@ -72,7 +72,6 @@ def compare_players(
     result = invoke_subagent(
         agent=_agent,
         request=request,
-        state=state,
         context_parts=context_parts,
     )
 

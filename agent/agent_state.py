@@ -54,7 +54,6 @@ class AgentState(_AgentStateRequired, total=False):
     jump_to: JumpTo | None  # Used by middleware for flow control
     structured_response: Any  # Used by middleware for structured output
     # Custom fields
-    persona: str
     user_email: str
     league_id: str | None
     team_id: str | None

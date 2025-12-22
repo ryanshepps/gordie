@@ -63,15 +63,10 @@ def create_subagent(
 
 
 def build_system_messages(
-    state: dict[str, Any] | None,
     context_parts: list[str],
 ) -> list[SystemMessage]:
-    """Build system messages with persona and context."""
+    """Build system messages with context."""
     system_messages = []
-
-    persona = state.get("persona", "") if state else ""
-    if persona:
-        system_messages.append(SystemMessage(content=persona))
 
     if context_parts:
         system_messages.append(SystemMessage(content="\n".join(context_parts)))
@@ -82,12 +77,11 @@ def build_system_messages(
 def invoke_subagent(
     agent: Any,
     request: str,
-    state: dict[str, Any] | None,
     context_parts: list[str],
     thread_id: str | None = None,
 ) -> dict[str, Any]:
     """Invoke a sub-agent with standard message building."""
-    system_messages = build_system_messages(state, context_parts)
+    system_messages = build_system_messages(context_parts)
 
     input_state = {
         "messages": [*system_messages, {"role": "user", "content": request}],
