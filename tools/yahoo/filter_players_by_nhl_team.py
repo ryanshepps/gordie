@@ -98,7 +98,10 @@ def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
 
         if "name" in attr_dict:
             name_data = attr_dict["name"]
-            player_info["name"] = name_data.get("full", "Unknown") if isinstance(name_data, dict) else str(name_data)
+            if isinstance(name_data, dict):
+                player_info["name"] = name_data.get("full", "Unknown")
+            else:
+                player_info["name"] = str(name_data)
         elif "player_key" in attr_dict:
             player_info["player_key"] = attr_dict["player_key"]
         elif "player_id" in attr_dict:
@@ -163,9 +166,7 @@ def filter_players_by_nhl_team(
     Returns:
         JSON string with filtered player information.
     """
-    yahoo_client = AuthenticatedYahooClient(
-        league_id=int(league_id), user_email=user_email
-    )
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
     try:
         # Normalize team names to abbreviations
@@ -241,17 +242,19 @@ def filter_players_by_nhl_team(
 
                     result.append(player_info)
 
-        return json.dumps({
-            "players": result,
-            "count": len(result),
-            "filter": {
-                "nhl_teams": list(normalized_teams),
-                "mode": mode,
-                "status": status,
-                "position": position or "all",
-            },
-            "message": f"Found {len(result)} players {'not ' if mode == 'exclude' else ''}on {', '.join(normalized_teams)}",
-        })
+        return json.dumps(
+            {
+                "players": result,
+                "count": len(result),
+                "filter": {
+                    "nhl_teams": list(normalized_teams),
+                    "mode": mode,
+                    "status": status,
+                    "position": position or "all",
+                },
+                "message": f"Found {len(result)} players {'not ' if mode == 'exclude' else ''}on {', '.join(normalized_teams)}",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error filtering players by NHL team: {e}")

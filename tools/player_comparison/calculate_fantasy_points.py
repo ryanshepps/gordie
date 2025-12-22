@@ -36,15 +36,9 @@ YAHOO_STAT_NAME_MAP = {
 class CalculateFantasyPointsInput(BaseModel):
     """Input schema for calculate_fantasy_points tool."""
 
-    player_stats: str = Field(
-        description="JSON string of player stats from get_player_stats tool"
-    )
-    league_id: str = Field(
-        description="Yahoo Fantasy league ID"
-    )
-    user_email: str = Field(
-        description="User's email address for OAuth token lookup"
-    )
+    player_stats: str = Field(description="JSON string of player stats from get_player_stats tool")
+    league_id: str = Field(description="Yahoo Fantasy league ID")
+    user_email: str = Field(description="User's email address for OAuth token lookup")
 
 
 def extract_scoring_settings(settings) -> dict[str, float]:
@@ -109,9 +103,7 @@ def calculate_player_points(
             breakdown[internal_key] = points
 
     games_played = player_data.get("games_played", 0)
-    points_per_game = (
-        round(fantasy_points / games_played, 2) if games_played > 0 else 0
-    )
+    points_per_game = round(fantasy_points / games_played, 2) if games_played > 0 else 0
 
     return {
         "total_fantasy_points": round(fantasy_points, 2),
@@ -145,10 +137,7 @@ def calculate_fantasy_points(player_stats: str, league_id: str, user_email: str)
         stats_dict = player_stats if isinstance(player_stats, dict) else json.loads(player_stats)
 
         # Get league settings from Yahoo
-        yahoo_client = AuthenticatedYahooClient(
-            league_id=int(league_id),
-            user_email=user_email
-        )
+        yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
         settings = yahoo_client.query.get_league_settings()
 
         # Extract scoring settings - will raise ValueError if not available
@@ -167,21 +156,31 @@ def calculate_fantasy_points(player_stats: str, league_id: str, user_email: str)
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error in calculate_fantasy_points: {e}")
-        return json.dumps({
-            "status": "error",
-            "error": f"Invalid JSON in player_stats: {e!s}",
-        }, indent=2)
+        return json.dumps(
+            {
+                "status": "error",
+                "error": f"Invalid JSON in player_stats: {e!s}",
+            },
+            indent=2,
+        )
     except ValueError as e:
         logger.error(f"Failed to get league scoring settings: {e}")
-        return json.dumps({
-            "status": "error",
-            "error": f"Could not fetch league scoring settings: {e!s}",
-        }, indent=2)
+        return json.dumps(
+            {
+                "status": "error",
+                "error": f"Could not fetch league scoring settings: {e!s}",
+            },
+            indent=2,
+        )
     except Exception as e:
         logger.error(f"Error calculating fantasy points: {e}")
         import traceback
+
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return json.dumps({
-            "status": "error",
-            "error": str(e),
-        }, indent=2)
+        return json.dumps(
+            {
+                "status": "error",
+                "error": str(e),
+            },
+            indent=2,
+        )

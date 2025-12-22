@@ -11,6 +11,7 @@ import markdown2
 from langgraph.types import Command
 
 from agent.agent_state import AgentState
+from agent.email_enrichment import enrich_email_with_player_stats
 from agent.memory_store import get_memory_store, summarize_and_store_conversation
 from server.email_service import EmailService
 from server.email_thread_manager import save_message_id_mapping
@@ -48,10 +49,14 @@ def _format_quoted_html(original_message: str) -> str:
     escaped = html.escape(original_message.strip())
     escaped = escaped.replace("\n", "<br>")
 
+    blockquote_style = (
+        "margin: 0; padding: 10px 15px; border-left: 3px solid #ccc; "
+        "background-color: #f9f9f9; color: #555;"
+    )
     return f"""
 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ccc;">
     <p style="color: #666; font-size: 12px; margin-bottom: 10px;">You wrote:</p>
-    <blockquote style="margin: 0; padding: 10px 15px; border-left: 3px solid #ccc; background-color: #f9f9f9; color: #555;">
+    <blockquote style="{blockquote_style}">
         {escaped}
     </blockquote>
 </div>
@@ -66,8 +71,10 @@ def _get_last_ai_message(messages: list[object]) -> tuple[str | None, object | N
         Tuple of (message_content, raw_message) or (None, None) if not found
     """
     for msg in reversed(messages):
-        msg_type = getattr(msg, 'type', None) or (msg.get('type') if isinstance(msg, dict) else None)
-        if msg_type == 'ai':
+        msg_type = getattr(msg, "type", None)
+        if msg_type is None and isinstance(msg, dict):
+            msg_type = msg.get("type")
+        if msg_type == "ai":
             if isinstance(msg, dict):
                 return str(msg.get("content", "")), msg
             else:
@@ -96,9 +103,11 @@ def _determine_subject(original_subject: str | None, message_content: str) -> st
 
     # Fallback to content-based subject for new conversations
     message_lower = message_content.lower()
-    if "comparison" in message_lower or "vs" in message_lower or "recommend" in message_lower:
+    comparison_keywords = ["comparison", "vs", "recommend"]
+    if any(kw in message_lower for kw in comparison_keywords):
         return "Fantasy Hockey Player Comparison"
-    elif "onboard" in message_lower or "connect" in message_lower or "authenticate" in message_lower:
+    onboard_keywords = ["onboard", "connect", "authenticate"]
+    if any(kw in message_lower for kw in onboard_keywords):
         return "Fantasy Hockey Team Setup"
     return "Fantasy Hockey Assistant Response"
 
@@ -123,11 +132,20 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
 
     subject = _determine_subject(original_subject, message_content)
 
+    # Enrich email with player statistics table
+    stats_markdown, stats_html = "", ""
+    try:
+        stats_markdown, stats_html = enrich_email_with_player_stats(message_content)
+        if stats_markdown:
+            logger.info("Enriched email with player statistics table")
+    except Exception as e:
+        logger.warning(f"Failed to enrich email with player stats: {e}")
+
     # Build email body with quoted original message
-    text_body = message_content
+    text_body = message_content + stats_markdown
     if original_message:
         quoted_text = _format_quoted_message(original_message)
-        text_body = f"{message_content}\n\n---\nYou wrote:\n{quoted_text}"
+        text_body = f"{message_content}{stats_markdown}\n\n---\nYou wrote:\n{quoted_text}"
 
     try:
         email_service = EmailService()
@@ -136,6 +154,9 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
             message_content,
             extras=["tables", "fenced-code-blocks", "strike", "cuddled-lists"],
         )
+
+        # Add player stats table before quoted message
+        html_body = html_body + stats_html
 
         if original_message:
             html_body = html_body + _format_quoted_html(original_message)

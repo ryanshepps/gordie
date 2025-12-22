@@ -91,9 +91,7 @@ class Repository:
         where_clause = " AND ".join([f"{k} = ?" for k in filters])
         values = list(updates.values()) + list(filters.values())
 
-        self.conn.execute(
-            f"UPDATE {self.table_name} SET {set_clause} WHERE {where_clause}", values
-        )
+        self.conn.execute(f"UPDATE {self.table_name} SET {set_clause} WHERE {where_clause}", values)
         self.conn.commit()
 
     def delete(self, **filters) -> None:
@@ -108,9 +106,7 @@ class Repository:
         where_clause = " AND ".join([f"{k} = ?" for k in filters])
         values = list(filters.values())
 
-        self.conn.execute(
-            f"DELETE FROM {self.table_name} WHERE {where_clause}", values
-        )
+        self.conn.execute(f"DELETE FROM {self.table_name} WHERE {where_clause}", values)
         self.conn.commit()
 
     def upsert(self, conflict_columns: list[str], **values) -> None:

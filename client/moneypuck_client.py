@@ -51,7 +51,7 @@ def _is_cache_valid(cache_key: str) -> bool:
     return (time.time() - timestamp) < CACHE_TTL_SECONDS
 
 
-def fetch_skater_stats(season: int = 2024, force_refresh: bool = False) -> pd.DataFrame:
+def fetch_skater_stats(season: int = 2025, force_refresh: bool = False) -> pd.DataFrame:
     """Fetch skater statistics from MoneyPuck.
 
     Args:
@@ -87,7 +87,7 @@ def get_player_stats(
     player_id: int | None = None,
     player_name: str | None = None,
     situation: str = "all",
-    season: int = 2024,
+    season: int = 2025,
 ) -> pd.DataFrame:
     """Get statistics for a specific player.
 
@@ -126,7 +126,7 @@ def get_player_stats(
 def get_multiple_players_stats(
     player_ids: list[int],
     situation: str = "all",
-    season: int = 2024,
+    season: int = 2025,
 ) -> pd.DataFrame:
     """Get statistics for multiple players.
 
@@ -152,7 +152,7 @@ def get_multiple_players_stats(
 def search_players(
     query: str,
     situation: str = "all",
-    season: int = 2024,
+    season: int = 2025,
     limit: int = 10,
 ) -> pd.DataFrame:
     """Search for players by name.
@@ -185,7 +185,7 @@ def search_players(
 def get_league_leaders(
     stat: str,
     situation: str = "all",
-    season: int = 2024,
+    season: int = 2025,
     limit: int = 10,
     min_games: int = 10,
     ascending: bool = False,

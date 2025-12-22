@@ -118,9 +118,7 @@ class TestComparisonOutput:
         assert isinstance(result["overall_scores"]["8478402"], (int, float))
         assert isinstance(result["overall_scores"]["8477934"], (int, float))
 
-    def test_includes_stats_comparison(
-        self, sample_player_stats_json, sample_fantasy_points_json
-    ):
+    def test_includes_stats_comparison(self, sample_player_stats_json, sample_fantasy_points_json):
         """Stats comparison should include key fantasy-relevant stats."""
         result = json.loads(
             compare_players_comprehensive.invoke(

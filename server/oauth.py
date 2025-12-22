@@ -324,6 +324,3 @@ def load_tokens_from_db(user_email: str) -> dict[str, Any] | None:
         }
     finally:
         conn.close()
-
-
-

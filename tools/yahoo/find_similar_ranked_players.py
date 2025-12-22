@@ -1,4 +1,4 @@
-"""Tool to get all players in a fantasy hockey league (both rostered and available)."""
+"""Tool to find players with similar or worse rankings for trade comparison."""
 
 import json
 
@@ -10,8 +10,8 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
-    """Extract player info from the raw Yahoo API player data structure.
+def _extract_player_with_rank(player_data: list[object], rank: int) -> dict[str, str | int | None]:
+    """Extract player info including rank from the raw Yahoo API player data structure.
 
     The Yahoo API returns player data as a list of dicts, where each dict
     contains a single attribute. This function flattens that structure.
@@ -23,8 +23,10 @@ def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
         "position": None,
         "team": None,
         "team_full": None,
+        "rank": rank,
         "ownership_type": None,
         "owner_team_name": None,
+        "owner_team_key": None,
         "status": None,
         "injury_status": None,
         "percent_owned": None,
@@ -63,6 +65,7 @@ def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
             if isinstance(ownership, dict):
                 player_info["ownership_type"] = ownership.get("ownership_type")
                 player_info["owner_team_name"] = ownership.get("owner_team_name")
+                player_info["owner_team_key"] = ownership.get("owner_team_key")
         elif "status" in attr_dict:
             player_info["status"] = attr_dict["status"]
         elif "status_full" in attr_dict:
@@ -78,108 +81,131 @@ def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
 
 
 @tool
-def get_league_players(
+def find_similar_ranked_players(
     user_email: str,
     league_id: str,
-    status: str = "",
+    target_rank: int,
     position: str = "",
-    search: str = "",
-    count: int = 25,
-    sort: str = "OR",
+    rank_range: int = 20,
+    only_rostered: bool = True,
+    exclude_my_team_id: str = "",
 ) -> str:
     """
-    Get players in a fantasy hockey league with optional filters.
+    Find players with similar or worse rankings for trade comparison.
 
-    Use this to search for specific players or browse players by position/status.
+    This tool finds players ranked around a target rank (or worse) to identify
+    potential trade targets. Players with worse fantasy point production but
+    better advanced stats (xGoals, Fenwick, TOI) may have higher upside potential.
+
+    Use this to find players on other teams who might be undervalued based on
+    their current fantasy ranking but could be targeted for trades.
 
     Args:
         user_email: User's email address (used to look up OAuth tokens in database)
         league_id: Yahoo league ID
-        status: Optional player status filter:
-            - "" = All players
-            - "A" = All available players (free agents + waivers)
-            - "FA" = Free agents only
-            - "W" = Players on waivers only
-            - "T" = Taken/rostered players only
-        position: Optional position filter (e.g., "C", "LW", "RW", "D", "G")
-        search: Optional player name search term
-        count: Maximum number of players to retrieve (default 25)
-        sort: Sort order - "OR" (ownership rank), "AR" (actual rank), "PTS" (points)
+        target_rank: The rank to search around (e.g., if your player is rank 50,
+                     search for players ranked 40-70 to find comparable targets)
+        position: Optional position filter (e.g., "C", "LW", "RW", "D", "G", "F")
+        rank_range: How many ranks above and below to include (default 20, so
+                    rank 50 searches 30-70)
+        only_rostered: If True, only return players on teams (not free agents).
+                       Default True for trade analysis.
+        exclude_my_team_id: Optional team ID to exclude from results (your team)
 
     Returns:
-        JSON string with player information including names, positions,
-        teams, ownership status, and fantasy relevance.
+        JSON string with list of players in the rank range, sorted by rank.
+        Each player includes their rank, position, team, and owner information.
     """
     yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
     try:
         league_key = yahoo_client.query.get_league_key()
 
-        # Build filter parameters
-        filters = [f"count={count}", f"sort={sort}"]
-        if status:
-            filters.append(f"status={status}")
+        # Calculate the rank range
+        min_rank = max(1, target_rank - rank_range)
+        max_rank = target_rank + rank_range
+
+        # We need to fetch players starting from the min_rank position
+        # start parameter is 0-indexed, so subtract 1
+        start = max(0, min_rank - 1)
+        count = max_rank - min_rank + 1
+
+        # Build the URL with filters
+        filters = ["sort=AR", "sort_type=season", f"start={start}", f"count={count}"]
+
         if position:
             filters.append(f"position={position}")
-        if search:
-            filters.append(f"search={search}")
+
+        if only_rostered:
+            filters.append("status=T")  # T = Taken/rostered players only
 
         filter_str = ";".join(filters)
         url = f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_key}/players;{filter_str}"
 
-        logger.info(f"Fetching league players with URL: {url}")
+        logger.info(f"Fetching players ranked {min_rank}-{max_rank} with URL: {url}")
 
-        # Get raw response and parse manually since yfpy's query() doesn't handle
-        # this endpoint's response structure correctly
         response = yahoo_client.query.get_response(url)
         raw_json = response.json()
 
         fantasy_content = raw_json.get("fantasy_content", {})
         league_data = fantasy_content.get("league", [])
 
-        # league_data is a list: [league_info_dict, {players: {...}}]
         if not isinstance(league_data, list) or len(league_data) < 2:
             logger.warning("Unexpected league data structure in response")
-            return json.dumps({"players": [], "message": "No players found matching criteria"})
+            return json.dumps(
+                {"players": [], "message": f"No players found in rank range {min_rank}-{max_rank}"}
+            )
 
         players_container = league_data[1] if len(league_data) > 1 else {}
         players_dict = players_container.get("players", {})
 
-        # players_dict has numeric string keys ("0", "1", ...) and a "count" key
-        # Each value is {"player": [[{attr1}, {attr2}, ...], ...]}
         result = []
-
         if isinstance(players_dict, dict):
             for key, value in players_dict.items():
                 if key == "count":
                     continue
                 if isinstance(value, dict) and "player" in value:
                     player_data = value["player"]
-                    player_info = _extract_player_info(player_data)
-                    result.append(player_info)
-        elif isinstance(players_dict, list):
-            # Handle case where it might be returned as a list
-            for entry in players_dict:
-                if isinstance(entry, dict) and "player" in entry:
-                    player_data = entry["player"]
-                    player_info = _extract_player_info(player_data)
+                    # Calculate actual rank: start (0-indexed) + position in results + 1
+                    rank = start + int(key) + 1
+                    player_info = _extract_player_with_rank(player_data, rank)
+
+                    # Skip players on the user's team if exclude_my_team_id is provided
+                    if exclude_my_team_id and player_info.get("owner_team_key"):
+                        # owner_team_key format is like "nhl.l.12345.t.1"
+                        # extract the team ID (last number after .t.)
+                        team_key = str(player_info["owner_team_key"])
+                        if f".t.{exclude_my_team_id}" in team_key:
+                            continue
+
                     result.append(player_info)
 
-        if not result:
-            return json.dumps({"players": [], "message": "No players found matching criteria"})
+        # Sort by rank just to be sure
+        result.sort(key=lambda x: x.get("rank", 999))
+
+        # Group players by owner for easier trade target identification
+        players_by_owner = {}
+        for player in result:
+            owner = player.get("owner_team_name") or "Free Agent"
+            if owner not in players_by_owner:
+                players_by_owner[owner] = []
+            players_by_owner[owner].append(player)
 
         return json.dumps(
             {
                 "players": result,
+                "players_by_owner": players_by_owner,
                 "count": len(result),
+                "rank_range": {"min": min_rank, "max": max_rank, "target": target_rank},
                 "filters": {
-                    "status": status or "all",
                     "position": position or "all",
-                    "search": search or None,
+                    "only_rostered": only_rostered,
+                    "excluded_team_id": exclude_my_team_id or None,
                 },
+                "message": f"Found {len(result)} players ranked {min_rank}-{max_rank}",
             }
         )
 
     except Exception as e:
-        logger.error(f"Error fetching league players: {e}")
+        logger.error(f"Error fetching similar ranked players: {e}")
         return json.dumps({"error": str(e), "players": []})

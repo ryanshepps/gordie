@@ -59,7 +59,8 @@ compare_players(request, user_email, league_id)
 WORKFLOW FOR "I have too many [Team] players, help me trade":
 
 1. Call get_roster → identify players from that NHL team
-2. Call filter_players_by_nhl_team with mode="exclude" and nhl_teams=[team] → find available replacements NOT on that team
+2. Call filter_players_by_nhl_team with mode="exclude" and nhl_teams=[team] → find
+   available replacements NOT on that team
 3. Call compare_players → compare your players vs available options
 4. If good waiver options exist → recommend specific pickups with who to drop
 5. If no good waivers:
@@ -102,16 +103,23 @@ class _PlayerAddInput(BaseModel):
     """Input schema for the player add tool."""
 
     request: str = Field(
-        description="The user's request about finding or adding players (e.g., 'Who is available at center?', 'Should I pick up Player X?')"
+        description=(
+            "The user's request about finding or adding players "
+            "(e.g., 'Who is available at center?', 'Should I pick up Player X?')"
+        )
     )
-    user_email: str = Field(
-        description="The user's email address for authentication"
-    )
+    user_email: str = Field(description="The user's email address for authentication")
     league_id: str = Field(
-        description="The Yahoo Fantasy league ID (numeric string, e.g., '26455'). Required to search for available players in the league."
+        description=(
+            "The Yahoo Fantasy league ID (numeric string, e.g., '26455'). "
+            "Required to search for available players in the league."
+        )
     )
     team_id: str = Field(
-        description="The Yahoo Fantasy team ID (numeric string, e.g., '7'). Required to compare against the user's current roster."
+        description=(
+            "The Yahoo Fantasy team ID (numeric string, e.g., '7'). "
+            "Required to compare against the user's current roster."
+        )
     )
     state: Annotated[dict[str, Any], InjectedState] | None = Field(default=None)
 
@@ -147,12 +155,21 @@ def handle_player_add(
         The player add agent's analysis and recommendations
     """
     if not league_id:
-        return "I need to know which league you're asking about. Please connect your Yahoo Fantasy team first using the onboarding process."
+        return (
+            "I need to know which league you're asking about. "
+            "Please connect your Yahoo Fantasy team first using the onboarding process."
+        )
 
     if not team_id:
-        return "I need to know which team you're managing. Please connect your Yahoo Fantasy team first using the onboarding process."
+        return (
+            "I need to know which team you're managing. "
+            "Please connect your Yahoo Fantasy team first using the onboarding process."
+        )
 
-    logger.info(f"[handle_player_add] Processing request for {user_email} (league={league_id}, team={team_id}): {request[:100]}...")
+    logger.info(
+        f"[handle_player_add] Processing request for {user_email} "
+        f"(league={league_id}, team={team_id}): {request[:100]}..."
+    )
     logger.info(f"[handle_player_add] Injected state: {state}")
     logger.info(f"[handle_player_add] State keys: {state.keys() if state else 'None'}")
 
@@ -168,7 +185,9 @@ def handle_player_add(
 
     response = extract_response(
         result,
-        fallback_message="I encountered an issue processing your player add request. Please try again.",
+        fallback_message=(
+            "I encountered an issue processing your player add request. Please try again."
+        ),
     )
     logger.info(f"[handle_player_add] Response: {response[:200]}...")
     return response

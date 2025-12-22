@@ -18,7 +18,10 @@ class TeamInferenceResult(BaseModel):
 
     team_index: int | None = Field(
         None,
-        description="1-based index of the inferred team (e.g., 1 for first team, 2 for second). None if unclear.",
+        description=(
+            "1-based index of the inferred team "
+            "(e.g., 1 for first team, 2 for second). None if unclear."
+        ),
     )
     is_unclear: bool = Field(
         description="True if the message is ambiguous and team cannot be determined"
@@ -107,8 +110,10 @@ def get_user_teams(user_email: str) -> list[dict[str, str]]:
         conn.close()
 
 
-def infer_team_from_context(user_teams: list[dict[str, str]], last_message: str) -> dict[str, str] | None:
-    """Use LLM to infer which team the user is referring to based on their message and available teams."""
+def infer_team_from_context(
+    user_teams: list[dict[str, str]], last_message: str
+) -> dict[str, str] | None:
+    """Use LLM to infer which team the user is referring to based on message and teams."""
     from typing import cast
 
     if not user_teams:
@@ -116,7 +121,11 @@ def infer_team_from_context(user_teams: list[dict[str, str]], last_message: str)
 
     if len(user_teams) == 1:
         # Only one team, use it automatically
-        return {"team": str(user_teams[0]), "confidence": "high", "reasoning": "User only has one team"}
+        return {
+            "team": str(user_teams[0]),
+            "confidence": "high",
+            "reasoning": "User only has one team",
+        }
 
     # Use LLM with structured output to infer team from message
     model = ChatOpenAI(model="gpt-5-nano-2025-08-07")
@@ -130,7 +139,8 @@ def infer_team_from_context(user_teams: list[dict[str, str]], last_message: str)
         ]
     )
 
-    prompt = f"""Based on the user's message and their available teams, determine which team they are referring to.
+    prompt = f"""Based on the user's message and their available teams, determine which team \
+they are referring to.
 
 User's message: "{last_message}"
 
@@ -138,14 +148,16 @@ User's teams:
 {teams_description}
 
 Analyze the message and determine:
-1. If the message clearly refers to a specific team, provide the team_index (1-{len(user_teams)}) and set is_unclear to False
-2. If the message is ambiguous and you cannot determine which team, set is_unclear to True and team_index to None
+1. If the message clearly refers to a specific team, provide the team_index \
+(1-{len(user_teams)}) and set is_unclear to False
+2. If the message is ambiguous and you cannot determine which team, set is_unclear to True \
+and team_index to None
 3. Always provide reasoning for your decision
 
 Examples:
-- If the user mentions a specific team name or league name that matches one team, select that team
+- If the user mentions a specific team name or league name that matches one team, select it
 - If the user's message doesn't contain enough context to determine the team, mark as unclear
-- If the user mentions players, league context, or team-specific details, use that to infer the team"""
+- If the user mentions players, league context, or team-specific details, use that to infer"""
 
     result = cast(TeamInferenceResult, structured_llm.invoke(prompt))
 
@@ -165,8 +177,10 @@ Examples:
     return None
 
 
-def build_context(team_context: TeamContext, last_message: str, user_email: str) -> dict[str, str | bool | None]:
-    """Build context from team_context. If any parts are missing, query database and use LLM inference."""
+def build_context(
+    team_context: TeamContext, last_message: str, user_email: str
+) -> dict[str, str | bool | None]:
+    """Build context from team_context. Query database and use LLM inference if needed."""
     parts = team_context.split(":")
 
     # Handle case where team_context doesn't have all 4 parts
@@ -193,7 +207,10 @@ def build_context(team_context: TeamContext, last_message: str, user_email: str)
                 "league_id": None,
                 "team_id": None,
                 "needs_clarification": True,
-                "clarification_message": "I couldn't find any teams associated with your account. Would you like to onboard a team first?",
+                "clarification_message": (
+                    "I couldn't find any teams associated with your account. "
+                    "Would you like to onboard a team first?"
+                ),
             }
 
         # Try to infer team from message context
@@ -225,7 +242,10 @@ def build_context(team_context: TeamContext, last_message: str, user_email: str)
             "league_id": None,
             "team_id": None,
             "needs_clarification": True,
-            "clarification_message": f"I found multiple teams for your account. Which team are you asking about?\n\n{teams_list}\n\nPlease specify which team you're referring to.",
+            "clarification_message": (
+                f"I found multiple teams for your account. Which team are you asking about?"
+                f"\n\n{teams_list}\n\nPlease specify which team you're referring to."
+            ),
         }
 
     return {

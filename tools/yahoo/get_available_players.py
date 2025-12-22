@@ -42,7 +42,10 @@ def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
 
         if "name" in attr_dict:
             name_data = attr_dict["name"]
-            player_info["name"] = name_data.get("full", "Unknown") if isinstance(name_data, dict) else str(name_data)
+            if isinstance(name_data, dict):
+                player_info["name"] = name_data.get("full", "Unknown")
+            else:
+                player_info["name"] = str(name_data)
         elif "player_key" in attr_dict:
             player_info["player_key"] = attr_dict["player_key"]
         elif "player_id" in attr_dict:
@@ -105,9 +108,7 @@ def get_available_players(
         JSON string with available player information including names, positions,
         teams, ownership status, and stats.
     """
-    yahoo_client = AuthenticatedYahooClient(
-        league_id=int(league_id), user_email=user_email
-    )
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
     try:
         # Build the query URL with status filter
@@ -162,16 +163,18 @@ def get_available_players(
         if not result:
             return json.dumps({"players": [], "message": "No available players found"})
 
-        return json.dumps({
-            "players": result,
-            "count": len(result),
-            "filters": {
-                "status": status,
-                "position": position or "all",
-                "sort": sort,
-                "sort_type": sort_type,
-            },
-        })
+        return json.dumps(
+            {
+                "players": result,
+                "count": len(result),
+                "filters": {
+                    "status": status,
+                    "position": position or "all",
+                    "sort": sort,
+                    "sort_type": sort_type,
+                },
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching available players: {e}")

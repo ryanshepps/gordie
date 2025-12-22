@@ -29,9 +29,7 @@ def get_league_teams(
         JSON string with all teams in the league including team names, manager names,
         team IDs, and standings information.
     """
-    yahoo_client = AuthenticatedYahooClient(
-        league_id=int(league_id), user_email=user_email
-    )
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
     try:
         teams = yahoo_client.query.get_league_teams()
@@ -50,11 +48,13 @@ def get_league_teams(
             if managers:
                 managers_list = managers if isinstance(managers, list) else [managers]
                 for manager in managers_list:
-                    manager_info.append({
-                        "nickname": getattr(manager, "nickname", None),
-                        "email": getattr(manager, "email", None),
-                        "is_commissioner": getattr(manager, "is_commissioner", False),
-                    })
+                    manager_info.append(
+                        {
+                            "nickname": getattr(manager, "nickname", None),
+                            "email": getattr(manager, "email", None),
+                            "is_commissioner": getattr(manager, "is_commissioner", False),
+                        }
+                    )
 
             # Handle team name which may be returned as bytes
             team_name = getattr(team, "name", None)
@@ -87,11 +87,13 @@ def get_league_teams(
 
             result.append(team_info)
 
-        return json.dumps({
-            "teams": result,
-            "count": len(result),
-            "league_id": league_id,
-        })
+        return json.dumps(
+            {
+                "teams": result,
+                "count": len(result),
+                "league_id": league_id,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching league teams: {e}")

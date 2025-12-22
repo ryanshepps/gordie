@@ -66,9 +66,7 @@ class NHLPlayerStatsRepository(Repository):
         Returns:
             Stats record or None if not found
         """
-        return self.get_by(
-            nhl_api_player_id=nhl_api_player_id, nhl_api_game_id=nhl_api_game_id
-        )
+        return self.get_by(nhl_api_player_id=nhl_api_player_id, nhl_api_game_id=nhl_api_game_id)
 
     def get_player_games(self, nhl_api_player_id: int) -> list[tuple[Any, ...]]:
         """Get all game stats for a player.

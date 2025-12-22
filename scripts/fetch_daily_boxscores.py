@@ -39,7 +39,9 @@ def calculate_corsi_fenwick_from_playbyplay(client: NHLClient, game_id: int) -> 
 
         if not pbp or "plays" not in pbp:
             logger.warning(f"No play-by-play data for game {game_id}")
-            return pd.DataFrame({"nhl_api_player_id": [], "corsi_for": [], "fenwick_for": [], "missed_shots": []})
+            return pd.DataFrame(
+                {"nhl_api_player_id": [], "corsi_for": [], "fenwick_for": [], "missed_shots": []}
+            )
 
         # Collect shot attempt events
         shot_attempts = []
@@ -52,13 +54,17 @@ def calculate_corsi_fenwick_from_playbyplay(client: NHLClient, game_id: int) -> 
                 player_id = details.get("shootingPlayerId") or details.get("playerId")
 
                 if player_id:
-                    shot_attempts.append({
-                        "nhl_api_player_id": player_id,
-                        "play_type": play_type,
-                    })
+                    shot_attempts.append(
+                        {
+                            "nhl_api_player_id": player_id,
+                            "play_type": play_type,
+                        }
+                    )
 
         if not shot_attempts:
-            return pd.DataFrame({"nhl_api_player_id": [], "corsi_for": [], "fenwick_for": [], "missed_shots": []})
+            return pd.DataFrame(
+                {"nhl_api_player_id": [], "corsi_for": [], "fenwick_for": [], "missed_shots": []}
+            )
 
         # Convert to DataFrame for easier aggregation
         df = pd.DataFrame(shot_attempts)
@@ -96,7 +102,9 @@ def calculate_corsi_fenwick_from_playbyplay(client: NHLClient, game_id: int) -> 
 
     except Exception as e:
         logger.error(f"Error calculating Corsi/Fenwick for game {game_id}: {e}")
-        return pd.DataFrame({"nhl_api_player_id": [], "corsi_for": [], "fenwick_for": [], "missed_shots": []})
+        return pd.DataFrame(
+            {"nhl_api_player_id": [], "corsi_for": [], "fenwick_for": [], "missed_shots": []}
+        )
 
 
 def fetch_boxscore_data(date_str: str) -> list[dict[str, int | str | float | None]]:
@@ -171,19 +179,20 @@ def fetch_boxscore_data(date_str: str) -> list[dict[str, int | str | float | Non
                 if not corsi_fenwick_df.empty:
                     # Merge Corsi/Fenwick stats into player stats
                     game_stats_df = game_stats_df.merge(
-                        corsi_fenwick_df,
-                        on="nhl_api_player_id",
-                        how="left",
-                        suffixes=("", "_pbp")
+                        corsi_fenwick_df, on="nhl_api_player_id", how="left", suffixes=("", "_pbp")
                     )
 
                     # Update the corsi/fenwick columns with play-by-play data
-                    game_stats_df["corsi_for"] = game_stats_df["corsi_for_pbp"].fillna(0).astype(int)
-                    game_stats_df["fenwick_for"] = game_stats_df["fenwick_for_pbp"].fillna(0).astype(int)
-                    game_stats_df["missed_shots"] = game_stats_df["missed_shots_pbp"].fillna(0).astype(int)
+                    corsi_col = game_stats_df["corsi_for_pbp"].fillna(0).astype(int)
+                    fenwick_col = game_stats_df["fenwick_for_pbp"].fillna(0).astype(int)
+                    missed_col = game_stats_df["missed_shots_pbp"].fillna(0).astype(int)
+                    game_stats_df["corsi_for"] = corsi_col
+                    game_stats_df["fenwick_for"] = fenwick_col
+                    game_stats_df["missed_shots"] = missed_col
 
                     # Drop the temporary merge columns
-                    game_stats_df = game_stats_df.drop(columns=["corsi_for_pbp", "fenwick_for_pbp", "missed_shots_pbp"])
+                    drop_cols = ["corsi_for_pbp", "fenwick_for_pbp", "missed_shots_pbp"]
+                    game_stats_df = game_stats_df.drop(columns=drop_cols)
 
                 # Add this game's stats to the overall list
                 all_player_stats.extend(game_stats_df.to_dict("records"))
@@ -196,7 +205,9 @@ def fetch_boxscore_data(date_str: str) -> list[dict[str, int | str | float | Non
     return all_player_stats
 
 
-def extract_player_stats(player: dict[str, int | str | float], game_id: int, game_date: str) -> dict[str, int | str | float | None] | None:
+def extract_player_stats(
+    player: dict[str, int | str | float], game_id: int, game_date: str
+) -> dict[str, int | str | float | None] | None:
     """
     Extract relevant stats from a player boxscore dictionary.
 
@@ -255,7 +266,10 @@ def extract_player_stats(player: dict[str, int | str | float], game_id: int, gam
         return None
 
 
-def insert_player_stats(conn: duckdb.DuckDBPyConnection, player_stats: list[dict[str, int | str | float | None]]) -> None:
+def insert_player_stats(
+    conn: duckdb.DuckDBPyConnection,
+    player_stats: list[dict[str, int | str | float | None]],
+) -> None:
     """
     Insert player stats into DuckDB using efficient DataFrame ingestion.
 

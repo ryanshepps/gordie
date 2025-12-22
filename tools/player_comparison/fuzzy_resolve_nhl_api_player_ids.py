@@ -105,7 +105,9 @@ def _search_moneypuck(player_name: str) -> list[PlayerMatch]:
 def _search_nhl_api(player_name: str) -> list[PlayerMatch] | None:
     """Search NHL API for players matching the name. Returns None on error."""
     try:
-        url = f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={player_name}"
+        url = (
+            f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={player_name}"
+        )
         response = requests.get(url, timeout=5)
         response.raise_for_status()
         results = response.json()
@@ -139,7 +141,11 @@ def _build_result(matches: list[PlayerMatch], source: str) -> BuildResultOutput:
             team_abbrev=match.team_abbrev,
             position=match.position,
             active=match.active,
-            message="Player found via NHL API. Stats may not be in local database yet." if source == "nhl_api" else None,
+            message=(
+                "Player found via NHL API. Stats may not be in local database yet."
+                if source == "nhl_api"
+                else None
+            ),
         )
 
     # Multiple matches
@@ -176,7 +182,7 @@ def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
         player_names: List of player names to search for (e.g., ['McDavid', 'Draisaitl'])
 
     Returns:
-        JSON string containing resolved player information with player_id, full_name, and match details
+        JSON string with resolved player information (player_id, full_name, match details)
     """
     results = {}
 
@@ -187,8 +193,10 @@ def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
             # Try MoneyPuck first (has current season data)
             moneypuck_matches = _search_moneypuck(player_name)
             if moneypuck_matches:
-                logger.info(f"Found {len(moneypuck_matches)} MoneyPuck match(es) for '{player_name}'")
-                results[player_name] = _build_result(moneypuck_matches, "moneypuck").model_dump(exclude_none=True)
+                match_count = len(moneypuck_matches)
+                logger.info(f"Found {match_count} MoneyPuck match(es) for '{player_name}'")
+                result = _build_result(moneypuck_matches, "moneypuck")
+                results[player_name] = result.model_dump(exclude_none=True)
                 continue
 
             # Fall back to NHL API (includes inactive players, prospects, etc.)
@@ -208,7 +216,8 @@ def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
                 continue
 
             logger.info(f"Found {len(api_matches)} NHL API match(es) for '{player_name}'")
-            results[player_name] = _build_result(api_matches, "nhl_api").model_dump(exclude_none=True)
+            result = _build_result(api_matches, "nhl_api")
+            results[player_name] = result.model_dump(exclude_none=True)
 
         except Exception as e:
             logger.error(f"Error resolving '{player_name}': {e}")

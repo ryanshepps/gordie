@@ -12,10 +12,19 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from agent.agent_state import AgentState, build_context, get_user_teams
-from agent.subagents import compare_players, handle_onboarding, handle_player_add
+from agent.subagents import handle_onboarding
+from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
+from tools.player_comparison.compare_players_comprehensive import compare_players_comprehensive
+from tools.player_comparison.fuzzy_resolve_nhl_api_player_ids import (
+    fuzzy_resolve_nhl_api_player_ids,
+)
+from tools.player_comparison.get_moneypuck_stats import get_moneypuck_stats
+from tools.player_comparison.get_team_schedule import get_team_schedule
+from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
+from tools.yahoo.get_available_players import get_available_players
 from tools.yahoo.get_roster import get_roster
 
 # Use literal string for END to satisfy type checker
@@ -43,66 +52,103 @@ user, and you want to be useful for the user.
 """
 
 # System prompt for the supervisor agent
-SUPERVISOR_SYSTEM_PROMPT = """You are a routing agent for a fantasy hockey assistant. Your ONLY job is to route requests to the correct sub-agent tool.
+SUPERVISOR_SYSTEM_PROMPT = """You are a fantasy hockey assistant. You can handle \
+roster decisions directly using player comparison tools, or delegate complex \
+trade analysis to specialized sub-agents.
 
 AVAILABLE TOOLS:
 
-1. **handle_player_add** - USE THIS FOR:
+## Sub-agent Tools (delegate complex tasks)
+
+1. **trade** - USE THIS FOR:
    - Trade suggestions ("help me trade", "who should I trade", "trade targets")
-   - Waiver/free agent questions ("who is available", "who should I pick up")
+   - Finding trade partners or targets on other teams
    - Roster imbalances ("too many players from X team")
-   - Player add/drop decisions
-   - ANY request that involves finding replacement players or making roster moves
 
-2. **compare_players** - USE THIS FOR:
-   - Direct player comparisons ("compare Player A vs Player B")
-   - Start/sit decisions ("who should I start")
-   - "Which player is better" questions
-
-3. **handle_onboarding** - USE THIS FOR:
+2. **handle_onboarding** - USE THIS FOR:
    - Account setup and Yahoo connection
    - First-time user setup
    - Returns JSON with 'status', 'message', and optionally 'oauth_url'
-   - **IMPORTANT**: If 'oauth_url' is present in the response, you MUST include this exact URL in your message to the user. Never paraphrase or omit URLs.
+   - **IMPORTANT**: If 'oauth_url' is present in the response, you MUST include this exact \
+URL in your message to the user. Never paraphrase or omit URLs.
 
-4. **get_roster** - USE THIS FOR:
-   - Simple roster queries ONLY ("who's on my team", "show my roster")
-   - DO NOT use this for trades, waivers, or any decision-making
+## Roster & Player Tools (use directly)
 
-5. **search_past_conversations** - USE THIS FOR:
-   - When the user references a previous conversation ("remember when...", "last time we talked about...")
-   - When you want to check if similar advice was given before
-   - When the user asks about a player they previously discussed
-   - When the user can't find an old email and asks you to remind them
+3. **get_roster** - Get the user's current roster with player stats
+
+4. **get_available_players** - Get free agents and waiver wire players
+   - Use to find pickup candidates
+   - Can filter by position, sort by ownership rank or recent stats
+
+5. **find_similar_ranked_players** - Find players ranked around a target rank
+   - Use to find replacement options at a similar tier
+   - Shows who owns each player for trade targeting
+
+6. **fuzzy_resolve_nhl_api_player_ids** - Convert player names to NHL API player IDs
+   - MUST call this first before using get_moneypuck_stats
+   - Accepts player names like ['McDavid', 'Draisaitl'] and returns their player IDs
+
+7. **get_moneypuck_stats** - Get advanced analytics (xGoals, Fenwick%, Corsi%)
+   - Requires player_ids (use fuzzy_resolve_nhl_api_player_ids to get these first)
+   - Use to identify undervalued players (high xGoals, low actual goals = due for regression up)
+   - Use to identify overvalued players (low xGoals, high actual goals = due for regression down)
+
+8. **get_team_schedule** - Get games this week and next week for NHL teams
+   - Players on teams with more games have more scoring opportunities
+   - Use when deciding between players for pickups or drops
+
+9. **compare_players_comprehensive** - Multi-dimensional player comparison
+   - Requires player_stats and fantasy_points as JSON inputs
+   - Use after gathering stats with other tools
+   - Gives weighted recommendation with confidence level
+
+10. **search_past_conversations** - Search previous conversations with this user
+   - When the user references a previous conversation
    - When providing context-aware advice that builds on previous discussions
 
-CRITICAL RULES:
+## MANDATORY WORKFLOW FOR "WHO SHOULD I DROP" QUESTIONS:
 
-1. If the user mentions "trade", "waiver", "pick up", "add", "drop", "too many players from", or wants roster advice:
-   → YOU MUST call handle_player_add. Do NOT just call get_roster and give generic advice.
+**IMPORTANT**: You MUST complete ALL steps below before giving advice. Do NOT give roster advice \
+based only on get_roster results - that data is too shallow for good recommendations.
 
-2. The handle_player_add tool will:
-   - Fetch the roster itself
-   - Search for available players
-   - Find trade targets on other teams
-   - Compare players and give SPECIFIC recommendations with real data
+1. Call get_roster to see their current players
+2. Identify the 2-3 weakest-looking players on the roster (lowest points, injured, etc.)
+3. Call fuzzy_resolve_nhl_api_player_ids with those player names
+4. Call get_moneypuck_stats with those player IDs - this reveals hidden value:
+   - High xGoals + low actual goals = player is unlucky, likely to improve (DON'T DROP)
+   - Low xGoals + high actual goals = player is lucky, likely to regress (CONSIDER DROP)
+5. Call get_team_schedule to check upcoming games (more games = more fantasy points)
+6. Only AFTER completing steps 3-5, make your recommendation with specific stats
 
-3. YOU ARE NOT ALLOWED to give trade/waiver advice yourself. You MUST delegate to handle_player_add.
+**Never skip the advanced stats.** A player looking bad in get_roster might actually be \
+undervalued (high xGoals), and a player looking good might be due for regression.
 
-4. When you receive a response from a sub-agent tool, use that information to craft an appropriate response to the user. You may rephrase and adapt the message, but you MUST preserve any URLs, links, or specific data exactly as provided.
+## MANDATORY WORKFLOW FOR PLAYER COMPARISONS:
 
-5. Use search_past_conversations proactively when it would help provide better context-aware advice.
+You MUST use advanced stats - never compare players using only basic fantasy points.
+
+1. Call fuzzy_resolve_nhl_api_player_ids with player names to get their IDs
+2. Call get_moneypuck_stats with those player IDs
+3. Call get_team_schedule for their teams
+4. Compare the data and make a recommendation citing specific advanced stats
+
+## CRITICAL RULES:
+
+1. For TRADE requests (finding trade partners, proposing trades): delegate to trade tool
+2. For DROP/ADD/COMPARISON requests: use the player comparison tools directly
+3. When you receive a response from a sub-agent tool, use that information to craft an \
+appropriate response. You MUST preserve any URLs, links, or specific data exactly as provided.
+4. Use search_past_conversations proactively when it would help provide better context-aware advice.
 
 The user's email and team context will be provided in system messages.
 """
 
 # Database setup for checkpointer
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "data", "agent_conversations.db"
-)
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "agent_conversations.db")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 checkpointer = SqliteSaver(conn)
+
 
 def create_supervisor_agent():
     """Create a new supervisor agent instance."""
@@ -118,7 +164,19 @@ def create_supervisor_agent():
 
     return create_agent(
         model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-        tools=[get_roster, compare_players, handle_player_add, handle_onboarding, search_past_conversations],
+        tools=[
+            get_roster,
+            trade,
+            handle_onboarding,
+            search_past_conversations,
+            # Player comparison tools for roster decisions
+            fuzzy_resolve_nhl_api_player_ids,
+            compare_players_comprehensive,
+            get_moneypuck_stats,
+            get_team_schedule,
+            get_available_players,
+            find_similar_ranked_players,
+        ],
         middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
         system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
         checkpointer=checkpointer,
@@ -151,16 +209,20 @@ def _resolve_team_context(
             state["response"] = cast(str | None, context.get("clarification_message"))
             logger.info("Clarification needed - asking user to specify team")
             return Command(goto="clarification", update=state)
-        state.update({
-            "league_id": cast(str | None, context.get("league_id")),
-            "team_id": cast(str | None, context.get("team_id")),
-        })
+        state.update(
+            {
+                "league_id": cast(str | None, context.get("league_id")),
+                "team_id": cast(str | None, context.get("team_id")),
+            }
+        )
     elif len(user_teams) == 1:
         team = user_teams[0]
-        state.update({
-            "league_id": team.get("league_id"),
-            "team_id": team.get("team_id"),
-        })
+        state.update(
+            {
+                "league_id": team.get("league_id"),
+                "team_id": team.get("team_id"),
+            }
+        )
 
     return None
 
@@ -174,22 +236,17 @@ def _build_context_message(state: AgentState, user_email: str) -> SystemMessage:
     if team_id := state.get("team_id"):
         parts.append(f"Team ID: {team_id}")
     if user_teams := state.get("user_teams"):
-        teams_info = ", ".join(
-            f"{t['team_name']} ({t['league_name']})" for t in user_teams
-        )
+        teams_info = ", ".join(f"{t['team_name']} ({t['league_name']})" for t in user_teams)
         parts.append(f"User's teams: {teams_info}")
     if not state.get("has_teams"):
         parts.append(
-            "Note: User has no teams connected yet. "
-            "Use handle_onboarding if they need to set up."
+            "Note: User has no teams connected yet. Use handle_onboarding if they need to set up."
         )
 
     return SystemMessage(content="\n".join(parts))
 
 
-def _prepare_input_state(
-    state: AgentState, context_msg: SystemMessage
-) -> dict[str, Any]:
+def _prepare_input_state(state: AgentState, context_msg: SystemMessage) -> dict[str, Any]:
     """Prepare input state with system messages for the supervisor agent."""
     input_state: dict[str, Any] = dict(state)
     system_messages: list[SystemMessage] = []

@@ -130,9 +130,7 @@ class TestCalculateFantasyPointsTool:
         with patch(
             "tools.player_comparison.calculate_fantasy_points.AuthenticatedYahooClient"
         ) as mock_client:
-            mock_client.return_value.query.get_league_settings.return_value = (
-                mock_settings
-            )
+            mock_client.return_value.query.get_league_settings.return_value = mock_settings
 
             result = json.loads(
                 calculate_fantasy_points.invoke(
@@ -157,9 +155,7 @@ class TestCalculateFantasyPointsTool:
             # Return settings with no stat_modifiers
             mock_settings = MagicMock()
             mock_settings.stat_modifiers = None
-            mock_client.return_value.query.get_league_settings.return_value = (
-                mock_settings
-            )
+            mock_client.return_value.query.get_league_settings.return_value = mock_settings
 
             result = json.loads(
                 calculate_fantasy_points.invoke(
@@ -208,9 +204,7 @@ class TestCalculateFantasyPointsTool:
         with patch(
             "tools.player_comparison.calculate_fantasy_points.AuthenticatedYahooClient"
         ) as mock_client:
-            mock_client.return_value.query.get_league_settings.return_value = (
-                mock_settings
-            )
+            mock_client.return_value.query.get_league_settings.return_value = mock_settings
 
             result = json.loads(
                 calculate_fantasy_points.invoke(
@@ -236,9 +230,7 @@ class TestCalculateFantasyPointsTool:
         with patch(
             "tools.player_comparison.calculate_fantasy_points.AuthenticatedYahooClient"
         ) as mock_client:
-            mock_client.return_value.query.get_league_settings.return_value = (
-                mock_settings
-            )
+            mock_client.return_value.query.get_league_settings.return_value = mock_settings
 
             result = json.loads(
                 calculate_fantasy_points.invoke(
@@ -260,9 +252,7 @@ class TestCalculateFantasyPointsTool:
         with patch(
             "tools.player_comparison.calculate_fantasy_points.AuthenticatedYahooClient"
         ) as mock_client:
-            mock_client.return_value.query.get_league_settings.return_value = (
-                mock_settings
-            )
+            mock_client.return_value.query.get_league_settings.return_value = mock_settings
 
             result = json.loads(
                 calculate_fantasy_points.invoke(

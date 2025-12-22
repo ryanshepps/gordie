@@ -35,8 +35,8 @@ class AuthenticatedYahooClient:
         Initialize Yahoo Fantasy Sports client with robust token handling.
 
         Args:
-            league_id: Yahoo Fantasy League ID (optional - required for league-specific queries)
-            access_token_json: JSON string containing all token data (defaults to env var or database lookup)
+            league_id: Yahoo Fantasy League ID (optional for league-specific queries)
+            access_token_json: JSON string containing all token data (defaults to db lookup)
             user_email: User's Yahoo email (Used to fetch tokens from database)
 
         Raises:
@@ -212,7 +212,7 @@ class AuthenticatedYahooClient:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to create Yahoo query: {e}. "
-                "Token may be expired or invalid. Re-authenticate locally and update GitHub secrets."
+                "Token may be expired or invalid. Re-authenticate and update secrets."
             ) from e
 
     @staticmethod

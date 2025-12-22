@@ -32,9 +32,7 @@ def get_team_roster(
         JSON string with roster information including player names, positions,
         NHL teams, fantasy points, and injury status.
     """
-    yahoo_client = AuthenticatedYahooClient(
-        league_id=int(league_id), user_email=user_email
-    )
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
     try:
         roster = yahoo_client.query.get_team_roster_player_stats(team_id)
@@ -49,7 +47,13 @@ def get_team_roster(
         for player in players:
             # Extract player name
             name_obj = getattr(player, "name", None)
-            player_name = name_obj.full if name_obj and hasattr(name_obj, "full") else str(name_obj) if name_obj else "Unknown"
+            player_name = (
+                name_obj.full
+                if name_obj and hasattr(name_obj, "full")
+                else str(name_obj)
+                if name_obj
+                else "Unknown"
+            )
 
             # Extract player stats if available
             player_stats = getattr(player, "player_stats", None)
@@ -71,12 +75,14 @@ def get_team_roster(
             }
             result.append(player_info)
 
-        return json.dumps({
-            "players": result,
-            "count": len(result),
-            "team_id": team_id,
-            "league_id": league_id,
-        })
+        return json.dumps(
+            {
+                "players": result,
+                "count": len(result),
+                "team_id": team_id,
+                "league_id": league_id,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching team roster: {e}")

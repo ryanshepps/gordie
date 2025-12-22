@@ -19,13 +19,15 @@ _player_comparison_task = """
 Task: Compare NHL players to help the user make informed fantasy hockey decisions.
 
 Comparison Process:
-1. If the user provides player names (e.g., "McDavid" or "Draisaitl"), use fuzzy_resolve_nhl_api_player_ids to get their NHL API player IDs
+1. If the user provides player names (e.g., "McDavid" or "Draisaitl"), use
+   fuzzy_resolve_nhl_api_player_ids to get their NHL API player IDs
 2. Use get_player_stats to fetch statistics for each player (requires player IDs)
 3. Use calculate_fantasy_points for fantasy scoring
 4. Use compare_players_comprehensive for analysis
 5. Present a clear recommendation with supporting data
 
-Important: Always resolve player names to IDs first before fetching stats. The get_player_stats tool requires numeric player IDs, not names.
+Important: Always resolve player names to IDs first before fetching stats.
+The get_player_stats tool requires numeric player IDs, not names.
 
 User email: {user_email}
 League ID: {league_id}
@@ -34,7 +36,12 @@ League ID: {league_id}
 _agent = create_subagent(
     name="player_comparison",
     system_prompt=_player_comparison_task,
-    tools=[fuzzy_resolve_nhl_api_player_ids, get_player_stats, calculate_fantasy_points, compare_players_comprehensive],
+    tools=[
+        fuzzy_resolve_nhl_api_player_ids,
+        get_player_stats,
+        calculate_fantasy_points,
+        compare_players_comprehensive,
+    ],
 )
 
 
@@ -77,7 +84,9 @@ def compare_players(
 
     response = extract_response(
         result,
-        fallback_message="I encountered an issue processing your player comparison request. Please try again.",
+        fallback_message=(
+            "I encountered an issue processing your player comparison request. Please try again."
+        ),
     )
     logger.info(f"[compare_players] Response: {response[:200]}...")
     return response

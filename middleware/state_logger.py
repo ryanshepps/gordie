@@ -82,7 +82,8 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
                     if len(args_str) > 300:
                         args_str = args_str[:300] + "..."
                     logger.info(
-                        f"[{self.agent_name}:TOOL_DECISION] Calling '{tool_name}' with args: {args_str}"
+                        f"[{self.agent_name}:TOOL_DECISION] "
+                        f"Calling '{tool_name}' with args: {args_str}"
                     )
 
         return None

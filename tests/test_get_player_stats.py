@@ -78,14 +78,10 @@ class TestStatAggregation:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_10_games"})
             )
 
         assert result["8478402"]["goals"] == 6
@@ -120,14 +116,10 @@ class TestStatAggregation:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_10_games"})
             )
 
         stats = result["8478402"]
@@ -149,14 +141,10 @@ class TestStatAggregation:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_10_games"})
             )
 
         assert result["8478402"]["plus_minus"] == 2  # 3 - 2 + 1
@@ -177,14 +165,10 @@ class TestPerGameAverages:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_10_games"})
             )
 
         assert result["8478402"]["points_per_game"] == 2.5  # 10 points / 4 games
@@ -192,25 +176,17 @@ class TestPerGameAverages:
     def test_calculates_all_per_game_averages(self):
         """Should calculate per-game averages for goals, assists, sog, hits."""
         mock_games = [
-            create_mock_game_row(
-                8478402, 1, "2024-01-01", goals=2, assists=1, sog=5, hits=3
-            ),
-            create_mock_game_row(
-                8478402, 2, "2024-01-03", goals=0, assists=3, sog=3, hits=1
-            ),
+            create_mock_game_row(8478402, 1, "2024-01-01", goals=2, assists=1, sog=5, hits=3),
+            create_mock_game_row(8478402, 2, "2024-01-03", goals=0, assists=3, sog=3, hits=1),
         ]
 
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_10_games"})
             )
 
         stats = result["8478402"]
@@ -227,21 +203,16 @@ class TestTimePeriods:
         """last_5_games should only use 5 most recent games."""
         # Create 10 games but expect only 5 to be used
         mock_games = [
-            create_mock_game_row(8478402, i, f"2024-01-{i:02d}", goals=1)
-            for i in range(1, 6)
+            create_mock_game_row(8478402, i, f"2024-01-{i:02d}", goals=1) for i in range(1, 6)
         ]
 
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_5_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_5_games"})
             )
 
         assert result["8478402"]["games_played"] == 5
@@ -256,14 +227,10 @@ class TestTimePeriods:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "season"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "season"})
             )
 
         assert result["8478402"]["games_played"] == 50
@@ -275,14 +242,10 @@ class TestTimePeriods:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = (
-                mock_games
-            )
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = mock_games
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_20_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_20_games"})
             )
 
         assert result["8478402"]["time_period"] == "last_20_games"
@@ -337,9 +300,7 @@ class TestNoDataHandling:
             mock_repo.return_value.conn.execute.return_value.fetchall.return_value = []
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [9999999], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [9999999], "time_period": "last_10_games"})
             )
 
         assert result["9999999"]["status"] == "no_data"
@@ -408,18 +369,13 @@ class TestNullStatHandling:
         with patch(
             "tools.player_comparison.get_player_stats.NHLPlayerStatsRepository"
         ) as mock_repo:
-            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = [
-                null_game
-            ]
+            mock_repo.return_value.conn.execute.return_value.fetchall.return_value = [null_game]
 
             result = json.loads(
-                get_player_stats.invoke(
-                    {"player_ids": [8478402], "time_period": "last_10_games"}
-                )
+                get_player_stats.invoke({"player_ids": [8478402], "time_period": "last_10_games"})
             )
 
         stats = result["8478402"]
         assert stats["goals"] == 0
         assert stats["assists"] == 0
         assert stats["points"] == 0
-

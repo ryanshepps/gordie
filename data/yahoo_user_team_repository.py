@@ -21,9 +21,7 @@ class YahooUserTeamRepository(Repository):
         self.conn = conn or get_platform_db_connection()
         super().__init__(self.conn, "yahoo_user_teams")
 
-    def add_team(
-        self, league_id: str, team_id: str, user_email: str, team_name: str
-    ) -> None:
+    def add_team(self, league_id: str, team_id: str, user_email: str, team_name: str) -> None:
         """Add a user's Yahoo Fantasy team.
 
         Args:

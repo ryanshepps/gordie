@@ -23,16 +23,37 @@ from tools.player_comparison.fuzzy_resolve_nhl_api_player_ids import (
 @pytest.fixture
 def mock_moneypuck_data():
     """Create mock MoneyPuck DataFrame with test players."""
-    return pd.DataFrame([
-        {"playerId": 8478402, "name": "Connor McDavid", "team": "EDM", "position": "C", "games_played": 67},
-        {"playerId": 8477934, "name": "Leon Draisaitl", "team": "EDM", "position": "C", "games_played": 65},
-        {"playerId": 8480069, "name": "Cale Makar", "team": "COL", "position": "D", "games_played": 60},
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "playerId": 8478402,
+                "name": "Connor McDavid",
+                "team": "EDM",
+                "position": "C",
+                "games_played": 67,
+            },
+            {
+                "playerId": 8477934,
+                "name": "Leon Draisaitl",
+                "team": "EDM",
+                "position": "C",
+                "games_played": 65,
+            },
+            {
+                "playerId": 8480069,
+                "name": "Cale Makar",
+                "team": "COL",
+                "position": "D",
+                "games_played": 60,
+            },
+        ]
+    )
 
 
 @pytest.fixture
 def mock_moneypuck_search(mock_moneypuck_data):
     """Mock the MoneyPuck search function."""
+
     def search_func(query, situation="all", limit=5):
         df = mock_moneypuck_data
         matches = df[df["name"].str.lower().str.contains(query.lower(), na=False)]
@@ -40,7 +61,7 @@ def mock_moneypuck_search(mock_moneypuck_data):
 
     with patch(
         "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.moneypuck_search",
-        side_effect=search_func
+        side_effect=search_func,
     ):
         yield
 
@@ -63,9 +84,7 @@ class TestMoneyPuckLookup:
 
     def test_finds_player_by_last_name(self, mock_moneypuck_search):
         """Player found by last name only returns success."""
-        result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]})
-        )
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]}))
 
         assert "McDavid" in result
         player_result = result["McDavid"]
@@ -99,9 +118,7 @@ class TestMoneyPuckLookup:
 
     def test_includes_games_played_count(self, mock_moneypuck_search):
         """Result includes games played from MoneyPuck data."""
-        result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]})
-        )
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]}))
 
         player_result = result["McDavid"]
         assert player_result["games_in_db"] == 67
@@ -115,7 +132,7 @@ class TestNHLAPIFallback:
         """Mock MoneyPuck to return empty results."""
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.moneypuck_search",
-            return_value=pd.DataFrame()
+            return_value=pd.DataFrame(),
         ):
             yield
 
@@ -135,7 +152,7 @@ class TestNHLAPIFallback:
 
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
-            return_value=mock_response
+            return_value=mock_response,
         ) as mock_get:
             result = json.loads(
                 fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]})
@@ -165,7 +182,7 @@ class TestNHLAPIFallback:
 
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
-            return_value=mock_response
+            return_value=mock_response,
         ):
             result = json.loads(
                 fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]})
@@ -190,12 +207,10 @@ class TestNHLAPIFallback:
 
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
-            return_value=mock_response
+            return_value=mock_response,
         ):
             result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids.invoke(
-                    {"player_names": ["NonexistentPlayer"]}
-                )
+                fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["NonexistentPlayer"]})
             )
 
         player_result = result["NonexistentPlayer"]
@@ -207,12 +222,10 @@ class TestNHLAPIFallback:
 
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
-            side_effect=requests.RequestException("API Error")
+            side_effect=requests.RequestException("API Error"),
         ):
             result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids.invoke(
-                    {"player_names": ["UnknownPlayer"]}
-                )
+                fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["UnknownPlayer"]})
             )
 
         player_result = result["UnknownPlayer"]
@@ -225,26 +238,39 @@ class TestMultipleMatches:
     @pytest.fixture
     def mock_moneypuck_with_similar_names(self):
         """Mock MoneyPuck with players having similar names."""
-        similar_players = pd.DataFrame([
-            {"playerId": 8471675, "name": "Sidney Crosby", "team": "PIT", "position": "C", "games_played": 70},
-            {"playerId": 8471677, "name": "Mike Crosby", "team": "BOS", "position": "R", "games_played": 30},
-        ])
+        similar_players = pd.DataFrame(
+            [
+                {
+                    "playerId": 8471675,
+                    "name": "Sidney Crosby",
+                    "team": "PIT",
+                    "position": "C",
+                    "games_played": 70,
+                },
+                {
+                    "playerId": 8471677,
+                    "name": "Mike Crosby",
+                    "team": "BOS",
+                    "position": "R",
+                    "games_played": 30,
+                },
+            ]
+        )
 
         def search_func(query, situation="all", limit=5):
-            matches = similar_players[similar_players["name"].str.lower().str.contains(query.lower(), na=False)]
+            name_col = similar_players["name"].str.lower()
+            matches = similar_players[name_col.str.contains(query.lower(), na=False)]
             return matches.head(limit)
 
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.moneypuck_search",
-            side_effect=search_func
+            side_effect=search_func,
         ):
             yield
 
     def test_returns_multiple_matches_when_ambiguous(self, mock_moneypuck_with_similar_names):
         """Ambiguous search returns multiple_matches status with all options."""
-        result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]})
-        )
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]}))
 
         player_result = result["Crosby"]
         assert player_result["status"] == "multiple_matches"
@@ -253,9 +279,7 @@ class TestMultipleMatches:
 
     def test_multiple_matches_include_player_details(self, mock_moneypuck_with_similar_names):
         """Each match in multiple_matches includes player details."""
-        result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]})
-        )
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]}))
 
         matches = result["Crosby"]["matches"]
         for match in matches:

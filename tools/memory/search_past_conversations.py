@@ -14,7 +14,10 @@ class SearchPastConversationsInput(BaseModel):
     """Input schema for search_past_conversations tool."""
 
     query: str = Field(
-        description="What to search for in past conversations (e.g., 'dropping McDavid', 'trade advice for centers')"
+        description=(
+            "What to search for in past conversations "
+            "(e.g., 'dropping McDavid', 'trade advice for centers')"
+        )
     )
     user_email: str = Field(description="The user's email address")
 
@@ -78,7 +81,10 @@ def create_search_past_conversations_tool(store: BaseStore):
                     players_str = ", ".join(players) if isinstance(players, list) else players
                     output_parts.append(f"   Players discussed: {players_str}")
                 if decisions:
-                    decisions_str = ", ".join(decisions) if isinstance(decisions, list) else decisions
+                    if isinstance(decisions, list):
+                        decisions_str = ", ".join(decisions)
+                    else:
+                        decisions_str = decisions
                     output_parts.append(f"   Decisions made: {decisions_str}")
                 output_parts.append(f"   (From: {created_at})")
 

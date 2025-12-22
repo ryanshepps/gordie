@@ -16,12 +16,10 @@ logger = get_logger(__name__)
 class GetPlayerStatsInput(BaseModel):
     """Input schema for get_player_stats tool."""
 
-    player_ids: list[int] = Field(
-        description="List of NHL API player IDs to fetch stats for"
-    )
+    player_ids: list[int] = Field(description="List of NHL API player IDs to fetch stats for")
     time_period: str = Field(
         default="last_10_games",
-        description="Time period: 'last_5_games', 'last_10_games', 'last_20_games', 'season', 'last_30_days'"
+        description="Time period: 'last_5_games', 'last_10_games', 'last_20_games', 'season', 'last_30_days'",
     )
 
 
@@ -83,7 +81,7 @@ def get_player_stats(player_ids: list[int], time_period: str = "last_10_games") 
                 if not games:
                     results[str(player_id)] = {
                         "status": "no_data",
-                        "message": f"No stats found for player {player_id} in period {time_period}"
+                        "message": f"No stats found for player {player_id} in period {time_period}",
                     }
                     continue
 
@@ -114,7 +112,9 @@ def get_player_stats(player_ids: list[int], time_period: str = "last_10_games") 
                     "corsi_for": sum(g[20] or 0 for g in games),
                     "fenwick_for": sum(g[21] or 0 for g in games),
                     "missed_shots": sum(g[22] or 0 for g in games),
-                    "avg_faceoff_winning_pctg": float(sum(g[14] or 0 for g in games) / len(games)) if games else 0.0,
+                    "avg_faceoff_winning_pctg": float(sum(g[14] or 0 for g in games) / len(games))
+                    if games
+                    else 0.0,
                 }
 
                 # Calculate per-game averages
@@ -130,10 +130,7 @@ def get_player_stats(player_ids: list[int], time_period: str = "last_10_games") 
 
             except Exception as e:
                 logger.error(f"Error fetching stats for player {player_id}: {e}")
-                results[str(player_id)] = {
-                    "status": "error",
-                    "error": str(e)
-                }
+                results[str(player_id)] = {"status": "error", "error": str(e)}
     finally:
         repo.close()
 

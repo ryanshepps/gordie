@@ -22,16 +22,17 @@ logger = get_logger(__name__)
 class GetMoneyPuckStatsInput(BaseModel):
     """Input schema for get_moneypuck_stats tool."""
 
-    player_ids: list[int] = Field(
-        description="List of NHL API player IDs to fetch stats for"
-    )
+    player_ids: list[int] = Field(description="List of NHL API player IDs to fetch stats for")
     situation: str = Field(
         default="all",
-        description="Game situation: 'all' (default), '5on5', '5on4' (power play), '4on5' (penalty kill), 'other'",
+        description=(
+            "Game situation: 'all' (default), '5on5', '5on4' (power play), "
+            "'4on5' (penalty kill), 'other'"
+        ),
     )
     season: int = Field(
-        default=2024,
-        description="Starting year of the season (e.g., 2024 for 2024-2025 season)",
+        default=2025,
+        description="Starting year of the season (e.g., 2025 for 2025-2026 season)",
     )
 
 
@@ -194,7 +195,10 @@ def get_moneypuck_stats(
             if player_df.empty:
                 results[str(player_id)] = {
                     "status": "not_found",
-                    "message": f"No MoneyPuck data found for player {player_id} in {season}-{season+1} season",
+                    "message": (
+                        f"No MoneyPuck data found for player {player_id} "
+                        f"in {season}-{season + 1} season"
+                    ),
                 }
                 continue
 
@@ -203,17 +207,19 @@ def get_moneypuck_stats(
             results[str(player_id)] = {
                 "status": "success",
                 "situation": situation,
-                "season": f"{season}-{season+1}",
+                "season": f"{season}-{season + 1}",
                 "stats": _format_player_stats(row),
             }
 
     except Exception as e:
         logger.error(f"Error fetching MoneyPuck stats: {e}")
-        return json.dumps({
-            "status": "error",
-            "error": str(e),
-            "message": "Failed to fetch MoneyPuck data. The service may be temporarily unavailable.",
-        })
+        return json.dumps(
+            {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to fetch MoneyPuck data. Service may be unavailable.",
+            }
+        )
 
     return json.dumps(results, indent=2)
 
@@ -262,33 +268,42 @@ def search_moneypuck_players(
         df = search_players(query, situation=situation, season=season, limit=limit)
 
         if df.empty:
-            return json.dumps({
-                "status": "not_found",
-                "message": f"No players found matching '{query}'",
-            })
+            return json.dumps(
+                {
+                    "status": "not_found",
+                    "message": f"No players found matching '{query}'",
+                }
+            )
 
         results = []
         for _, row in df.iterrows():
-            results.append({
-                "player_id": _safe_int(row.get("playerId")),
-                "name": _safe_str(row.get("name")),
-                "team": _safe_str(row.get("team")),
-                "position": _safe_str(row.get("position")),
-                "games_played": _safe_int(row.get("games_played")),
-                "goals": _safe_int(row.get("I_F_goals")),
-                "points": _safe_int(row.get("I_F_points")),
-                "x_goals": round(_safe_float(row.get("I_F_xGoals")), 2),
-            })
+            results.append(
+                {
+                    "player_id": _safe_int(row.get("playerId")),
+                    "name": _safe_str(row.get("name")),
+                    "team": _safe_str(row.get("team")),
+                    "position": _safe_str(row.get("position")),
+                    "games_played": _safe_int(row.get("games_played")),
+                    "goals": _safe_int(row.get("I_F_goals")),
+                    "points": _safe_int(row.get("I_F_points")),
+                    "x_goals": round(_safe_float(row.get("I_F_xGoals")), 2),
+                }
+            )
 
-        return json.dumps({
-            "status": "success",
-            "query": query,
-            "matches": results,
-        }, indent=2)
+        return json.dumps(
+            {
+                "status": "success",
+                "query": query,
+                "matches": results,
+            },
+            indent=2,
+        )
 
     except Exception as e:
         logger.error(f"Error searching MoneyPuck: {e}")
-        return json.dumps({
-            "status": "error",
-            "error": str(e),
-        })
+        return json.dumps(
+            {
+                "status": "error",
+                "error": str(e),
+            }
+        )

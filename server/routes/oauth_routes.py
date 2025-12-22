@@ -83,7 +83,8 @@ def register_oauth_routes(app, server):
                 <html>
                     <body>
                         <h1>Authentication Link Expired</h1>
-                        <p>This OAuth link is no longer valid. It may have already been used or expired.</p>
+                        <p>This OAuth link is no longer valid.
+                           It may have already been used or expired.</p>
                         <p>Please request a new authentication link.</p>
                     </body>
                 </html>

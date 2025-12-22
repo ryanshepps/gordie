@@ -60,9 +60,7 @@ class ConversationSummary(BaseModel):
     key_topics: list[str] = Field(
         description="List of main topics discussed (e.g., 'trade advice', 'waiver pickup')"
     )
-    players_mentioned: list[str] = Field(
-        description="List of player names that were discussed"
-    )
+    players_mentioned: list[str] = Field(description="List of player names that were discussed")
     decisions_made: list[str] = Field(
         description="List of any decisions or actions the user took or decided on"
     )
