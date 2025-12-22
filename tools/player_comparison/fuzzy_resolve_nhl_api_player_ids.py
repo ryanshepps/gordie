@@ -8,7 +8,7 @@ import requests
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from data.nhl_player_stats_repository import NHLPlayerStatsRepository
+from client.moneypuck_client import search_players as moneypuck_search
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,33 +77,29 @@ class MultipleMatchResult(BaseModel):
 BuildResultOutput = SingleMatchResult | MultipleMatchResult
 
 
-def _search_local_database(repo, player_name: str) -> list[PlayerMatch]:
-    """Search local database for players matching the name."""
-    search_term = f"%{player_name}%"
-    query = """
-        SELECT DISTINCT
-            nhl_api_player_id,
-            full_name,
-            first_name,
-            last_name,
-            COUNT(*) as games_in_db
-        FROM nhl_player_stats
-        WHERE full_name ILIKE ? OR last_name ILIKE ?
-        GROUP BY nhl_api_player_id, full_name, first_name, last_name
-        ORDER BY games_in_db DESC
-        LIMIT 5
+def _search_moneypuck(player_name: str) -> list[PlayerMatch]:
+    """Search MoneyPuck data for players matching the name.
+
+    MoneyPuck provides current season stats for all NHL players.
     """
-    rows = repo.conn.execute(query, [search_term, search_term]).fetchall()
-    return [
-        PlayerMatch(
-            player_id=row[0],
-            full_name=row[1],
-            first_name=row[2],
-            last_name=row[3],
-            games_in_db=row[4],
-        )
-        for row in rows
-    ]
+    try:
+        df = moneypuck_search(player_name, situation="all", limit=5)
+        if df.empty:
+            return []
+
+        return [
+            PlayerMatch(
+                player_id=int(row["playerId"]),
+                full_name=str(row["name"]),
+                team_abbrev=str(row["team"]) if row["team"] is not None else None,
+                position=str(row["position"]) if row["position"] is not None else None,
+                games_in_db=int(row["games_played"]),
+            )
+            for _, row in df.iterrows()
+        ]
+    except Exception as e:
+        logger.error(f"MoneyPuck search error for '{player_name}': {e}")
+        return []
 
 
 def _search_nhl_api(player_name: str) -> list[PlayerMatch] | None:
@@ -170,11 +166,11 @@ def _build_result(matches: list[PlayerMatch], source: str) -> BuildResultOutput:
 @tool(args_schema=FuzzyResolveNHLApiPlayerIdsInput)
 def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
     """
-    Resolve player names to NHL API player IDs using local database and NHL search API.
+    Resolve player names to NHL API player IDs using MoneyPuck and NHL search API.
 
     This tool uses a two-tier approach:
-    1. First searches the local nhl_player_stats table with fuzzy matching
-    2. Falls back to NHL search API if not found locally
+    1. First searches MoneyPuck data (current season stats) with fuzzy matching
+    2. Falls back to NHL search API if not found in MoneyPuck
 
     Args:
         player_names: List of player names to search for (e.g., ['McDavid', 'Draisaitl'])
@@ -182,42 +178,40 @@ def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
     Returns:
         JSON string containing resolved player information with player_id, full_name, and match details
     """
-    repo = NHLPlayerStatsRepository()
     results = {}
 
-    try:
-        for player_name in player_names:
-            try:
-                logger.info(f"Searching for player: {player_name}")
+    for player_name in player_names:
+        try:
+            logger.info(f"Searching for player: {player_name}")
 
-                local_matches = _search_local_database(repo, player_name)
-                if local_matches:
-                    logger.info(f"Found {len(local_matches)} local match(es) for '{player_name}'")
-                    results[player_name] = _build_result(local_matches, "local_database").model_dump(exclude_none=True)
-                    continue
+            # Try MoneyPuck first (has current season data)
+            moneypuck_matches = _search_moneypuck(player_name)
+            if moneypuck_matches:
+                logger.info(f"Found {len(moneypuck_matches)} MoneyPuck match(es) for '{player_name}'")
+                results[player_name] = _build_result(moneypuck_matches, "moneypuck").model_dump(exclude_none=True)
+                continue
 
-                logger.info(f"No local match for '{player_name}', trying NHL API")
-                api_matches = _search_nhl_api(player_name)
+            # Fall back to NHL API (includes inactive players, prospects, etc.)
+            logger.info(f"No MoneyPuck match for '{player_name}', trying NHL API")
+            api_matches = _search_nhl_api(player_name)
 
-                if api_matches is None:
-                    results[player_name] = {"status": "error", "message": "Could not search NHL API"}
-                    continue
+            if api_matches is None:
+                results[player_name] = {"status": "error", "message": "Could not search NHL API"}
+                continue
 
-                if not api_matches:
-                    logger.warning(f"No matches found for '{player_name}'")
-                    results[player_name] = {
-                        "status": "not_found",
-                        "message": f"No player found matching '{player_name}' in database or NHL API",
-                    }
-                    continue
+            if not api_matches:
+                logger.warning(f"No matches found for '{player_name}'")
+                results[player_name] = {
+                    "status": "not_found",
+                    "message": f"No player found matching '{player_name}' in MoneyPuck or NHL API",
+                }
+                continue
 
-                logger.info(f"Found {len(api_matches)} NHL API match(es) for '{player_name}'")
-                results[player_name] = _build_result(api_matches, "nhl_api").model_dump(exclude_none=True)
+            logger.info(f"Found {len(api_matches)} NHL API match(es) for '{player_name}'")
+            results[player_name] = _build_result(api_matches, "nhl_api").model_dump(exclude_none=True)
 
-            except Exception as e:
-                logger.error(f"Error resolving '{player_name}': {e}")
-                results[player_name] = {"status": "error", "error": str(e)}
-    finally:
-        repo.close()
+        except Exception as e:
+            logger.error(f"Error resolving '{player_name}': {e}")
+            results[player_name] = {"status": "error", "error": str(e)}
 
     return json.dumps(results, indent=2)

@@ -8,10 +8,10 @@ from module.logger import get_logger
 logger = get_logger(__name__, level=logging.DEBUG)
 
 
-def create_nhl_player_stats_table(conn: duckdb.DuckDBPyConnection) -> None:
+def create_nhl_player_game_stats_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create table for NHL player statistics with daily game tracking."""
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS nhl_player_stats (
+        CREATE TABLE IF NOT EXISTS nhl_player_game_stats (
             nhl_api_player_id INTEGER NOT NULL,
             nhl_api_game_id INTEGER NOT NULL,
             game_date DATE NOT NULL,
@@ -38,7 +38,7 @@ def create_nhl_player_stats_table(conn: duckdb.DuckDBPyConnection) -> None:
             PRIMARY KEY (nhl_api_player_id, nhl_api_game_id)
         )
     """)
-    logger.debug("Created nhl_player_stats table")
+    logger.debug("Created nhl_player_game_stats table")
 
 
 def create_users_table(conn: duckdb.DuckDBPyConnection) -> None:
@@ -133,7 +133,7 @@ def create_email_threads_table(conn: duckdb.DuckDBPyConnection) -> None:
 
 if __name__ == "__main__":
     nhl_stats_conn = get_nhl_stats_db_connection()
-    create_nhl_player_stats_table(nhl_stats_conn)
+    create_nhl_player_game_stats_table(nhl_stats_conn)
     nhl_stats_conn.close()
 
     platform_conn = get_platform_db_connection()

@@ -17,7 +17,7 @@ import pandas as pd
 from nhlpy import NHLClient
 
 from client.duck_db_client import get_nhl_stats_db_connection
-from data.schemas import create_nhl_player_stats_table
+from data.schemas import create_nhl_player_game_stats_table
 from module.logger import get_logger
 
 logger = get_logger(__name__, level=logging.INFO)
@@ -278,7 +278,7 @@ def insert_player_stats(conn: duckdb.DuckDBPyConnection, player_stats: list[dict
     # DuckDB can directly query the DataFrame variable
     # Using INSERT OR REPLACE to handle PRIMARY KEY conflicts
     conn.execute("""
-        INSERT OR REPLACE INTO nhl_player_stats
+        INSERT OR REPLACE INTO nhl_player_game_stats
         SELECT
             nhl_api_player_id,
             nhl_api_game_id,
@@ -331,7 +331,7 @@ def main():
 
     # Connect to database and ensure table exists
     conn = get_nhl_stats_db_connection()
-    create_nhl_player_stats_table(conn)
+    create_nhl_player_game_stats_table(conn)
 
     try:
         # Fetch box score data

@@ -1,4 +1,8 @@
-"""Repository class for NHL player statistics."""
+"""Repository class for NHL player game statistics.
+
+For aggregate/season statistics, use the MoneyPuck client instead:
+    from client.moneypuck_client import get_player_stats, search_players
+"""
 
 from typing import Any
 
@@ -9,7 +13,14 @@ from data.repository import Repository
 
 
 class NHLPlayerStatsRepository(Repository):
-    """Repository for managing NHL player statistics."""
+    """Repository for managing NHL player per-game statistics.
+
+    This repository works with the nhl_player_game_stats table which stores
+    box score data for each game a player plays in.
+
+    For aggregate season statistics (xGoals, Fenwick%, etc.), use the
+    MoneyPuck client instead which fetches data directly from MoneyPuck.com.
+    """
 
     def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
         """Initialize NHL player stats repository.
@@ -19,7 +30,7 @@ class NHLPlayerStatsRepository(Repository):
         """
         self._owns_conn = conn is None
         self.conn = conn or get_nhl_stats_db_connection()
-        super().__init__(self.conn, "nhl_player_stats")
+        super().__init__(self.conn, "nhl_player_game_stats")
 
     def add_stats(
         self,

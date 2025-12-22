@@ -52,7 +52,7 @@ def get_player_stats(player_ids: list[int], time_period: str = "last_10_games") 
                 # Build query based on time period
                 if time_period == "season":
                     query = """
-                        SELECT * FROM nhl_player_stats
+                        SELECT * FROM nhl_player_game_stats
                         WHERE nhl_api_player_id = ?
                         ORDER BY game_date DESC
                     """
@@ -60,7 +60,7 @@ def get_player_stats(player_ids: list[int], time_period: str = "last_10_games") 
                 elif time_period.startswith("last_") and time_period.endswith("_games"):
                     num_games = int(time_period.split("_")[1])
                     query = f"""
-                        SELECT * FROM nhl_player_stats
+                        SELECT * FROM nhl_player_game_stats
                         WHERE nhl_api_player_id = ?
                         ORDER BY game_date DESC
                         LIMIT {num_games}
@@ -69,7 +69,7 @@ def get_player_stats(player_ids: list[int], time_period: str = "last_10_games") 
                 elif time_period == "last_30_days":
                     cutoff_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
                     query = """
-                        SELECT * FROM nhl_player_stats
+                        SELECT * FROM nhl_player_game_stats
                         WHERE nhl_api_player_id = ?
                         AND game_date >= ?
                         ORDER BY game_date DESC
