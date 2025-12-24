@@ -80,8 +80,7 @@ def _extract_player_with_rank(player_data: list[object], rank: int) -> dict[str,
     return player_info
 
 
-@tool
-def find_similar_ranked_players(
+def _find_similar_ranked_players_impl(
     user_email: str,
     league_id: str,
     target_rank: int,
@@ -90,32 +89,7 @@ def find_similar_ranked_players(
     only_rostered: bool = True,
     exclude_my_team_id: str = "",
 ) -> str:
-    """
-    Find players with similar or worse rankings for trade comparison.
-
-    This tool finds players ranked around a target rank (or worse) to identify
-    potential trade targets. Players with worse fantasy point production but
-    better advanced stats (xGoals, Fenwick, TOI) may have higher upside potential.
-
-    Use this to find players on other teams who might be undervalued based on
-    their current fantasy ranking but could be targeted for trades.
-
-    Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
-        league_id: Yahoo league ID
-        target_rank: The rank to search around (e.g., if your player is rank 50,
-                     search for players ranked 40-70 to find comparable targets)
-        position: Optional position filter (e.g., "C", "LW", "RW", "D", "G", "F")
-        rank_range: How many ranks above and below to include (default 20, so
-                    rank 50 searches 30-70)
-        only_rostered: If True, only return players on teams (not free agents).
-                       Default True for trade analysis.
-        exclude_my_team_id: Optional team ID to exclude from results (your team)
-
-    Returns:
-        JSON string with list of players in the rank range, sorted by rank.
-        Each player includes their rank, position, team, and owner information.
-    """
+    """Internal implementation for find_similar_ranked_players."""
     yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
     try:
@@ -209,3 +183,41 @@ def find_similar_ranked_players(
     except Exception as e:
         logger.error(f"Error fetching similar ranked players: {e}")
         return json.dumps({"error": str(e), "players": []})
+
+
+# Expose for internal use by other Python code
+find_similar_ranked_players_internal = _find_similar_ranked_players_impl
+
+
+@tool
+def find_similar_ranked_players(
+    user_email: str,
+    league_id: str,
+    target_rank: int,
+    position: str = "",
+    rank_range: int = 20,
+    only_rostered: bool = True,
+    exclude_my_team_id: str = "",
+) -> str:
+    """
+    Find players with similar or worse rankings for trade comparison.
+
+    This tool finds players ranked around a target rank (or worse) to identify
+    potential trade targets. Players with worse fantasy point production but
+    better advanced stats (xGoals, Fenwick, TOI) may have higher upside potential.
+
+    Args:
+        user_email: User's email address (used to look up OAuth tokens in database)
+        league_id: Yahoo league ID
+        target_rank: The rank to search around
+        position: Optional position filter (e.g., "C", "LW", "RW", "D", "G", "F")
+        rank_range: How many ranks above and below to include (default 20)
+        only_rostered: If True, only return players on teams (not free agents)
+        exclude_my_team_id: Optional team ID to exclude from results (your team)
+
+    Returns:
+        JSON string with list of players in the rank range, sorted by rank.
+    """
+    return _find_similar_ranked_players_impl(
+        user_email, league_id, target_rank, position, rank_range, only_rostered, exclude_my_team_id
+    )

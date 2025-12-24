@@ -72,7 +72,7 @@ class TestMoneyPuckLookup:
     def test_finds_player_by_full_name(self, mock_moneypuck_search):
         """Player found by full name returns success with moneypuck source."""
         result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Connor McDavid"]})
+            fuzzy_resolve_nhl_api_player_ids(player_names=["Connor McDavid"])
         )
 
         assert "Connor McDavid" in result
@@ -84,7 +84,7 @@ class TestMoneyPuckLookup:
 
     def test_finds_player_by_last_name(self, mock_moneypuck_search):
         """Player found by last name only returns success."""
-        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]}))
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["McDavid"]))
 
         assert "McDavid" in result
         player_result = result["McDavid"]
@@ -95,7 +95,7 @@ class TestMoneyPuckLookup:
     def test_finds_player_by_partial_name(self, mock_moneypuck_search):
         """Player found by partial name match returns success."""
         result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Draisaitl"]})
+            fuzzy_resolve_nhl_api_player_ids(player_names=["Draisaitl"])
         )
 
         assert "Draisaitl" in result
@@ -106,8 +106,8 @@ class TestMoneyPuckLookup:
     def test_resolves_multiple_players(self, mock_moneypuck_search):
         """Multiple player names are resolved in a single call."""
         result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids.invoke(
-                {"player_names": ["McDavid", "Draisaitl", "Makar"]}
+            fuzzy_resolve_nhl_api_player_ids(
+                player_names=["McDavid", "Draisaitl", "Makar"]
             )
         )
 
@@ -118,7 +118,7 @@ class TestMoneyPuckLookup:
 
     def test_includes_games_played_count(self, mock_moneypuck_search):
         """Result includes games played from MoneyPuck data."""
-        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]}))
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["McDavid"]))
 
         player_result = result["McDavid"]
         assert player_result["games_in_db"] == 67
@@ -155,7 +155,7 @@ class TestNHLAPIFallback:
             return_value=mock_response,
         ) as mock_get:
             result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]})
+                fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"])
             )
 
             # Verify NHL API was called
@@ -185,7 +185,7 @@ class TestNHLAPIFallback:
             return_value=mock_response,
         ):
             result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]})
+                fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"])
             )
 
         assert "message" in result["Crosby"]
@@ -196,7 +196,7 @@ class TestNHLAPIFallback:
         with patch(
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get"
         ) as mock_get:
-            fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["McDavid"]})
+            fuzzy_resolve_nhl_api_player_ids(player_names=["McDavid"])
             mock_get.assert_not_called()
 
     def test_returns_not_found_when_api_returns_empty(self, mock_empty_moneypuck):
@@ -210,7 +210,7 @@ class TestNHLAPIFallback:
             return_value=mock_response,
         ):
             result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["NonexistentPlayer"]})
+                fuzzy_resolve_nhl_api_player_ids(player_names=["NonexistentPlayer"])
             )
 
         player_result = result["NonexistentPlayer"]
@@ -225,7 +225,7 @@ class TestNHLAPIFallback:
             side_effect=requests.RequestException("API Error"),
         ):
             result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["UnknownPlayer"]})
+                fuzzy_resolve_nhl_api_player_ids(player_names=["UnknownPlayer"])
             )
 
         player_result = result["UnknownPlayer"]
@@ -270,7 +270,7 @@ class TestMultipleMatches:
 
     def test_returns_multiple_matches_when_ambiguous(self, mock_moneypuck_with_similar_names):
         """Ambiguous search returns multiple_matches status with all options."""
-        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]}))
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"]))
 
         player_result = result["Crosby"]
         assert player_result["status"] == "multiple_matches"
@@ -279,7 +279,7 @@ class TestMultipleMatches:
 
     def test_multiple_matches_include_player_details(self, mock_moneypuck_with_similar_names):
         """Each match in multiple_matches includes player details."""
-        result = json.loads(fuzzy_resolve_nhl_api_player_ids.invoke({"player_names": ["Crosby"]}))
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"]))
 
         matches = result["Crosby"]["matches"]
         for match in matches:

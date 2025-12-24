@@ -9,7 +9,6 @@ class AgentType(str, Enum):
     """Available agent types for routing."""
 
     ONBOARDING = "onboarding"
-    PLAYER_COMPARISON = "player_comparison"
 
 
 class RoutingDecision(BaseModel):

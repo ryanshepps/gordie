@@ -6,9 +6,8 @@ These tests verify that:
 - The enrichment pipeline produces valid output
 """
 
+import json
 from unittest.mock import patch
-
-import pandas as pd
 
 from agent.email_enrichment import (
     enrich_email_with_player_stats,
@@ -16,7 +15,6 @@ from agent.email_enrichment import (
     fetch_player_stats,
     format_stats_table_html,
     format_stats_table_markdown,
-    resolve_players_to_ids,
 )
 
 
@@ -76,16 +74,20 @@ class TestFormatStatsTableMarkdown:
             {
                 "name": "Connor McDavid",
                 "position": "C",
+                "estimated_line_number": "1",
                 "games_played": 30,
                 "goals": 20,
-                "primary_assists": 25,
-                "secondary_assists": 10,
+                "assists": 35,
                 "points": 55,
                 "points_per_game": 1.83,
+                "toi_per_game_minutes": 22.5,
                 "x_goals": 15.5,
                 "goals_above_expected": 4.5,
-                "pp_toi_per_game": 3.5,
                 "fenwick_pct": 55.2,
+                "corsi_pct": 54.1,
+                "shots_on_goal": 120,
+                "high_danger_goals": 8,
+                "yahoo_rank": "5",
             }
         ]
         result = format_stats_table_markdown(stats)
@@ -94,6 +96,7 @@ class TestFormatStatsTableMarkdown:
         assert "| Player |" in result
         assert "| Pos |" in result
         assert "| GP |" in result
+        assert "| Line |" in result
 
         # Should have separator
         assert "| --- |" in result
@@ -111,30 +114,38 @@ class TestFormatStatsTableMarkdown:
             {
                 "name": "Player One",
                 "position": "C",
+                "estimated_line_number": "1",
                 "games_played": 10,
                 "goals": 5,
-                "primary_assists": 5,
-                "secondary_assists": 2,
+                "assists": 7,
                 "points": 12,
                 "points_per_game": 1.2,
+                "toi_per_game_minutes": 18.5,
                 "x_goals": 4.0,
                 "goals_above_expected": 1.0,
-                "pp_toi_per_game": 2.0,
                 "fenwick_pct": 50.0,
+                "corsi_pct": 51.0,
+                "shots_on_goal": 40,
+                "high_danger_goals": 2,
+                "yahoo_rank": "50",
             },
             {
                 "name": "Player Two",
                 "position": "LW",
+                "estimated_line_number": "2",
                 "games_played": 10,
                 "goals": 8,
-                "primary_assists": 3,
-                "secondary_assists": 1,
+                "assists": 4,
                 "points": 12,
                 "points_per_game": 1.2,
+                "toi_per_game_minutes": 16.2,
                 "x_goals": 6.0,
                 "goals_above_expected": 2.0,
-                "pp_toi_per_game": 1.5,
                 "fenwick_pct": 48.0,
+                "corsi_pct": 47.5,
+                "shots_on_goal": 55,
+                "high_danger_goals": 3,
+                "yahoo_rank": "75",
             },
         ]
         result = format_stats_table_markdown(stats)
@@ -147,16 +158,20 @@ class TestFormatStatsTableMarkdown:
             {
                 "name": f"Player {i}",
                 "position": "C",
+                "estimated_line_number": str(i),
                 "games_played": 10,
                 "goals": i,
-                "primary_assists": i,
-                "secondary_assists": 1,
-                "points": i * 2 + 1,
+                "assists": i,
+                "points": i * 2,
                 "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
                 "x_goals": float(i),
                 "goals_above_expected": 0.0,
-                "pp_toi_per_game": 2.0,
                 "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 1,
+                "yahoo_rank": str(i * 10),
             }
             for i in range(1, 4)
         ]
@@ -180,16 +195,20 @@ class TestFormatStatsTableHtml:
             {
                 "name": "Connor McDavid",
                 "position": "C",
+                "estimated_line_number": "1",
                 "games_played": 30,
                 "goals": 20,
-                "primary_assists": 25,
-                "secondary_assists": 10,
+                "assists": 35,
                 "points": 55,
                 "points_per_game": 1.83,
+                "toi_per_game_minutes": 22.5,
                 "x_goals": 15.5,
                 "goals_above_expected": 4.5,
-                "pp_toi_per_game": 3.5,
                 "fenwick_pct": 55.2,
+                "corsi_pct": 54.1,
+                "shots_on_goal": 120,
+                "high_danger_goals": 8,
+                "yahoo_rank": "5",
             }
         ]
         result = format_stats_table_html(stats)
@@ -218,103 +237,76 @@ class TestFormatStatsTableHtml:
             {
                 "name": "Test Player",
                 "position": "C",
+                "estimated_line_number": "1",
                 "games_played": 10,
                 "goals": 5,
-                "primary_assists": 3,
-                "secondary_assists": 2,
+                "assists": 5,
                 "points": 10,
                 "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
                 "x_goals": 4.0,
                 "goals_above_expected": 1.0,
-                "pp_toi_per_game": 2.0,
                 "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 2,
+                "yahoo_rank": "100",
             }
         ]
         result = format_stats_table_html(stats)
         assert "GP=Games Played" in result
         assert "xG=Expected Goals" in result
-
-
-class TestResolvePlayersToIds:
-    """Test player name to ID resolution."""
-
-    def test_resolves_valid_player_names(self):
-        """Should resolve player names to IDs via MoneyPuck search."""
-        mock_df = pd.DataFrame(
-            {
-                "playerId": [8478402],
-                "name": ["Connor McDavid"],
-                "team": ["EDM"],
-            }
-        )
-
-        with patch("agent.email_enrichment.search_players", return_value=mock_df):
-            result = resolve_players_to_ids(["Connor McDavid"])
-
-        assert len(result) == 1
-        assert result[0]["player_id"] == 8478402
-        assert result[0]["name"] == "Connor McDavid"
-
-    def test_deduplicates_by_player_id(self):
-        """Should not return duplicate player IDs."""
-        mock_df = pd.DataFrame(
-            {
-                "playerId": [8478402],
-                "name": ["Connor McDavid"],
-                "team": ["EDM"],
-            }
-        )
-
-        with patch("agent.email_enrichment.search_players", return_value=mock_df):
-            # Same player searched twice
-            result = resolve_players_to_ids(["Connor McDavid", "McDavid"])
-
-        assert len(result) == 1
-
-    def test_handles_not_found_players(self):
-        """Should skip players that can't be found."""
-        with patch("agent.email_enrichment.search_players", return_value=pd.DataFrame()):
-            result = resolve_players_to_ids(["Nonexistent Player"])
-
-        assert len(result) == 0
+        assert "Line=Estimated Line" in result
+        assert "TOI=Time On Ice" in result
 
 
 class TestFetchPlayerStats:
-    """Test fetching stats from MoneyPuck."""
+    """Test fetching stats from comprehensive stats tool."""
 
-    def test_returns_empty_for_no_player_ids(self):
-        """Should return empty list when no player IDs provided."""
-        result = fetch_player_stats([])
+    def test_returns_empty_for_no_player_names(self):
+        """Should return empty list when no player names provided."""
+        result = fetch_player_stats(
+            player_names=[],
+            user_email="test@example.com",
+            league_id="12345",
+        )
         assert result == []
 
     def test_fetches_and_formats_stats(self):
         """Should fetch stats and format them correctly."""
-        mock_all_df = pd.DataFrame(
+        mock_response = json.dumps(
             {
-                "playerId": [8478402],
-                "name": ["Connor McDavid"],
-                "position": ["C"],
-                "games_played": [30],
-                "I_F_goals": [20],
-                "I_F_primaryAssists": [25],
-                "I_F_secondaryAssists": [10],
-                "I_F_points": [55],
-                "I_F_xGoals": [15.5],
-                "onIce_fenwickPercentage": [0.552],
-            }
-        )
-        mock_pp_df = pd.DataFrame(
-            {
-                "playerId": [8478402],
-                "icetime": [6300.0],  # 105 minutes total
+                "Connor McDavid": {
+                    "status": "success",
+                    "name": "Connor McDavid",
+                    "position": "C",
+                    "estimated_line_number": 1,
+                    "games_played": 30,
+                    "goals": 20,
+                    "assists": 35,
+                    "points": 55,
+                    "points_per_game": 1.83,
+                    "toi_per_game_minutes": 22.5,
+                    "x_goals": 15.5,
+                    "goals_above_expected": 4.5,
+                    "fenwick_pct": 55.2,
+                    "corsi_pct": 54.1,
+                    "shots_on_goal": 120,
+                    "high_danger_goals": 8,
+                    "yahoo_rank": 5,
+                }
             }
         )
 
         with patch(
-            "agent.email_enrichment.get_multiple_players_stats",
-            side_effect=[mock_all_df, mock_pp_df],
+            "agent.email_enrichment.get_comprehensive_player_stats_internal",
+            return_value=mock_response,
         ):
-            result = fetch_player_stats([8478402])
+            result = fetch_player_stats(
+                player_names=["Connor McDavid"],
+                user_email="test@example.com",
+                league_id="12345",
+            )
 
         assert len(result) == 1
         stats = result[0]
@@ -322,7 +314,49 @@ class TestFetchPlayerStats:
         assert stats["goals"] == 20
         assert stats["points"] == 55
         assert stats["x_goals"] == 15.5
-        assert stats["goals_above_expected"] == 4.5  # 20 - 15.5
+        assert stats["goals_above_expected"] == 4.5
+        assert stats["estimated_line_number"] == "1"
+        assert stats["yahoo_rank"] == "5"
+
+    def test_handles_missing_line_and_rank(self):
+        """Should display '-' for missing line number and yahoo rank."""
+        mock_response = json.dumps(
+            {
+                "Test Player": {
+                    "status": "success",
+                    "name": "Test Player",
+                    "position": "C",
+                    "estimated_line_number": None,
+                    "games_played": 10,
+                    "goals": 5,
+                    "assists": 5,
+                    "points": 10,
+                    "points_per_game": 1.0,
+                    "toi_per_game_minutes": 15.0,
+                    "x_goals": 4.0,
+                    "goals_above_expected": 1.0,
+                    "fenwick_pct": 50.0,
+                    "corsi_pct": 50.0,
+                    "shots_on_goal": 30,
+                    "high_danger_goals": 2,
+                    "yahoo_rank": None,
+                }
+            }
+        )
+
+        with patch(
+            "agent.email_enrichment.get_comprehensive_player_stats_internal",
+            return_value=mock_response,
+        ):
+            result = fetch_player_stats(
+                player_names=["Test Player"],
+                user_email="test@example.com",
+                league_id="12345",
+            )
+
+        assert len(result) == 1
+        assert result[0]["estimated_line_number"] == "-"
+        assert result[0]["yahoo_rank"] == "-"
 
 
 class TestEnrichEmailWithPlayerStats:
@@ -330,48 +364,49 @@ class TestEnrichEmailWithPlayerStats:
 
     def test_returns_empty_when_no_players_found(self):
         """Should return empty strings when no players in content."""
-        markdown, html = enrich_email_with_player_stats("No players mentioned here.")
+        markdown, html = enrich_email_with_player_stats(
+            message_content="No players mentioned here.",
+            user_email="test@example.com",
+            league_id="12345",
+        )
         assert markdown == ""
         assert html == ""
 
     def test_returns_both_table_formats(self):
         """Should return both markdown and HTML tables."""
-        mock_search_df = pd.DataFrame(
+        mock_response = json.dumps(
             {
-                "playerId": [8477934],
-                "name": ["Leon Draisaitl"],
-                "team": ["EDM"],
-            }
-        )
-        mock_all_df = pd.DataFrame(
-            {
-                "playerId": [8477934],
-                "name": ["Leon Draisaitl"],
-                "position": ["C"],
-                "games_played": [30],
-                "I_F_goals": [20],
-                "I_F_primaryAssists": [25],
-                "I_F_secondaryAssists": [10],
-                "I_F_points": [55],
-                "I_F_xGoals": [15.5],
-                "onIce_fenwickPercentage": [0.552],
-            }
-        )
-        mock_pp_df = pd.DataFrame(
-            {
-                "playerId": [8477934],
-                "icetime": [6300.0],
+                "Leon Draisaitl": {
+                    "status": "success",
+                    "name": "Leon Draisaitl",
+                    "position": "C",
+                    "estimated_line_number": 1,
+                    "games_played": 30,
+                    "goals": 20,
+                    "assists": 35,
+                    "points": 55,
+                    "points_per_game": 1.83,
+                    "toi_per_game_minutes": 21.5,
+                    "x_goals": 15.5,
+                    "goals_above_expected": 4.5,
+                    "fenwick_pct": 55.2,
+                    "corsi_pct": 54.0,
+                    "shots_on_goal": 110,
+                    "high_danger_goals": 7,
+                    "yahoo_rank": 3,
+                }
             }
         )
 
-        with (
-            patch("agent.email_enrichment.search_players", return_value=mock_search_df),
-            patch(
-                "agent.email_enrichment.get_multiple_players_stats",
-                side_effect=[mock_all_df, mock_pp_df],
-            ),
+        with patch(
+            "agent.email_enrichment.get_comprehensive_player_stats_internal",
+            return_value=mock_response,
         ):
-            markdown, html = enrich_email_with_player_stats("Check out Leon Draisaitl!")
+            markdown, html = enrich_email_with_player_stats(
+                message_content="Check out Leon Draisaitl!",
+                user_email="test@example.com",
+                league_id="12345",
+            )
 
         assert markdown != ""
         assert html != ""
@@ -380,46 +415,57 @@ class TestEnrichEmailWithPlayerStats:
 
     def test_enrichment_includes_player_data(self):
         """Should include actual player data in enrichment output."""
-        # search_players is called once per player name, so we need side_effect
-        mock_search_draisaitl = pd.DataFrame(
-            {"playerId": [8477934], "name": ["Leon Draisaitl"], "team": ["EDM"]}
-        )
-        mock_search_matthews = pd.DataFrame(
-            {"playerId": [8479318], "name": ["Auston Matthews"], "team": ["TOR"]}
-        )
-        mock_all_df = pd.DataFrame(
+        mock_response = json.dumps(
             {
-                "playerId": [8477934, 8479318],
-                "name": ["Leon Draisaitl", "Auston Matthews"],
-                "position": ["C", "C"],
-                "games_played": [30, 30],
-                "I_F_goals": [20, 18],
-                "I_F_primaryAssists": [25, 22],
-                "I_F_secondaryAssists": [10, 8],
-                "I_F_points": [55, 48],
-                "I_F_xGoals": [15.5, 14.0],
-                "onIce_fenwickPercentage": [0.552, 0.545],
-            }
-        )
-        mock_pp_df = pd.DataFrame(
-            {
-                "playerId": [8477934, 8479318],
-                "icetime": [6300.0, 5400.0],
+                "Leon Draisaitl": {
+                    "status": "success",
+                    "name": "Leon Draisaitl",
+                    "position": "C",
+                    "estimated_line_number": 1,
+                    "games_played": 30,
+                    "goals": 20,
+                    "assists": 35,
+                    "points": 55,
+                    "points_per_game": 1.83,
+                    "toi_per_game_minutes": 21.5,
+                    "x_goals": 15.5,
+                    "goals_above_expected": 4.5,
+                    "fenwick_pct": 55.2,
+                    "corsi_pct": 54.0,
+                    "shots_on_goal": 110,
+                    "high_danger_goals": 7,
+                    "yahoo_rank": 3,
+                },
+                "Auston Matthews": {
+                    "status": "success",
+                    "name": "Auston Matthews",
+                    "position": "C",
+                    "estimated_line_number": 1,
+                    "games_played": 30,
+                    "goals": 18,
+                    "assists": 30,
+                    "points": 48,
+                    "points_per_game": 1.6,
+                    "toi_per_game_minutes": 20.5,
+                    "x_goals": 14.0,
+                    "goals_above_expected": 4.0,
+                    "fenwick_pct": 54.5,
+                    "corsi_pct": 53.5,
+                    "shots_on_goal": 100,
+                    "high_danger_goals": 6,
+                    "yahoo_rank": 8,
+                },
             }
         )
 
-        with (
-            patch(
-                "agent.email_enrichment.search_players",
-                side_effect=[mock_search_draisaitl, mock_search_matthews],
-            ),
-            patch(
-                "agent.email_enrichment.get_multiple_players_stats",
-                side_effect=[mock_all_df, mock_pp_df],
-            ),
+        with patch(
+            "agent.email_enrichment.get_comprehensive_player_stats_internal",
+            return_value=mock_response,
         ):
             markdown, html = enrich_email_with_player_stats(
-                "Compare Leon Draisaitl and Auston Matthews"
+                message_content="Compare Leon Draisaitl and Auston Matthews",
+                user_email="test@example.com",
+                league_id="12345",
             )
 
         # Both players should be in output
@@ -438,16 +484,20 @@ class TestEmailEnrichmentIntegration:
             {
                 "name": "Test Player",
                 "position": "C",
+                "estimated_line_number": "2",
                 "games_played": 10,
                 "goals": 5,
-                "primary_assists": 3,
-                "secondary_assists": 2,
+                "assists": 5,
                 "points": 10,
                 "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
                 "x_goals": 4.0,
                 "goals_above_expected": 1.0,
-                "pp_toi_per_game": 2.0,
                 "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 2,
+                "yahoo_rank": "100",
             }
         ]
         result = format_stats_table_markdown(stats)
@@ -460,16 +510,20 @@ class TestEmailEnrichmentIntegration:
             {
                 "name": "Test Player",
                 "position": "C",
+                "estimated_line_number": "2",
                 "games_played": 10,
                 "goals": 5,
-                "primary_assists": 3,
-                "secondary_assists": 2,
+                "assists": 5,
                 "points": 10,
                 "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
                 "x_goals": 4.0,
                 "goals_above_expected": 1.0,
-                "pp_toi_per_game": 2.0,
                 "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 2,
+                "yahoo_rank": "100",
             }
         ]
         result = format_stats_table_html(stats)

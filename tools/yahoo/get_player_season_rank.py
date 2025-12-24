@@ -2,8 +2,6 @@
 
 import json
 
-from langchain.tools import tool
-
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
 
@@ -78,7 +76,6 @@ def _extract_player_with_rank(player_data: list[object], rank: int) -> dict[str,
     return player_info
 
 
-@tool
 def get_player_season_rank(
     user_email: str,
     league_id: str,

@@ -7,29 +7,41 @@ from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
-from tools.player_comparison.fuzzy_resolve_nhl_api_player_ids import (
-    fuzzy_resolve_nhl_api_player_ids,
+from tools.player_comparison.get_comprehensive_player_stats import (
+    get_comprehensive_player_stats,
 )
-from tools.player_comparison.get_moneypuck_stats import get_moneypuck_stats
-from tools.player_comparison.get_player_line_info import get_player_line_info
-from tools.player_comparison.get_team_schedule import get_team_schedule
 from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
+from tools.yahoo.find_undervalued_players import find_undervalued_players
 from tools.yahoo.get_league_teams import get_league_teams
-from tools.yahoo.get_player_season_rank import get_player_season_rank
 from tools.yahoo.get_team_roster import get_team_roster
 
 logger = logging.getLogger(__name__)
 
 
-class PlayerStats(BaseModel):
-    """Stats for a single player from MoneyPuck.
+class Linemate(BaseModel):
+    """A player's linemate information."""
 
-    These stats MUST come from get_moneypuck_stats - do not fabricate values.
+    name: str = Field(description="Linemate's full name")
+    position: str = Field(description="Linemate's position")
+    shared_ice_time_pct: float = Field(
+        description="Percentage of ice time shared with this linemate", ge=0, le=100
+    )
+
+
+class PlayerStats(BaseModel):
+    """Comprehensive stats for a single player.
+
+    These stats MUST come from get_comprehensive_player_stats - do not fabricate values.
     """
 
     name: str = Field(description="Player's full name")
     team: str = Field(description="Team abbreviation")
     position: str = Field(description="Player position (C, LW, RW, D)")
+
+    # Yahoo fantasy data
+    yahoo_rank: int | None = Field(default=None, description="Yahoo fantasy season rank")
+
+    # MoneyPuck stats
     games_played: int = Field(description="Number of games played", ge=1)
     goals: int = Field(description="Goals scored", ge=0)
     assists: int = Field(description="Total assists", ge=0)
@@ -55,13 +67,38 @@ class PlayerStats(BaseModel):
     )
     points_per_game: float = Field(description="Points per game", ge=0)
 
+    # Schedule data
+    games_remaining_this_week: int | None = Field(
+        default=None, description="Number of games remaining this fantasy week"
+    )
+    games_next_week: int | None = Field(
+        default=None, description="Number of games next fantasy week"
+    )
+
+    # Line information
+    estimated_line_number: int | None = Field(
+        default=None, description="Estimated line number (1-4 for forwards, 1-3 for defense)"
+    )
+    primary_linemates: list[Linemate] = Field(
+        default_factory=list, description="Primary linemates this player plays with"
+    )
+
+    # Undervalued analysis
+    undervalued_score: float | None = Field(
+        default=None,
+        description="How undervalued the player is. Higher = more undervalued. >5 = strong buy, 3-5 = good target, <0 = overvalued",
+    )
+    undervalued_reasons: list[str] = Field(
+        default_factory=list, description="Reasons explaining the undervalued score"
+    )
+
     @field_validator("toi_per_game")
     @classmethod
     def toi_must_be_realistic(cls, v: float) -> float:
         """TOI should be realistic (players typically get 10-25 min/game)."""
         if v < 5 or v > 30:
             raise ValueError(
-                f"TOI of {v} is unrealistic. Did you actually call get_moneypuck_stats?"
+                f"TOI of {v} is unrealistic. Did you actually call get_comprehensive_player_stats?"
             )
         return v
 
@@ -71,7 +108,7 @@ class PlayerStats(BaseModel):
         """Fenwick/Corsi % should be realistic (typically 40-60%)."""
         if v < 30 or v > 70:
             raise ValueError(
-                f"Percentage of {v} is unrealistic. Did you actually call get_moneypuck_stats?"
+                f"Percentage of {v} is unrealistic. Did you actually call get_comprehensive_player_stats?"
             )
         return v
 
@@ -80,17 +117,34 @@ class TradeTarget(BaseModel):
     """A trade target with pitch.
 
     Pitches MUST include specific stats from MoneyPuck - generic pitches will be rejected.
+    Each target MUST have detailed stats for BOTH the subject player AND the target player.
     """
 
     player_name: str = Field(description="Name of the trade target player")
-    owner_team_name: str = Field(description="Fantasy team that owns this player")
+    owner_team_name: str = Field(
+        default="Unknown Team",
+        description="Fantasy team that owns this player",
+    )
+
+    @field_validator("owner_team_name", mode="before")
+    @classmethod
+    def coerce_owner_team_name(cls, v: str | None) -> str:
+        """Coerce None to default value."""
+        if v is None:
+            return "Unknown Team"
+        return v
+
+    target_stats_summary: str = Field(
+        description="Summary of the TARGET player's stats: goals, assists, points, xGoals, Fenwick%, games, PPG",
+        min_length=50,
+    )
     pitch: str = Field(
-        description="Convincing pitch that MUST include specific stats (xGoals, Fenwick%, TOI, etc.)",
-        min_length=100,
+        description="Convincing pitch that MUST include specific stats for BOTH players (xGoals, Fenwick%, TOI, goals, points, etc.)",
+        min_length=150,
     )
     reasoning: str = Field(
-        description="Analysis that MUST reference advanced stats comparing both players",
-        min_length=50,
+        description="Detailed analysis comparing BOTH players' stats: points, xGoals, Fenwick%, schedule, line info",
+        min_length=100,
     )
 
     @field_validator("pitch")
@@ -108,11 +162,14 @@ class TradeTarget(BaseModel):
             "points per game",
             "ppg",
             "goals above",
+            "points",
+            "goals",
+            "assists",
         ]
         v_lower = v.lower()
         if not any(kw in v_lower for kw in stat_keywords):
             raise ValueError(
-                "Pitch must include specific advanced stats (xGoals, Fenwick%, Corsi%, TOI, etc.). "
+                "Pitch must include specific stats (points, goals, xGoals, Fenwick%, etc.). "
                 "Generic pitches based only on rank are not acceptable."
             )
         return v
@@ -120,7 +177,7 @@ class TradeTarget(BaseModel):
     @field_validator("reasoning")
     @classmethod
     def reasoning_must_be_analytical(cls, v: str) -> str:
-        """Reasoning must include actual analysis, not just 'similar rank'."""
+        """Reasoning must include actual analysis with specific stat comparisons."""
         weak_phrases = [
             "similar rank",
             "ranked around",
@@ -131,7 +188,19 @@ class TradeTarget(BaseModel):
         # If reasoning ONLY mentions rank without stats, reject it
         has_stats = any(
             kw in v_lower
-            for kw in ["xgoal", "fenwick", "corsi", "toi", "schedule", "line", "games"]
+            for kw in [
+                "xgoal",
+                "fenwick",
+                "corsi",
+                "toi",
+                "schedule",
+                "line",
+                "games",
+                "points",
+                "goals",
+                "assists",
+                "ppg",
+            ]
         )
         mentions_only_rank = any(phrase in v_lower for phrase in weak_phrases) and not has_stats
         if mentions_only_rank:
@@ -146,8 +215,9 @@ class TradeResponse(BaseModel):
 
     This response will be REJECTED if:
     - player_stats is missing entries for the subject player or any trade target
-    - player_stats contains fabricated data (not from get_moneypuck_stats)
+    - player_stats contains fabricated data (not from get_comprehensive_player_stats)
     - trade_targets have generic pitches without specific stats
+    - schedule and linemate data are ignored when making trade recommendations
     """
 
     trade_direction: str = Field(
@@ -177,19 +247,20 @@ class TradeResponse(BaseModel):
         player_names_with_stats = {ps.name.lower() for ps in self.player_stats}
         target_names = {tt.player_name.lower() for tt in self.trade_targets}
 
-        # Check subject player has stats
-        if self.subject_player.lower() not in player_names_with_stats:
+        # For "trading_away", require subject player stats (the player being traded)
+        # For "trading_for", subject player stats are optional (user may just want to acquire)
+        if self.trade_direction == "trading_away" and self.subject_player.lower() not in player_names_with_stats:
             raise ValueError(
-                f"Missing MoneyPuck stats for subject player '{self.subject_player}'. "
-                "You MUST call get_moneypuck_stats for the subject player."
+                f"Missing stats for subject player '{self.subject_player}'. "
+                "You MUST call get_comprehensive_player_stats for the subject player."
             )
 
         # Check all trade targets have stats
         missing = target_names - player_names_with_stats
         if missing:
             raise ValueError(
-                f"Missing MoneyPuck stats for trade targets: {missing}. "
-                "You MUST call get_moneypuck_stats for ALL trade targets before responding."
+                f"Missing stats for trade targets: {missing}. "
+                "You MUST call get_comprehensive_player_stats for ALL trade targets before responding."
             )
 
         return self
@@ -219,93 +290,71 @@ class TradeResponse(BaseModel):
 
 
 _player_assessment_task = """
-Task: Find trade targets and provide detailed comparison analysis with convincing trade pitches.
+Find REALISTIC trade targets with detailed statistical analysis and trade pitches.
 
-You MUST complete ALL steps below. Do not skip any step.
+## CRITICAL: Realistic Trade Targets
 
-## Step 1: Determine trade direction (CRITICAL - DO THIS FIRST)
-- Use get_team_roster to fetch the user's current roster
-- Check if the player mentioned in the request is ON the user's team
-- This determines the TRADE DIRECTION:
-  - If the player IS on their team → They want to TRADE AWAY this player (sell to opponents)
-  - If the player is NOT on their team → They want to TRADE FOR this player (acquire from opponents)
+NEVER recommend players who are OBVIOUSLY BETTER than the subject player:
+- Do NOT suggest elite superstars (rank 1-20) as trade targets for mid-tier players
+- Do NOT suggest players ranked 10+ spots higher - they won't be traded 1-for-1
+- Target players ranked SIMILARLY OR WORSE but with BETTER UNDERLYING STATS
 
-## Step 2: Get the subject player's info
-- Use get_player_season_rank to find the player's current fantasy rank
-- Use fuzzy_resolve_nhl_api_player_ids to get the NHL API player ID
-- Use get_moneypuck_stats to get their advanced stats (TOI, xGoals, Fenwick, Corsi, etc.)
+The goal is finding UNDERVALUED players - players who LOOK worse (lower rank, fewer points)
+but have BETTER advanced stats indicating they'll improve:
+- Negative Goals Above Expected (shooting unlucky, will regress UP)
+- Strong Fenwick/Corsi % (good possession, opportunities will come)
+- High ice time / top line deployment (getting opportunities)
+- Favorable schedule (more games = more chances)
 
-## Step 3: Find trade targets
-- Use find_similar_ranked_players to find players with similar or better ranks
-- Select 3-5 promising targets from the results
+## Workflow
 
-## Step 4: Get detailed stats for EACH trade target (CRITICAL - DO NOT SKIP)
-- Use fuzzy_resolve_nhl_api_player_ids with ALL target player names to get their NHL API IDs
-  IMPORTANT: You MUST use fuzzy_resolve_nhl_api_player_ids to get NHL API player IDs.
-  The player IDs from find_similar_ranked_players are Yahoo IDs, NOT NHL API IDs.
-  get_moneypuck_stats requires NHL API player IDs (8-digit numbers like 8478402).
-- Use get_moneypuck_stats with those NHL API IDs to get their advanced statistics
-- Compare stats: TOI, xGoals, goals above expected, Fenwick%, points per game
+1. Determine trade direction using get_team_roster:
+   - Player on user's team → "trading_away" (sell to opponents)
+   - Player not on team → "trading_for" (acquire from opponents)
 
-## Step 5: Check schedules (CRITICAL - DO NOT SKIP)
-- Extract the team abbreviations for the subject player AND all trade targets
-- Use get_team_schedule with all team abbreviations to compare upcoming games
-- More games = more fantasy point opportunities
+2. Find trade targets using the appropriate approach:
 
-## Step 6: Check line information (CRITICAL - DO NOT SKIP)
-- Use get_player_line_info with the NHL API player IDs (from step 4)
-- Identify which line each player is on (1st line = better)
-- Identify elite linemates (playing with stars = better production)
+   a) For "trading_away" (user has the player):
+      - Use find_undervalued_players to find players with WORSE rank but BETTER underlying stats
+      - These players look bad but have upside - you can acquire them cheaply
+      - Target rank should be WORSE than subject player (higher rank number)
 
-## Step 7: Build trade pitches (DIRECTION MATTERS!)
+   b) For "trading_for" (user wants to acquire):
+      - Use find_similar_ranked_players to find similarly-ranked players
+      - Look for players ranked similarly with better upside indicators
 
-CRITICAL: Your final output MUST include the actual stats you gathered in steps 2-6.
-Do NOT just give generic pitches - include the specific numbers (goals, assists, points,
-xGoals, Fenwick%, TOI, schedule info, line info) for both the subject player and each target.
+3. Get comprehensive stats for ALL players (subject + targets) using get_comprehensive_player_stats:
+   - Pass ALL player names in a single call (subject player + trade targets)
+   - This returns NHL API IDs, MoneyPuck stats (goals, assists, xGoals, Fenwick%, etc.), and Yahoo rank
+   - Also includes ownership info, injury status, schedule (games this week/next week), linemates
+   - IMPORTANT: Each player now has an undervalued_score and undervalued_reasons
 
-**If TRADING AWAY (user owns the subject player):**
-The user wants to CONVINCE OPPONENTS to take their player. Pitches must SELL their player.
+4. FILTER trade targets based on realism:
+   - EXCLUDE any player ranked 10+ spots better than subject player
+   - EXCLUDE elite players (rank 1-20) unless subject is also elite
+   - PRIORITIZE players with HIGHER undervalued_score than subject player
+   - PRIORITIZE players with NEGATIVE goals_above_expected (will regress UP)
 
-DO NOT pitch why the trade targets are good - the user already knows that!
-Instead, provide pitches the user can SEND TO OPPONENTS to convince them to give up
-their player in exchange for the user's player.
+5. Use undervalued_score to prioritize targets:
+   - Score > 5: Highly undervalued - STRONG BUY, prioritize these targets
+   - Score 3-5: Moderately undervalued - good trade target
+   - Score 0-3: Fairly valued
+   - Score < 0: OVERVALUED - avoid acquiring, good to trade away
 
-For EACH trade target:
-- Show the relevant stats for both players so the user can see the comparison
-- Provide a pitch that sells the USER'S PLAYER using specific numbers:
-  - Strong underlying stats (xGoals, Fenwick%) even if points are down
-  - Historical production and name recognition
-  - Upcoming schedule advantages
-  - Elite linemates they usually play with
+6. Build pitches based on direction:
 
-**If TRADING FOR (user wants to acquire a player they don't own):**
-The user needs reasons why opponents might be willing to sell their player:
-- Show the relevant stats for the target player
-- Highlight why the target player might be undervalued by their current owner
-- Find reasons the current owner might be motivated to sell
-- Suggest what the user could offer in return
+   Trading away: You're SELLING the subject player to acquire better underlying talent.
+   Target players who are ranked WORSE but have BETTER advanced stats (higher undervalued_score,
+   negative GAE, strong Fenwick%, good TOI). Explain to the trade partner why YOUR player
+   looks good on the surface while acquiring someone with more upside.
 
-IMPORTANT: Include the actual stats you gathered. Generic advice without numbers is unacceptable.
+   Each pitch must include 5+ specific stat values comparing both players AND explain WHY
+   the target is obtainable (they look bad on surface but have hidden value).
 
-## Step 8: Populate the structured response
+Return TradeResponse with complete player_stats for subject + all targets, and trade_targets
+with detailed pitches and reasoning. The summary MUST cite specific advanced stats (xGoals, Fenwick%, schedule, line info) - summaries using only rank will be rejected.
 
-You MUST return a structured response with the following fields:
-- trade_direction: "trading_away" if user owns the player, "trading_for" if they want it
-- subject_player: The name of the player the user asked about
-- player_stats: A list of PlayerStats for ALL relevant players (subject + trade targets)
-  - Include: name, team, position, games_played, goals, assists, points, toi_per_game,
-    x_goals, goals_above_expected, fenwick_pct, corsi_pct, points_per_game
-  - Get these values from the MoneyPuck stats you fetched
-- trade_targets: A list of TradeTarget objects with:
-  - player_name: The trade target's name
-  - owner_team_name: The fantasy team that currently owns this player
-  - pitch: A convincing pitch to send to the owner
-  - reasoning: Your analysis of why this is a good trade target
-- summary: An overall summary and recommendation
-
-User email: {user_email}
-League ID: {league_id}
-Team ID: {team_id}
+User: {user_email} | League: {league_id} | Team: {team_id}
 """
 
 agent = create_subagent(
@@ -314,12 +363,9 @@ agent = create_subagent(
     tools=[
         get_team_roster,
         get_league_teams,
-        get_moneypuck_stats,
-        fuzzy_resolve_nhl_api_player_ids,
-        get_team_schedule,
-        get_player_line_info,
-        get_player_season_rank,
+        get_comprehensive_player_stats,
         find_similar_ranked_players,
+        find_undervalued_players,
     ],
     response_format=TradeResponse,
 )
@@ -356,6 +402,12 @@ def trade(
             f"Team ID: {team_id}",
         ],
     )
+
+    # Check for structured response first
+    structured = result.get("structured_response")
+    if structured:
+        logger.info(f"Trade sub-agent structured response: {structured}")
+        return str(structured)
 
     response = extract_response(
         result, fallback_message="I ran into an error while processing your trade request."

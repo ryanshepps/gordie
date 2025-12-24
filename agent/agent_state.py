@@ -61,12 +61,11 @@ class AgentState(_AgentStateRequired, total=False):
     league_id: str | None
     team_id: str | None
     thread_id: str
-    has_teams: bool
     user_teams: list[dict[str, str]]  # List of all user's teams
     response: str | None
-    route_to: str | None  # Target agent for routing (e.g., "player_comparison")
+    route_to: str | None  # Target agent for routing (e.g., "onboarding")
     # Flow tracking fields
-    agent_flow: list[str]  # Ordered sequence: ["onboarding", "player_comparison"]
+    agent_flow: list[str]  # Ordered sequence of agents to execute
     current_agent_index: int  # Current position in flow (0-based)
     flow_complete: bool  # Explicit completion flag
     flow_reasoning: str | None  # LLM reasoning for agent flow decision

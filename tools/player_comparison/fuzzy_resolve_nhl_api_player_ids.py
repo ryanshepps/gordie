@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 import requests
-from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from client.moneypuck_client import search_players as moneypuck_search
@@ -169,7 +168,6 @@ def _build_result(matches: list[PlayerMatch], source: str) -> BuildResultOutput:
     )
 
 
-@tool(args_schema=FuzzyResolveNHLApiPlayerIdsInput)
 def fuzzy_resolve_nhl_api_player_ids(player_names: list[str]) -> str:
     """
     Resolve player names to NHL API player IDs using MoneyPuck and NHL search API.

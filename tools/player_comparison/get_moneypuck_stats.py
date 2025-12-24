@@ -7,13 +7,9 @@ Fenwick/Corsi percentages, and danger zone breakdowns.
 import json
 from typing import cast
 
-from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from client.moneypuck_client import (
-    get_multiple_players_stats,
-    search_players,
-)
+from client.moneypuck_client import get_multiple_players_stats
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -158,7 +154,6 @@ def _format_player_stats(row: dict[str, object]) -> dict[str, str | int | float 
     return formatted
 
 
-@tool(args_schema=GetMoneyPuckStatsInput)
 def get_moneypuck_stats(
     player_ids: list[int],
     situation: str = "all",
@@ -193,6 +188,9 @@ def get_moneypuck_stats(
             player_df = df[df["playerId"] == player_id]
 
             if player_df.empty:
+                logger.warning(
+                    f"Player {player_id} not found in MoneyPuck {season}-{season + 1} data"
+                )
                 results[str(player_id)] = {
                     "status": "not_found",
                     "message": (
@@ -222,88 +220,3 @@ def get_moneypuck_stats(
         )
 
     return json.dumps(results, indent=2)
-
-
-class SearchPlayersInput(BaseModel):
-    """Input schema for search_moneypuck_players tool."""
-
-    query: str = Field(description="Player name to search for (partial match supported)")
-    situation: str = Field(
-        default="all",
-        description="Game situation filter",
-    )
-    season: int = Field(
-        default=2024,
-        description="Starting year of the season",
-    )
-    limit: int = Field(
-        default=5,
-        description="Maximum number of results to return",
-    )
-
-
-@tool(args_schema=SearchPlayersInput)
-def search_moneypuck_players(
-    query: str,
-    situation: str = "all",
-    season: int = 2024,
-    limit: int = 5,
-) -> str:
-    """
-    Search for players by name in MoneyPuck data.
-
-    Use this to find player IDs when you only have a name. Returns basic info
-    including player ID which can then be used with get_moneypuck_stats.
-
-    Args:
-        query: Player name to search (case-insensitive, partial match)
-        situation: Game situation filter
-        season: Starting year of season
-        limit: Max results to return
-
-    Returns:
-        JSON string with matching players and their basic stats
-    """
-    try:
-        df = search_players(query, situation=situation, season=season, limit=limit)
-
-        if df.empty:
-            return json.dumps(
-                {
-                    "status": "not_found",
-                    "message": f"No players found matching '{query}'",
-                }
-            )
-
-        results = []
-        for _, row in df.iterrows():
-            results.append(
-                {
-                    "player_id": _safe_int(row.get("playerId")),
-                    "name": _safe_str(row.get("name")),
-                    "team": _safe_str(row.get("team")),
-                    "position": _safe_str(row.get("position")),
-                    "games_played": _safe_int(row.get("games_played")),
-                    "goals": _safe_int(row.get("I_F_goals")),
-                    "points": _safe_int(row.get("I_F_points")),
-                    "x_goals": round(_safe_float(row.get("I_F_xGoals")), 2),
-                }
-            )
-
-        return json.dumps(
-            {
-                "status": "success",
-                "query": query,
-                "matches": results,
-            },
-            indent=2,
-        )
-
-    except Exception as e:
-        logger.error(f"Error searching MoneyPuck: {e}")
-        return json.dumps(
-            {
-                "status": "error",
-                "error": str(e),
-            }
-        )

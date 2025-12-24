@@ -18,10 +18,6 @@ from middleware.tool_call_error_wrapper import handle_tool_errors
 
 logger = logging.getLogger(__name__)
 
-if not os.environ.get("OPENAI_API_KEY"):
-    logger.error("OPENAI_API_KEY environment variable not set")
-    raise ValueError("OPENAI_API_KEY environment variable not set")
-
 _DB_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "data",

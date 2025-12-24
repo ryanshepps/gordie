@@ -268,7 +268,6 @@ def notify_onboarding_agent(user_email: str) -> None:
             "team_id": None,
             "thread_id": user_email,
             "messages": [{"role": "user", "content": "I've completed the OAuth authentication!"}],
-            "has_teams": False,
             "user_teams": [],
             "response": None,
             "route_to": None,

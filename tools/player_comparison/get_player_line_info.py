@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import requests
-from langchain.tools import tool
 from nhlpy import NHLClient
 from pydantic import BaseModel, Field
 from requests.adapters import HTTPAdapter
@@ -367,7 +366,6 @@ def _process_single_player(player_id: int, session: requests.Session) -> tuple[i
         }
 
 
-@tool(args_schema=GetPlayerLineInfoInput)
 def get_player_line_info(player_ids: list[int]) -> str:
     """
     Get line information and linemates for NHL players based on recent game shift data.

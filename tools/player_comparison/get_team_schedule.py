@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import requests
-from langchain.tools import tool
 from pydantic import BaseModel, Field
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -240,7 +239,6 @@ def _fetch_team_schedule(
         }
 
 
-@tool(args_schema=GetTeamScheduleInput)
 def get_team_schedule(team_abbrevs: list[str]) -> str:
     """
     Get the number of games each NHL team has for the remainder of this week and next week.

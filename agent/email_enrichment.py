@@ -4,11 +4,14 @@ This module extracts player names mentioned in email content,
 fetches their MoneyPuck statistics, and appends a formatted table.
 """
 
+import json
 import logging
 import re
 from typing import Any
 
-from client.moneypuck_client import get_multiple_players_stats, search_players
+from tools.player_comparison.get_comprehensive_player_stats import (
+    get_comprehensive_player_stats_internal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,39 +73,21 @@ EXCLUDED_WORDS = {
 TABLE_STATS = [
     ("name", "Player"),
     ("position", "Pos"),
+    ("estimated_line_number", "Line"),
     ("games_played", "GP"),
     ("goals", "G"),
-    ("primary_assists", "A1"),
-    ("secondary_assists", "A2"),
+    ("assists", "A"),
     ("points", "P"),
     ("points_per_game", "P/GP"),
+    ("toi_per_game_minutes", "TOI"),
     ("x_goals", "xG"),
     ("goals_above_expected", "G-xG"),
-    ("pp_toi_per_game", "PPTOI/GP"),
     ("fenwick_pct", "F%"),
+    ("corsi_pct", "CF%"),
+    ("shots_on_goal", "SOG"),
+    ("high_danger_goals", "HDG"),
+    ("yahoo_rank", "Rank"),
 ]
-
-
-def _search_player_by_name(name: str, season: int = 2025) -> dict[str, Any] | None:
-    """Search MoneyPuck for a player by name.
-
-    Returns player info dict with player_id if found, None otherwise.
-    """
-    try:
-        df = search_players(name, situation="all", season=season, limit=3)
-        if df.empty:
-            return None
-
-        # Take best match (first result, sorted by games played)
-        row = df.iloc[0]
-        return {
-            "player_id": int(row["playerId"]),
-            "name": str(row["name"]),
-            "team": str(row["team"]) if row["team"] else None,
-        }
-    except Exception as e:
-        logger.debug(f"Error searching for player '{name}': {e}")
-        return None
 
 
 def extract_player_names(content: str) -> list[str]:
@@ -146,97 +131,74 @@ def extract_player_names(content: str) -> list[str]:
     return player_names
 
 
-def resolve_players_to_ids(
-    player_names: list[str],
-    season: int = 2025,
-) -> list[dict[str, Any]]:
-    """Resolve player names to MoneyPuck player data.
-
-    Args:
-        player_names: List of player name strings to resolve
-        season: NHL season year
-
-    Returns:
-        List of player info dicts with player_id, name, team
-    """
-    resolved = []
-    seen_ids = set()
-
-    for name in player_names:
-        result = _search_player_by_name(name, season=season)
-        if result and result["player_id"] not in seen_ids:
-            resolved.append(result)
-            seen_ids.add(result["player_id"])
-
-    return resolved
-
-
 def fetch_player_stats(
-    player_ids: list[int],
+    player_names: list[str],
+    user_email: str,
+    league_id: str,
     season: int = 2025,
 ) -> list[dict[str, Any]]:
-    """Fetch MoneyPuck stats for a list of player IDs.
-
-    Fetches both "all" situation stats and "5on4" (power play) stats
-    to include PP time on ice.
+    """Fetch comprehensive stats for players using the consolidated stats tool.
 
     Args:
-        player_ids: List of NHL player IDs
+        player_names: List of player names to fetch stats for
+        user_email: User's email for Yahoo OAuth
+        league_id: Yahoo fantasy league ID
         season: NHL season year
 
     Returns:
         List of formatted player stat dicts
     """
-    if not player_ids:
+    if not player_names:
         return []
 
     try:
-        # Fetch all-situation stats
-        df_all = get_multiple_players_stats(player_ids, situation="all", season=season)
+        # Use comprehensive stats tool
+        response = get_comprehensive_player_stats_internal(
+            player_names=player_names,
+            user_email=user_email,
+            league_id=league_id,
+            situation="all",
+            season=season,
+        )
+        data = json.loads(response)
 
-        # Fetch power play stats for PP TOI
-        df_pp = get_multiple_players_stats(player_ids, situation="5on4", season=season)
+        # Check for top-level error
+        if data.get("status") == "error":
+            logger.error(f"Comprehensive stats error: {data.get('error')}")
+            return []
 
         stats_list = []
-        for player_id in player_ids:
-            player_df = df_all[df_all["playerId"] == player_id]
-            if player_df.empty:
+        for player_name, player_data in data.items():
+            if player_data.get("status") != "success":
+                logger.debug(f"Skipping {player_name}: {player_data.get('error', 'unknown error')}")
                 continue
 
-            row = player_df.iloc[0]
-            games = int(row.get("games_played", 0)) or 1  # Avoid division by zero
-            goals = int(row.get("I_F_goals", 0))
-            primary_assists = int(row.get("I_F_primaryAssists", 0))
-            secondary_assists = int(row.get("I_F_secondaryAssists", 0))
-            points = int(row.get("I_F_points", 0))
-            x_goals = float(row.get("I_F_xGoals", 0))
-            fenwick_pct = float(row.get("onIce_fenwickPercentage", 0))
+            # Format line number for display (None -> "-")
+            line_num = player_data.get("estimated_line_number")
+            line_display = str(line_num) if line_num is not None else "-"
 
-            # Get PP TOI from power play stats
-            pp_toi_seconds = 0.0
-            pp_df = df_pp[df_pp["playerId"] == player_id]
-            if not pp_df.empty:
-                pp_toi_seconds = float(pp_df.iloc[0].get("icetime", 0))
-
-            # Format PP TOI as minutes per game
-            pp_toi_minutes = pp_toi_seconds / 60 if pp_toi_seconds else 0
-            pp_toi_per_game = round(pp_toi_minutes / games, 2) if games > 0 else 0
+            # Format yahoo rank (None -> "-")
+            yahoo_rank = player_data.get("yahoo_rank")
+            rank_display = str(yahoo_rank) if yahoo_rank is not None else "-"
 
             stats_list.append(
                 {
-                    "player_id": player_id,
-                    "name": str(row.get("name", "Unknown")),
-                    "position": str(row.get("position", "")),
-                    "games_played": int(row.get("games_played", 0)),
-                    "goals": goals,
-                    "primary_assists": primary_assists,
-                    "secondary_assists": secondary_assists,
-                    "points": points,
-                    "points_per_game": round(points / games, 2) if games > 0 else 0,
-                    "x_goals": round(x_goals, 2),
-                    "goals_above_expected": round(goals - x_goals, 2),
-                    "pp_toi_per_game": pp_toi_per_game,
-                    "fenwick_pct": round(fenwick_pct * 100, 1),
+                    "name": player_data.get("name", player_name),
+                    "position": player_data.get("position", ""),
+                    "estimated_line_number": line_display,
+                    "games_played": player_data.get("games_played", 0),
+                    "goals": player_data.get("goals", 0),
+                    "assists": player_data.get("assists", 0),
+                    "points": player_data.get("points", 0),
+                    "points_per_game": round(player_data.get("points_per_game", 0), 2),
+                    "toi_per_game_minutes": round(player_data.get("toi_per_game_minutes", 0), 1),
+                    "x_goals": round(player_data.get("x_goals", 0), 2),
+                    "goals_above_expected": round(player_data.get("goals_above_expected", 0), 2),
+                    "fenwick_pct": round(player_data.get("fenwick_pct", 0), 1),
+                    "corsi_pct": round(player_data.get("corsi_pct", 0), 1),
+                    "shots_on_goal": player_data.get("shots_on_goal", 0),
+                    "high_danger_goals": player_data.get("high_danger_goals", 0),
+                    "yahoo_rank": rank_display,
                 }
             )
 
@@ -317,9 +279,10 @@ def format_stats_table_html(stats: list[dict[str, Any]]) -> str:
 
     summary_style = "font-weight: bold; cursor: pointer; margin-bottom: 10px;"
     stats_note = (
-        "Stats: GP=Games Played, G=Goals, A1=Primary Assists, A2=Secondary Assists, "
-        "P=Points, P/GP=Points Per Game, xG=Expected Goals, G-xG=Goals Above Expected, "
-        "PPTOI/GP=Power Play TOI Per Game (minutes), F%=Fenwick %"
+        "Stats: Line=Estimated Line #, GP=Games Played, G=Goals, A=Assists, "
+        "P=Points, P/GP=Points Per Game, TOI=Time On Ice (min/game), xG=Expected Goals, "
+        "G-xG=Goals Above Expected, F%=Fenwick %, CF%=Corsi %, SOG=Shots On Goal, "
+        "HDG=High Danger Goals, Rank=Yahoo Season Rank"
     )
     return f'''
 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
@@ -343,18 +306,21 @@ def format_stats_table_html(stats: list[dict[str, Any]]) -> str:
 
 def enrich_email_with_player_stats(
     message_content: str,
+    user_email: str,
+    league_id: str,
     season: int = 2025,
 ) -> tuple[str, str]:
     """Extract players from email and generate stats tables.
 
     This is the main entry point for email enrichment. It:
     1. Extracts player names from the message content
-    2. Resolves them to MoneyPuck player IDs
-    3. Fetches their statistics
-    4. Returns formatted tables to append to the email
+    2. Fetches comprehensive statistics (MoneyPuck, Yahoo rank, line info)
+    3. Returns formatted tables to append to the email
 
     Args:
         message_content: The email message content
+        user_email: User's email for Yahoo OAuth
+        league_id: Yahoo fantasy league ID
         season: NHL season year for stats
 
     Returns:
@@ -369,19 +335,13 @@ def enrich_email_with_player_stats(
 
     logger.info(f"Found {len(player_names)} potential player names: {player_names}")
 
-    # Resolve to player IDs
-    resolved_players = resolve_players_to_ids(player_names, season=season)
-
-    if not resolved_players:
-        logger.debug("Could not resolve any player names to IDs")
-        return "", ""
-
-    resolved_names = [p["name"] for p in resolved_players]
-    logger.info(f"Resolved {len(resolved_players)} players: {resolved_names}")
-
-    # Fetch stats
-    player_ids = [p["player_id"] for p in resolved_players]
-    stats = fetch_player_stats(player_ids, season=season)
+    # Fetch comprehensive stats directly using player names
+    stats = fetch_player_stats(
+        player_names=player_names,
+        user_email=user_email,
+        league_id=league_id,
+        season=season,
+    )
 
     if not stats:
         logger.debug("Could not fetch stats for any players")

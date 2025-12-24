@@ -7,6 +7,7 @@ from typing import Any, Literal, cast
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
@@ -18,12 +19,6 @@ from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.player_comparison.compare_players_comprehensive import compare_players_comprehensive
-from tools.player_comparison.fuzzy_resolve_nhl_api_player_ids import (
-    fuzzy_resolve_nhl_api_player_ids,
-)
-from tools.player_comparison.get_moneypuck_stats import get_moneypuck_stats
-from tools.player_comparison.get_team_schedule import get_team_schedule
-from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
 from tools.yahoo.get_available_players import get_available_players
 from tools.yahoo.get_roster import get_roster
 
@@ -52,9 +47,8 @@ user, and you want to be useful for the user.
 """
 
 # System prompt for the supervisor agent
-SUPERVISOR_SYSTEM_PROMPT = """You are a fantasy hockey assistant. You can handle \
-roster decisions directly using player comparison tools, or delegate complex \
-trade analysis to specialized sub-agents.
+SUPERVISOR_SYSTEM_PROMPT = """You are a fantasy hockey assistant. You delegate complex \
+trade and player analysis to specialized sub-agents.
 
 AVAILABLE TOOLS:
 
@@ -63,6 +57,7 @@ AVAILABLE TOOLS:
 1. **trade** - USE THIS FOR:
    - Trade suggestions ("help me trade", "who should I trade", "trade targets")
    - Finding trade partners or targets on other teams
+   - Player comparisons for trade decisions (uses advanced stats like xGoals, Fenwick%, Corsi%)
    - Roster imbalances ("too many players from X team")
 
 2. **handle_onboarding** - USE THIS FOR:
@@ -75,69 +70,27 @@ URL in your message to the user. Never paraphrase or omit URLs.
 ## Roster & Player Tools (use directly)
 
 3. **get_roster** - Get the user's current roster with player stats
+   - USE THIS for "should I drop X?" questions - check the player's stats first
+   - Shows fantasy points, positions, and injury status
 
 4. **get_available_players** - Get free agents and waiver wire players
-   - Use to find pickup candidates
+   - Use to find pickup candidates or replacement options when considering drops
    - Can filter by position, sort by ownership rank or recent stats
 
-5. **find_similar_ranked_players** - Find players ranked around a target rank
-   - Use to find replacement options at a similar tier
-   - Shows who owns each player for trade targeting
-
-6. **fuzzy_resolve_nhl_api_player_ids** - Convert player names to NHL API player IDs
-   - MUST call this first before using get_moneypuck_stats
-   - Accepts player names like ['McDavid', 'Draisaitl'] and returns their player IDs
-
-7. **get_moneypuck_stats** - Get advanced analytics (xGoals, Fenwick%, Corsi%)
-   - Requires player_ids (use fuzzy_resolve_nhl_api_player_ids to get these first)
-   - Use to identify undervalued players (high xGoals, low actual goals = due for regression up)
-   - Use to identify overvalued players (low xGoals, high actual goals = due for regression down)
-
-8. **get_team_schedule** - Get games this week and next week for NHL teams
-   - Players on teams with more games have more scoring opportunities
-   - Use when deciding between players for pickups or drops
-
-9. **compare_players_comprehensive** - Multi-dimensional player comparison
+5. **compare_players_comprehensive** - Multi-dimensional player comparison
    - Requires player_stats and fantasy_points as JSON inputs
-   - Use after gathering stats with other tools
    - Gives weighted recommendation with confidence level
 
-10. **search_past_conversations** - Search previous conversations with this user
+6. **search_past_conversations** - Search previous conversations with this user
    - When the user references a previous conversation
    - When providing context-aware advice that builds on previous discussions
 
-## MANDATORY WORKFLOW FOR "WHO SHOULD I DROP" QUESTIONS:
-
-**IMPORTANT**: You MUST complete ALL steps below before giving advice. Do NOT give roster advice \
-based only on get_roster results - that data is too shallow for good recommendations.
-
-1. Call get_roster to see their current players
-2. Identify the 2-3 weakest-looking players on the roster (lowest points, injured, etc.)
-3. Call fuzzy_resolve_nhl_api_player_ids with those player names
-4. Call get_moneypuck_stats with those player IDs - this reveals hidden value:
-   - High xGoals + low actual goals = player is unlucky, likely to improve (DON'T DROP)
-   - Low xGoals + high actual goals = player is lucky, likely to regress (CONSIDER DROP)
-5. Call get_team_schedule to check upcoming games (more games = more fantasy points)
-6. Only AFTER completing steps 3-5, make your recommendation with specific stats
-
-**Never skip the advanced stats.** A player looking bad in get_roster might actually be \
-undervalued (high xGoals), and a player looking good might be due for regression.
-
-## MANDATORY WORKFLOW FOR PLAYER COMPARISONS:
-
-You MUST use advanced stats - never compare players using only basic fantasy points.
-
-1. Call fuzzy_resolve_nhl_api_player_ids with player names to get their IDs
-2. Call get_moneypuck_stats with those player IDs
-3. Call get_team_schedule for their teams
-4. Compare the data and make a recommendation citing specific advanced stats
-
 ## CRITICAL RULES:
 
-1. For TRADE requests (finding trade partners, proposing trades): delegate to trade tool
-2. For DROP/ADD/COMPARISON requests: use the player comparison tools directly
-3. When you receive a response from a sub-agent tool, use that information to craft an \
-appropriate response. You MUST preserve any URLs, links, or specific data exactly as provided.
+1. For TRADE requests and finding trade targets: delegate to trade tool
+2. For DROP questions: use get_roster to check player stats, then get_available_players if needed
+3. **REWRITE ALL TOOL RESPONSES TO MATCH YOUR PERSONA**: Never pass through tool or sub-agent \
+responses directly. Completely rewrite them in your voice while preserving URLs, links, and data.
 4. Use search_past_conversations proactively when it would help provide better context-aware advice.
 
 The user's email and team context will be provided in system messages.
@@ -170,12 +123,8 @@ def create_supervisor_agent():
             handle_onboarding,
             search_past_conversations,
             # Player comparison tools for roster decisions
-            fuzzy_resolve_nhl_api_player_ids,
             compare_players_comprehensive,
-            get_moneypuck_stats,
-            get_team_schedule,
             get_available_players,
-            find_similar_ranked_players,
         ],
         middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
         system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
@@ -201,7 +150,6 @@ def _resolve_team_context(
     """
     user_teams = get_user_teams(user_email)
     state["user_teams"] = user_teams
-    state["has_teams"] = len(user_teams) > 0
 
     if team_context:
         context = build_context(team_context, message_content, user_email)
@@ -238,7 +186,7 @@ def _build_context_message(state: AgentState, user_email: str) -> SystemMessage:
     if user_teams := state.get("user_teams"):
         teams_info = ", ".join(f"{t['team_name']} ({t['league_name']})" for t in user_teams)
         parts.append(f"User's teams: {teams_info}")
-    if not state.get("has_teams"):
+    else:
         parts.append(
             "Note: User has no teams connected yet. Use handle_onboarding if they need to set up."
         )
@@ -266,8 +214,12 @@ def _invoke_supervisor(
         context_msg = _build_context_message(state, user_email)
         input_state = _prepare_input_state(state, context_msg)
 
+        # Build config with thread_id for checkpointer
+        thread_id = state.get("thread_id") or "default"
+        config = {"configurable": {"thread_id": thread_id}}
+
         logger.info("Invoking supervisor agent with sub-agent tools...")
-        result = create_supervisor_agent().invoke(cast(Any, input_state))
+        result = create_supervisor_agent().invoke(cast(Any, input_state), cast(RunnableConfig, cast(object, config)))
 
         # Extract the response
         if isinstance(result, dict) and "messages" in result:

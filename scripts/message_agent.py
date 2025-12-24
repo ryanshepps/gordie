@@ -47,7 +47,6 @@ def message_agent(
             "user_email": email,
             "thread_id": resolved_thread_id,
             "messages": [message_payload],
-            "has_teams": False,
             "user_teams": [],
             "league_id": None,
             "team_id": None,

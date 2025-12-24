@@ -134,12 +134,18 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
 
     # Enrich email with player statistics table
     stats_markdown, stats_html = "", ""
-    try:
-        stats_markdown, stats_html = enrich_email_with_player_stats(message_content)
-        if stats_markdown:
-            logger.info("Enriched email with player statistics table")
-    except Exception as e:
-        logger.warning(f"Failed to enrich email with player stats: {e}")
+    league_id = state.get("league_id")
+    if user_email and league_id:
+        try:
+            stats_markdown, stats_html = enrich_email_with_player_stats(
+                message_content=message_content,
+                user_email=user_email,
+                league_id=league_id,
+            )
+            if stats_markdown:
+                logger.info("Enriched email with player statistics table")
+        except Exception as e:
+            logger.warning(f"Failed to enrich email with player stats: {e}")
 
     # Build email body with quoted original message
     text_body = message_content + stats_markdown
