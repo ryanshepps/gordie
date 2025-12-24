@@ -170,6 +170,9 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
         )
 
         if result.success:
+            from module.metrics import emails_sent_total
+
+            emails_sent_total.labels(status="success").inc()
             logger.info(f"Email sent successfully to {user_email}, message_id: {result.message_id}")
 
             if result.message_id and thread_id:
@@ -195,6 +198,9 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
                 except Exception as e:
                     logger.error(f"Failed to store conversation memory: {e}")
         else:
+            from module.metrics import emails_sent_total
+
+            emails_sent_total.labels(status="failure").inc()
             logger.error(f"Failed to send email to {user_email}: {result.error}")
 
     except Exception as e:

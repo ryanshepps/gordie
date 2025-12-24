@@ -31,8 +31,9 @@
 ### Infrastructure
 
 - [x] Fetch advanced stats.
-- [ ] Deployed onto Mac Mini.
-- [ ] Grafana for logging user errors.
+- [x] Deployed onto Mac Mini.
+- [x] Grafana for logging user errors.
+- [x] Prometheus + Grafana + Loki monitoring stack.
 - [ ] Consistently fetches and updates player data.
 - [ ] Database backups.
 - [ ] Save learnings so that the agent can automatically improve.
@@ -54,3 +55,15 @@
 - [ ] Fantrax onboarding
 - [ ] CBS onboarding
 - [ ] Referral system
+
+# Monitoring & Observability
+
+The application includes a comprehensive monitoring stack with Prometheus (metrics), Grafana (visualization), and Loki (log aggregation).
+
+### Quick Start
+
+```bash
+docker-compose -f docker-compose.monitoring.yml up -d
+```
+
+Grafana is now avaiable at http://localhost:3000. Username: `admin`. Password: `admin`.

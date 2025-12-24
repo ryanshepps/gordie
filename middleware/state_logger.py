@@ -1,5 +1,6 @@
 """Middleware for logging AgentState at key points in the agent flow."""
 
+import time
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
@@ -7,8 +8,9 @@ from langchain.agents.middleware.types import AgentState as BaseAgentState
 from langgraph.runtime import Runtime
 
 from module.logger import get_logger
+from module.metrics import agent_execution_duration_seconds, agent_invocations_total
 
-logger = get_logger(__name__)
+logger = get_logger(__name__, log_file="agent.log")
 
 # Type alias for the base AgentState with Any response type
 _BaseState = BaseAgentState[Any]
@@ -46,17 +48,22 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
             agent_name: Name to identify which agent is logging (e.g., "controller", "onboarding")
         """
         self.agent_name = agent_name
+        self.start_time = None
 
     def before_model(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Log state before each model call."""
         state_str = _format_state(state)
-        logger.info(f"[{self.agent_name}:BEFORE_MODEL] {state_str}")
+        logger.info(
+            f"[{self.agent_name}:BEFORE_MODEL] {state_str}", extra={"agent_name": self.agent_name}
+        )
         return None
 
     def after_model(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Log state after each model call, including reasoning and tool decisions."""
         state_str = _format_state(state)
-        logger.info(f"[{self.agent_name}:AFTER_MODEL] {state_str}")
+        logger.info(
+            f"[{self.agent_name}:AFTER_MODEL] {state_str}", extra={"agent_name": self.agent_name}
+        )
 
         # Log agent reasoning from the latest AI message
         messages = state.get("messages", [])
@@ -69,7 +76,10 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
                 # Truncate long content for readability
                 if isinstance(content, str) and len(content) > 500:
                     content = content[:500] + "..."
-                logger.info(f"[{self.agent_name}:THINKING] {content}")
+                logger.info(
+                    f"[{self.agent_name}:THINKING] {content}",
+                    extra={"agent_name": self.agent_name},
+                )
 
             # Log tool call decisions (only AIMessage has tool_calls)
             tool_calls = getattr(last_message, "tool_calls", None)
@@ -83,19 +93,42 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
                         args_str = args_str[:300] + "..."
                     logger.info(
                         f"[{self.agent_name}:TOOL_DECISION] "
-                        f"Calling '{tool_name}' with args: {args_str}"
+                        f"Calling '{tool_name}' with args: {args_str}",
+                        extra={"agent_name": self.agent_name, "tool_name": tool_name},
                     )
 
         return None
 
     def before_agent(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Log state when agent execution starts."""
+        self.start_time = time.time()
         state_str = _format_state(state)
-        logger.info(f"[{self.agent_name}:AGENT_START] {state_str}")
+
+        user_email = state.get("user_email", "unknown")
+        logger.info(
+            f"[{self.agent_name}:AGENT_START] {state_str}",
+            extra={"agent_name": self.agent_name, "user_email": user_email},
+        )
         return None
 
     def after_agent(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Log state when agent execution completes."""
+        duration = time.time() - self.start_time if self.start_time else 0
         state_str = _format_state(state)
-        logger.info(f"[{self.agent_name}:AGENT_END] {state_str}")
+
+        user_email = state.get("user_email", "unknown")
+
+        status = "success" if state.get("response") else "error"
+        agent_invocations_total.labels(agent_name=self.agent_name, status=status).inc()
+        agent_execution_duration_seconds.labels(agent_name=self.agent_name).observe(duration)
+
+        logger.info(
+            f"[{self.agent_name}:AGENT_END] {state_str}",
+            extra={
+                "agent_name": self.agent_name,
+                "user_email": user_email,
+                "duration_ms": duration * 1000,
+                "status": status,
+            },
+        )
         return None

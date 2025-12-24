@@ -1,8 +1,11 @@
 import logging
 import sys
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import ClassVar
+
+from pythonjsonlogger import jsonlogger
 
 
 class CustomFormatter(logging.Formatter):
@@ -41,13 +44,43 @@ class CustomFormatter(logging.Formatter):
         return log_format
 
 
-def get_logger(name: str | None = None, level: int = logging.INFO) -> logging.Logger:
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    """JSON formatter for structured logging to files (for Loki ingestion)."""
+
+    def add_fields(self, log_record, record, message_dict):
+        super().add_fields(log_record, record, message_dict)
+
+        log_record["timestamp"] = datetime.fromtimestamp(record.created).isoformat()
+        log_record["level"] = record.levelname
+        log_record["filename"] = Path(record.pathname).name
+        log_record["function"] = record.funcName
+        log_record["line"] = record.lineno
+
+        if hasattr(record, "agent_name"):
+            log_record["agent_name"] = record.agent_name
+        if hasattr(record, "tool_name"):
+            log_record["tool_name"] = record.tool_name
+        if hasattr(record, "user_email"):
+            log_record["user_email"] = record.user_email
+        if hasattr(record, "duration_ms"):
+            log_record["duration_ms"] = record.duration_ms
+        if hasattr(record, "status"):
+            log_record["status"] = record.status
+
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+
+
+def get_logger(
+    name: str | None = None, level: int = logging.INFO, log_file: str | None = None
+) -> logging.Logger:
     """
-    Get a configured logger instance.
+    Get a configured logger instance with both console and file handlers.
 
     Args:
         name: Logger name (defaults to the calling module's name)
         level: Logging level (default: INFO)
+        log_file: Optional file path for JSON logs (for Loki ingestion)
 
     Returns:
         Configured logger instance
@@ -55,9 +88,9 @@ def get_logger(name: str | None = None, level: int = logging.INFO) -> logging.Lo
     Example:
         logger = get_logger(__name__)
         logger.info("Application started")
-        logger.debug("Debug information")
-        logger.warning("Warning message")
-        logger.error("Error occurred")
+
+        logger = get_logger(__name__, log_file="agent.log")
+        logger.info("Tool executed", extra={'tool_name': 'get_roster', 'duration_ms': 150})
     """
     logger = logging.getLogger(name or __name__)
 
@@ -65,11 +98,26 @@ def get_logger(name: str | None = None, level: int = logging.INFO) -> logging.Lo
     if not logger.handlers:
         logger.setLevel(level)
 
-        # Console handler
+        # Console handler (colored output for humans)
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
         console_handler.setFormatter(CustomFormatter())
-
         logger.addHandler(console_handler)
+
+        # File handler (JSON output for Loki) - only if log_file specified
+        if log_file:
+            # Use RotatingFileHandler to limit log file size to 1GB
+            # When the file reaches 1GB, it rotates and keeps 2 backup files
+            # Total disk usage: up to 3GB (current + 2 backups)
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=1073741824,  # 1GB in bytes
+                backupCount=2,  # Keep 2 backup files (.1, .2)
+            )
+            file_handler.setLevel(level)
+            file_handler.setFormatter(
+                CustomJsonFormatter("%(timestamp)s %(level)s %(filename)s %(message)s")
+            )
+            logger.addHandler(file_handler)
 
     return logger

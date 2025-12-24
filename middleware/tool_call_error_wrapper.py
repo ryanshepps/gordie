@@ -1,21 +1,53 @@
 import logging
+import time
 
 from langchain.agents.middleware import wrap_tool_call
 from langchain.messages import ToolMessage
+
+from module.metrics import tool_calls_total, tool_errors_total, tool_execution_duration_seconds
 
 logger = logging.getLogger(__name__)
 
 
 @wrap_tool_call
 def handle_tool_errors(request, handler):
-    """Handle tool execution errors with custom messages."""
+    """Handle tool execution errors with custom messages and metrics."""
+    tool_name = request.tool_call.get("name", "unknown")
+    start_time = time.time()
+
     try:
-        return handler(request)
+        result = handler(request)
+
+        duration = time.time() - start_time
+        tool_calls_total.labels(tool_name=tool_name, status="success").inc()
+        tool_execution_duration_seconds.labels(tool_name=tool_name).observe(duration)
+
+        logger.info(
+            f"Tool executed successfully: {tool_name}",
+            extra={"tool_name": tool_name, "duration_ms": duration * 1000, "status": "success"},
+        )
+
+        return result
+
     except Exception as e:
-        # Log the error for debugging purposes
-        logger.error(f"Tool error: {e!s}")
-        #
-        # Return a custom error message to the model
+        duration = time.time() - start_time
+        error_type = type(e).__name__
+
+        tool_calls_total.labels(tool_name=tool_name, status="error").inc()
+        tool_errors_total.labels(tool_name=tool_name, error_type=error_type).inc()
+        tool_execution_duration_seconds.labels(tool_name=tool_name).observe(duration)
+
+        logger.error(
+            f"Tool error: {tool_name} - {e!s}",
+            extra={
+                "tool_name": tool_name,
+                "duration_ms": duration * 1000,
+                "status": "error",
+                "error_type": error_type,
+            },
+            exc_info=True,
+        )
+
         return ToolMessage(
             content=f"Tool error: Please check your input and try again. ({e!s})",
             tool_call_id=request.tool_call["id"],

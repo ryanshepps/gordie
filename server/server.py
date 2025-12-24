@@ -5,11 +5,17 @@ This module provides the Flask server that handles incoming HTTP requests
 for OAuth authentication and email processing.
 """
 
+import atexit
 import logging
 import threading
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify
+from prometheus_client import make_wsgi_app
+from prometheus_flask_exporter import PrometheusMetrics
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
+from module.metrics import update_business_metrics, update_system_metrics
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 
@@ -50,6 +56,20 @@ class Server:
         self.user_email: str | None = None
         self.code_received = threading.Event()
 
+        # Initialize Prometheus metrics for Flask
+        self.metrics = PrometheusMetrics(
+            self.app, path=None, defaults_prefix="fantasy_agent_flask"
+        )
+
+        # Set up periodic metrics updates
+        self.scheduler = BackgroundScheduler()
+        self.scheduler.add_job(func=update_system_metrics, trigger="interval", seconds=15)
+        self.scheduler.add_job(func=update_business_metrics, trigger="interval", seconds=60)
+        self.scheduler.start()
+
+        # Shut down the scheduler when exiting
+        atexit.register(lambda: self.scheduler.shutdown())
+
         # Set up routes
         self._setup_routes()
 
@@ -65,6 +85,13 @@ class Server:
             """Health check endpoint."""
             return jsonify({"status": "ok"})
 
+        # Prometheus metrics endpoint
+        @self.app.route("/metrics")
+        def metrics():
+            """Prometheus metrics endpoint."""
+            metrics_app = make_wsgi_app()
+            return metrics_app
+
     def start(self):
         """
         Start the server in a background thread.
@@ -74,6 +101,9 @@ class Server:
         """
 
         def run_server():
+            # Add prometheus wsgi middleware to serve /metrics
+            self.app.wsgi_app = DispatcherMiddleware(self.app.wsgi_app, {"/metrics": make_wsgi_app()})
+
             self.app.run(
                 host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True
             )
