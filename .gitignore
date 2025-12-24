@@ -7,3 +7,7 @@ data/agent_conversations.db
 **/__pycache__/
 
 .claude/tsc-cache/
+
+.cloudflared
+
+*.log

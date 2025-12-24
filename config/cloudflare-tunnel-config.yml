@@ -1,0 +1,8 @@
+tunnel: 2e614972-eefc-4b5b-9f98-91f3e214477f  # UUID from tunnel creation
+credentials-file: /Users/ryan/Projects/fantasy-agent-prod/.cloudflared/2e614972-eefc-4b5b-9f98-91f3e214477f.json
+
+ingress:
+  - hostname: gordie.lastingsoftware.ca
+    service: http://localhost:8000
+  - service: http_status:404  # Catch-all rule (required)
+
