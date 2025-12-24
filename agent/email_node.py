@@ -21,21 +21,6 @@ logger = logging.getLogger(__name__)
 END_NODE: Literal["__end__"] = "__end__"
 
 
-def _format_quoted_message(original_message: str) -> str:
-    """
-    Format the original message as a quoted block for email replies.
-
-    Args:
-        original_message: The original user message to quote
-
-    Returns:
-        Formatted quoted text with ">" prefix on each line
-    """
-    lines = original_message.strip().split("\n")
-    quoted_lines = [f"> {line}" for line in lines]
-    return "\n".join(quoted_lines)
-
-
 def _format_quoted_html(original_message: str) -> str:
     """
     Format the original message as a quoted HTML block for email replies.
@@ -54,7 +39,7 @@ def _format_quoted_html(original_message: str) -> str:
         "background-color: #f9f9f9; color: #555;"
     )
     return f"""
-<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ccc;">
+<div style="margin-top: 20px;">
     <p style="color: #666; font-size: 12px; margin-bottom: 10px;">You wrote:</p>
     <blockquote style="{blockquote_style}">
         {escaped}
@@ -132,26 +117,33 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
 
     subject = _determine_subject(original_subject, message_content)
 
-    # Enrich email with player statistics table
-    stats_markdown, stats_html = "", ""
+    # Enrich email with player statistics table (HTML only)
+    stats_html = ""
     league_id = state.get("league_id")
     if user_email and league_id:
         try:
-            stats_markdown, stats_html = enrich_email_with_player_stats(
+            _, stats_html = enrich_email_with_player_stats(
                 message_content=message_content,
                 user_email=user_email,
                 league_id=league_id,
             )
-            if stats_markdown:
+            if stats_html:
                 logger.info("Enriched email with player statistics table")
         except Exception as e:
             logger.warning(f"Failed to enrich email with player stats: {e}")
 
-    # Build email body with quoted original message
-    text_body = message_content + stats_markdown
-    if original_message:
-        quoted_text = _format_quoted_message(original_message)
-        text_body = f"{message_content}{stats_markdown}\n\n---\nYou wrote:\n{quoted_text}"
+    # Beta disclaimer note
+    beta_note_text = "\n\nNote: Gordie is still in beta. He will make mistakes.\n"
+    beta_note_html = """
+<div style="margin-top: 20px;">
+    <p style="color: #888; font-size: 12px; font-style: italic; margin: 0;">
+        Note: Gordie is still in beta. He will make mistakes.
+    </p>
+</div>
+"""
+
+    # Simple text fallback for email clients that don't support HTML
+    text_body = message_content + beta_note_text
 
     try:
         email_service = EmailService()
@@ -161,11 +153,14 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
             extras=["tables", "fenced-code-blocks", "strike", "cuddled-lists"],
         )
 
-        # Add player stats table before quoted message
+        # Add player stats table after message content
         html_body = html_body + stats_html
 
         if original_message:
             html_body = html_body + _format_quoted_html(original_message)
+
+        # Add beta note at the end
+        html_body = html_body + beta_note_html
 
         result = email_service.send_email(
             to_email=user_email,
