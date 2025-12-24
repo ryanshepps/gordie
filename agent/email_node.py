@@ -167,6 +167,7 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
             subject=subject,
             text_body=text_body,
             html_body=html_body,
+            track_clicks=False,
         )
 
         if result.success:
