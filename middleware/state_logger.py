@@ -10,7 +10,7 @@ from langgraph.runtime import Runtime
 from module.logger import get_logger
 from module.metrics import agent_execution_duration_seconds, agent_invocations_total
 
-logger = get_logger(__name__, log_file="agent.log")
+logger = get_logger(__name__)
 
 # Type alias for the base AgentState with Any response type
 _BaseState = BaseAgentState[Any]

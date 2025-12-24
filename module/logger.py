@@ -72,25 +72,25 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
 
 def get_logger(
-    name: str | None = None, level: int = logging.INFO, log_file: str | None = None
+    name: str | None = None, level: int = logging.INFO, log_file: str | None = "oauth.log"
 ) -> logging.Logger:
     """
-    Get a configured logger instance with both console and file handlers.
+    Get a configured logger instance with JSON file handler.
 
     Args:
         name: Logger name (defaults to the calling module's name)
         level: Logging level (default: INFO)
-        log_file: Optional file path for JSON logs (for Loki ingestion)
+        log_file: File path for JSON logs (default: "oauth.log"). Set to None for console logging.
 
     Returns:
         Configured logger instance
 
     Example:
-        logger = get_logger(__name__)
+        logger = get_logger(__name__)  # Logs to oauth.log by default in JSON format
         logger.info("Application started")
-
-        logger = get_logger(__name__, log_file="agent.log")
         logger.info("Tool executed", extra={'tool_name': 'get_roster', 'duration_ms': 150})
+
+        logger = get_logger(__name__, log_file=None)  # Console logging for debugging
     """
     logger = logging.getLogger(name or __name__)
 
@@ -98,13 +98,7 @@ def get_logger(
     if not logger.handlers:
         logger.setLevel(level)
 
-        # Console handler (colored output for humans)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(level)
-        console_handler.setFormatter(CustomFormatter())
-        logger.addHandler(console_handler)
-
-        # File handler (JSON output for Loki) - only if log_file specified
+        # File handler (JSON output for Loki)
         if log_file:
             # Use RotatingFileHandler to limit log file size to 1GB
             # When the file reaches 1GB, it rotates and keeps 2 backup files
@@ -119,5 +113,11 @@ def get_logger(
                 CustomJsonFormatter("%(timestamp)s %(level)s %(filename)s %(message)s")
             )
             logger.addHandler(file_handler)
+        else:
+            # If no log file specified, add console handler for debugging
+            console_handler = logging.StreamHandler(sys.stderr)
+            console_handler.setLevel(level)
+            console_handler.setFormatter(CustomFormatter())
+            logger.addHandler(console_handler)
 
     return logger
