@@ -55,6 +55,7 @@
 - [ ] Fantrax onboarding
 - [ ] CBS onboarding
 - [ ] Referral system
+- [ ] Determine user preferences automatically (create a user profile based on responses)
 
 # Monitoring & Observability
 
