@@ -13,7 +13,7 @@ from server.oauth import (
     notify_onboarding_agent,
     save_tokens,
 )
-from server.oauth_nonce import delete_oauth_nonce, get_oauth_nonce
+from server.oauth_nonce import delete_oauth_nonce, get_oauth_nonce_and_thread
 from server.server import Server
 
 load_dotenv()
@@ -45,11 +45,13 @@ def handle_oauth_callback(server: Server) -> bool:
 
         logger.info(f"✓ Authorization code received for user: {user_email}")
 
-        # Retrieve stored nonce for this user
-        nonce = get_oauth_nonce(user_email)
-        if not nonce:
-            logger.error(f"No stored nonce found for user: {user_email}")
+        # Retrieve stored nonce and thread_id for this user
+        nonce_and_thread = get_oauth_nonce_and_thread(user_email)
+        if not nonce_and_thread:
+            logger.error(f"No stored nonce/thread found for user: {user_email}")
             return False
+
+        nonce, thread_id = nonce_and_thread
 
         # Exchange code for tokens
         client_id = os.getenv("YAHOO_CLIENT_ID")
@@ -81,8 +83,8 @@ def handle_oauth_callback(server: Server) -> bool:
         # Delete the used nonce
         delete_oauth_nonce(user_email)
 
-        # Notify the OnboardingAgent
-        notify_onboarding_agent(user_email)
+        # Notify the OnboardingAgent with the correct thread_id
+        notify_onboarding_agent(user_email, thread_id)
         logger.info("✓ OnboardingAgent notified")
 
         # Reset for next callback

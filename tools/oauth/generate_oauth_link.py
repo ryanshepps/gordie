@@ -15,10 +15,11 @@ logger = get_logger(__name__)
 
 class GenerateOAuthLinkInput(BaseModel):
     user_email: str = Field(description="User's email address to associate with the OAuth flow")
+    thread_id: str = Field(description="Thread ID to resume after OAuth completes")
 
 
 @tool(args_schema=GenerateOAuthLinkInput)
-def generate_oauth_link(user_email: str) -> str:
+def generate_oauth_link(user_email: str, thread_id: str) -> str:
     """
     Generate a Yahoo OAuth authorization link for the user to authenticate.
 
@@ -27,6 +28,7 @@ def generate_oauth_link(user_email: str) -> str:
 
     Args:
         user_email: User's email address to track the OAuth flow
+        thread_id: Thread ID to resume after OAuth completes
 
     Returns:
         The OAuth authorization URL as a string, or an error message if configuration is missing.
@@ -42,8 +44,8 @@ def generate_oauth_link(user_email: str) -> str:
     # Generate a unique nonce for security
     nonce = secrets.token_urlsafe(32)
 
-    # Store nonce in database for later retrieval during callback
-    _store_oauth_nonce(user_email, nonce)
+    # Store nonce and thread_id in database for later retrieval during callback
+    _store_oauth_nonce(user_email, nonce, thread_id)
 
     # Build callback URL
     callback_url = f"{oauth_base_url.rstrip('/')}/callback"
@@ -66,26 +68,27 @@ def generate_oauth_link(user_email: str) -> str:
     return auth_url
 
 
-def _store_oauth_nonce(user_email: str, nonce: str) -> None:
-    """Store OAuth nonce in database for later retrieval."""
+def _store_oauth_nonce(user_email: str, nonce: str, thread_id: str) -> None:
+    """Store OAuth nonce and thread_id in database for later retrieval."""
     conn = get_platform_db_connection()
     try:
-        # Create table if it doesn't exist
+        # Create table if it doesn't exist (with thread_id column)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS oauth_nonces (
                 user_email TEXT PRIMARY KEY,
                 nonce TEXT NOT NULL,
+                thread_id TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
-        # Store or update nonce
+        # Store or update nonce and thread_id
         conn.execute(
             """
-            INSERT OR REPLACE INTO oauth_nonces (user_email, nonce, created_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
+            INSERT OR REPLACE INTO oauth_nonces (user_email, nonce, thread_id, created_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         """,
-            (user_email, nonce),
+            (user_email, nonce, thread_id),
         )
 
         conn.commit()

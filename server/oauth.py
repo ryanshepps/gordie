@@ -240,7 +240,7 @@ def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, Any]) -
         conn.close()
 
 
-def notify_onboarding_agent(user_email: str) -> None:
+def notify_onboarding_agent(user_email: str, thread_id: str | None = None) -> None:
     """
     Notify the OnboardingAgent that OAuth authentication is complete.
 
@@ -249,6 +249,7 @@ def notify_onboarding_agent(user_email: str) -> None:
 
     Args:
         user_email: Email address of the user who just completed OAuth
+        thread_id: Optional thread ID to resume the correct conversation
     """
     from agent.agent_state import AgentState
     from agent.graph_builder import agent
@@ -258,15 +259,18 @@ def notify_onboarding_agent(user_email: str) -> None:
     try:
         from langchain_core.runnables import RunnableConfig
 
-        logger.info(f"Notifying OnboardingAgent for user {user_email}...")
-        config: RunnableConfig = {"configurable": {"thread_id": user_email}}
+        # Use provided thread_id or fallback to user_email for backwards compatibility
+        active_thread_id = thread_id if thread_id else user_email
+
+        logger.info(f"Notifying OnboardingAgent for user {user_email} (thread: {active_thread_id})...")
+        config: RunnableConfig = {"configurable": {"thread_id": active_thread_id}}
 
         # Send a message to the agent indicating OAuth is complete
         initial_state: AgentState = {
             "user_email": user_email,
             "league_id": None,
             "team_id": None,
-            "thread_id": user_email,
+            "thread_id": active_thread_id,
             "messages": [{"role": "user", "content": "I've completed the OAuth authentication!"}],
             "user_teams": [],
             "response": None,

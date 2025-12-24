@@ -26,11 +26,11 @@ _onboarding_agent_task = """
 Help users connect their Yahoo Fantasy account.
 
 Flow:
-1. Call generate_oauth_link to create an authorization link.
+1. Call generate_oauth_link to create an authorization link (use the user_email and thread_id from the system message).
 2. Once authenticated, use get_user_leagues to retrieve their leagues/teams.
 3. Use onboard_user_team to save their selected team.
 
-The user's email will be provided in a system message.
+The user's email and thread_id will be provided in a system message.
 """
 
 _agent = create_subagent(
@@ -71,7 +71,10 @@ def handle_onboarding(
     result = invoke_subagent(
         agent=_agent,
         request=request,
-        context_parts=[f"Current user email for this session: {user_email}"],
+        context_parts=[
+            f"Current user email for this session: {user_email}",
+            f"Current thread_id for this session: {thread_id}",
+        ],
         thread_id=thread_id,
     )
 
