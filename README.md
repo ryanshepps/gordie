@@ -36,6 +36,7 @@
 - [ ] Consistently fetches and updates player data.
 - [ ] Database backups.
 - [ ] Save learnings so that the agent can automatically improve.
+- [ ] Persistent conversation storage with clean up.
 
 ### UX
 
