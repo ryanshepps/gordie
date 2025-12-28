@@ -21,7 +21,7 @@ def register_email_routes(app):
     def email_webhook():
         """Handle incoming emails from Mailgun webhook."""
         start_time = time.time()
-        logger = get_logger(__name__, log_file="oauth.log")
+        logger = get_logger(__name__, log_file="server.log")
 
         # Extract webhook data
         sender_email = request.form.get("sender")

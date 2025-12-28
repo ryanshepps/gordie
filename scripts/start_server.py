@@ -1,4 +1,4 @@
-"""Start the OAuth callback server to handle Yahoo OAuth redirects."""
+"""Start the server to handle OAuth callbacks and email webhooks."""
 
 import os
 import sys
@@ -103,16 +103,16 @@ def handle_oauth_callback(server: Server) -> bool:
 
 
 def main():
-    """Start the OAuth callback server."""
+    """Start the server."""
     host = "localhost"
     port = 8000
 
-    logger.info(f"Starting OAuth callback server on {host}:{port}...")
+    logger.info(f"Starting server on {host}:{port}...")
     server = Server(host=host, port=port)
 
     try:
         server.start()
-        logger.info(f"✓ OAuth callback server running at http://{host}:{port}")
+        logger.info(f"✓ Server running at http://{host}:{port}")
         logger.info("Press Ctrl+C to stop the server")
 
         # Keep the server running and process callbacks
@@ -129,7 +129,7 @@ def main():
             time.sleep(1)  # Brief pause before accepting next callback
 
     except KeyboardInterrupt:
-        logger.info("Shutting down OAuth callback server...")
+        logger.info("Shutting down server...")
         sys.exit(0)
     except Exception as e:
         logger.error(f"Server error: {e}")

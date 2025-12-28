@@ -1,10 +1,10 @@
 #!/bin/bash
-# Deploy script for fantasy-agent OAuth server and Cloudflare tunnel
+# Deploy script for fantasy-agent application server and Cloudflare tunnel
 # This script unloads and reloads the macOS launch agents
 
 set -e
 
-OAUTH_PLIST="$HOME/Library/LaunchAgents/com.fantasy-agent.oauth.plist"
+SERVER_PLIST="$HOME/Library/LaunchAgents/com.fantasy-agent.server.plist"
 TUNNEL_PLIST="$HOME/Library/LaunchAgents/com.fantasy-agent.tunnel.plist"
 
 echo "Running pre-deployment checks..."
@@ -15,11 +15,11 @@ echo ""
 
 # Unload services
 echo "📴 Unloading services..."
-if launchctl list | grep -q "com.fantasy-agent.oauth"; then
-    launchctl unload "$OAUTH_PLIST" 2>/dev/null || echo "  ⚠️  OAuth service was not running"
-    echo "  ✓ OAuth service unloaded"
+if launchctl list | grep -q "com.fantasy-agent.server"; then
+    launchctl unload "$SERVER_PLIST" 2>/dev/null || echo "  ⚠️  Server service was not running"
+    echo "  ✓ Server service unloaded"
 else
-    echo "  ℹ️  OAuth service was not loaded"
+    echo "  ℹ️  Server service was not loaded"
 fi
 
 if launchctl list | grep -q "com.fantasy-agent.tunnel"; then
@@ -37,8 +37,8 @@ sleep 2
 # Load services
 echo ""
 echo "📡 Loading services..."
-launchctl load "$OAUTH_PLIST"
-echo "  ✓ OAuth service loaded"
+launchctl load "$SERVER_PLIST"
+echo "  ✓ Server service loaded"
 
 launchctl load "$TUNNEL_PLIST"
 echo "  ✓ Tunnel service loaded"
@@ -49,10 +49,10 @@ sleep 2
 # Check status
 echo ""
 echo "📊 Service status:"
-if launchctl list | grep -q "com.fantasy-agent.oauth"; then
-    echo "  ✓ OAuth service: Running"
+if launchctl list | grep -q "com.fantasy-agent.server"; then
+    echo "  ✓ Server service: Running"
 else
-    echo "  ✗ OAuth service: Not running"
+    echo "  ✗ Server service: Not running"
 fi
 
 if launchctl list | grep -q "com.fantasy-agent.tunnel"; then
@@ -65,5 +65,5 @@ echo ""
 echo "✅ Deployment complete!"
 echo ""
 echo "📝 View logs:"
-echo "  OAuth:  tail -f oauth.log oauth-error.log"
+echo "  Server: tail -f server.log server-error.log"
 echo "  Tunnel: tail -f tunnel.log tunnel-error.log"

@@ -72,7 +72,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
 
 def get_logger(
-    name: str | None = None, level: int = logging.INFO, log_file: str | None = "oauth.log"
+    name: str | None = None, level: int = logging.INFO, log_file: str | None = "server.log"
 ) -> logging.Logger:
     """
     Get a configured logger instance with JSON file handler.
@@ -80,13 +80,13 @@ def get_logger(
     Args:
         name: Logger name (defaults to the calling module's name)
         level: Logging level (default: INFO)
-        log_file: File path for JSON logs (default: "oauth.log"). Set to None for console logging.
+        log_file: File path for JSON logs (default: "server.log"). Set to None for console logging.
 
     Returns:
         Configured logger instance
 
     Example:
-        logger = get_logger(__name__)  # Logs to oauth.log by default in JSON format
+        logger = get_logger(__name__)  # Logs to server.log by default in JSON format
         logger.info("Application started")
         logger.info("Tool executed", extra={'tool_name': 'get_roster', 'duration_ms': 150})
 
