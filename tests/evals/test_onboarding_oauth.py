@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage
 
 from agent.agent_state import AgentState
 from agent.SupervisorAgent import supervisor_node
+from tests.evals.conftest import retry_on_rate_limit
 
 
 class TestOnboardingOAuth:
@@ -26,6 +27,7 @@ class TestOnboardingOAuth:
             user_teams=[],  # No teams - user is not authenticated
         )
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_first_email_includes_oauth_link(
         self,
         unauthenticated_user_state,
@@ -38,10 +40,15 @@ class TestOnboardingOAuth:
             return_value=[],
         )
 
+        # Mock memory store to return no past conversations (first-time user)
+        mock_memory_store = mocker.MagicMock()
+        mock_memory_store.search.return_value = []
+        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+
         # Mock generate_oauth_link to return a predictable URL
         mock_oauth_url = "https://api.login.yahoo.com/oauth2/request_auth?client_id=test123"
         mocker.patch(
-            "tools.oauth.generate_oauth_link.generate_oauth_link",
+            "agent.context_validator.generate_oauth_link",
             return_value=mock_oauth_url,
         )
 

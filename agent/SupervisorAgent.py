@@ -13,14 +13,16 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from agent.agent_state import AgentState, build_context, get_user_teams
-from agent.subagents import handle_onboarding
+from agent.context_validator import validate_and_build_system_message
 from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.player_comparison.compare_players_comprehensive import compare_players_comprehensive
+from tools.player_comparison.get_comprehensive_player_stats import get_comprehensive_player_stats
 from tools.yahoo.get_available_players import get_available_players
 from tools.yahoo.get_roster import get_roster
+from tools.yahoo.onboard_user_team import onboard_user_team
 
 # Use literal string for END to satisfy type checker
 END_NODE: Literal["__end__"] = "__end__"
@@ -36,62 +38,31 @@ currently assisting with. Use professional language. Act as if you were a real
 fantasy league assistant, and a client of yours is coming to you for advice.
 
 AUDIENCE:
-Your audience is NOT technologically savvy. Do not include technical jargon,
-complex language or ask for IDs. Infer based on their language which parameters
-to use in your tools.
+Your clients are NOT technologically savvy. Do not include technical jargon,
+complex language or ask for IDs.
 
 IMPORTANT:
-Never reveal internal details such as the tools you are calling, the processes
-you are running, or the technology you are using. This is not useful to the
-user, and you want to be useful for the user.
+Never reveal internal technical details such as the tools you are calling, the
+processes you are running, or the technology you are using. This is not useful
+to the user, and you want to be useful for the user.
 """
 
 # System prompt for the supervisor agent
-SUPERVISOR_SYSTEM_PROMPT = """You are a fantasy hockey assistant. You delegate complex \
-trade and player analysis to specialized sub-agents.
-
-AVAILABLE TOOLS:
-
-## Sub-agent Tools (delegate complex tasks)
-
-1. **trade** - USE THIS FOR:
-   - Trade suggestions ("help me trade", "who should I trade", "trade targets")
-   - Finding trade partners or targets on other teams
-   - Player comparisons for trade decisions (uses advanced stats like xGoals, Fenwick%, Corsi%)
-   - Roster imbalances ("too many players from X team")
-
-2. **handle_onboarding** - USE THIS FOR:
-   - Account setup and Yahoo connection
-   - First-time user setup
-   - Returns JSON with 'status', 'message', and optionally 'oauth_url'
-   - **IMPORTANT**: If 'oauth_url' is present in the response, you MUST include this exact \
-URL in your message to the user. Never paraphrase or omit URLs.
-
-## Roster & Player Tools (use directly)
-
-3. **get_roster** - Get the user's current roster with player stats
-   - USE THIS for "should I drop X?" questions - check the player's stats first
-   - Shows fantasy points, positions, and injury status
-
-4. **get_available_players** - Get free agents and waiver wire players
-   - Use to find pickup candidates or replacement options when considering drops
-   - Can filter by position, sort by ownership rank or recent stats
-
-5. **compare_players_comprehensive** - Multi-dimensional player comparison
-   - Requires player_stats and fantasy_points as JSON inputs
-   - Gives weighted recommendation with confidence level
-
-6. **search_past_conversations** - Search previous conversations with this user
-   - When the user references a previous conversation
-   - When providing context-aware advice that builds on previous discussions
+SUPERVISOR_SYSTEM_PROMPT = """Complete the user's request by using the available tools to help them.
 
 ## CRITICAL RULES:
 
-1. For TRADE requests and finding trade targets: delegate to trade tool
-2. For DROP questions: use get_roster to check player stats, then get_available_players if needed
-3. **REWRITE ALL TOOL RESPONSES TO MATCH YOUR PERSONA**: Never pass through tool or sub-agent \
+1. **REWRITE ALL TOOL RESPONSES TO MATCH YOUR PERSONA**: Never pass through tool or sub-agent \
 responses directly. Completely rewrite them in your voice while preserving URLs, links, and data.
+2. **NEVER OMIT OAUTH URLs**: If a tool returns an 'oauth_url' you MUST include the exact \
+URL in your response to the user. Never paraphrase or omit URLs.
+3. **ONBOARDING IS DETERMINISTIC**: When the system message provides team selection instructions, \
+simply follow them. Present OAuth links or team lists exactly as specified. When the user selects \
+a team, call onboard_user_team with the correct parameters from the system message.
 4. Use search_past_conversations proactively when it would help provide better context-aware advice.
+5. **ALWAYS USE TOOLS FOR PLAYER ANALYSIS**: When asked about dropping/adding/analyzing a player, \
+you MUST call get_comprehensive_player_stats to get their actual stats before giving advice. \
+Never give vague responses - provide specific data-driven recommendations.
 
 The user's email and team context will be provided in system messages.
 """
@@ -120,9 +91,10 @@ def create_supervisor_agent():
         tools=[
             get_roster,
             trade,
-            handle_onboarding,
+            onboard_user_team,
             search_past_conversations,
-            # Player comparison tools for roster decisions
+            # Player analysis and comparison tools for roster decisions
+            get_comprehensive_player_stats,
             compare_players_comprehensive,
             get_available_players,
         ],
@@ -175,23 +147,31 @@ def _resolve_team_context(
     return None
 
 
-def _build_context_message(state: AgentState, user_email: str) -> SystemMessage:
-    """Build the context system message for the supervisor agent."""
-    parts = [f"User email: {user_email}"]
+def _build_context_message(
+    state: AgentState, user_email: str
+) -> tuple[SystemMessage, str | None, str | None]:
+    """
+    Build the context system message for the supervisor agent using context validator.
 
-    if league_id := state.get("league_id"):
-        parts.append(f"League ID: {league_id}")
-    if team_id := state.get("team_id"):
+    Returns:
+        Tuple of (SystemMessage, league_id, team_id)
+    """
+    from agent.memory_store import get_memory_store
+
+    # Run context validation
+    validation_message, league_id, team_id = validate_and_build_system_message(
+        state, get_memory_store()
+    )
+
+    # Build the full context message
+    parts = [f"User email: {user_email}", "", validation_message]
+
+    if league_id:
+        parts.append(f"\nLeague ID: {league_id}")
+    if team_id:
         parts.append(f"Team ID: {team_id}")
-    if user_teams := state.get("user_teams"):
-        teams_info = ", ".join(f"{t['team_name']} ({t['league_name']})" for t in user_teams)
-        parts.append(f"User's teams: {teams_info}")
-    else:
-        parts.append(
-            "Note: User has no teams connected yet. Use handle_onboarding if they need to set up."
-        )
 
-    return SystemMessage(content="\n".join(parts))
+    return SystemMessage(content="\n".join(parts)), league_id, team_id
 
 
 def _prepare_input_state(state: AgentState, context_msg: SystemMessage) -> dict[str, Any]:
@@ -211,7 +191,14 @@ def _invoke_supervisor(
 ) -> Command[Literal["clarification", "email", "__end__"]]:
     """Invoke the supervisor agent and return the appropriate command."""
     try:
-        context_msg = _build_context_message(state, user_email)
+        context_msg, league_id, team_id = _build_context_message(state, user_email)
+
+        # Update state with validated context
+        if league_id:
+            state["league_id"] = league_id
+        if team_id:
+            state["team_id"] = team_id
+
         input_state = _prepare_input_state(state, context_msg)
 
         # Build config with thread_id for checkpointer
@@ -219,7 +206,9 @@ def _invoke_supervisor(
         config = {"configurable": {"thread_id": thread_id}}
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
-        result = create_supervisor_agent().invoke(cast(Any, input_state), cast(RunnableConfig, cast(object, config)))
+        result = create_supervisor_agent().invoke(
+            cast(Any, input_state), cast(RunnableConfig, cast(object, config))
+        )
 
         # Extract the response
         if isinstance(result, dict) and "messages" in result:

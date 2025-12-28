@@ -7,6 +7,7 @@ from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
 
 from agent.SupervisorAgent import supervisor_node
+from tests.evals.conftest import retry_on_rate_limit
 
 
 class TestTradeAnalysisWorkflow:
@@ -23,6 +24,7 @@ class TestTradeAnalysisWorkflow:
     def trade_analysis_input(self) -> str:
         return "I want to trade away Draisaitl, who should I target?"
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_response_includes_trade_targets_with_stats(
         self,
         mock_user_state,
@@ -82,6 +84,7 @@ class TestTradeTargetQuality:
     - Show signs of positive regression (negative goals above expected)
     """
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_does_not_recommend_obviously_better_players(
         self,
         mock_user_state,
@@ -125,6 +128,7 @@ class TestTradeTargetQuality:
             f"Found {elite_recommendations} elite players mentioned. Response: {response_text[:800]}..."
         )
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_recommends_players_with_upside_indicators(
         self,
         mock_user_state,
@@ -171,6 +175,7 @@ class TestTradeTargetQuality:
             f"Found {indicator_count}. Response: {response_text[:800]}..."
         )
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_trade_targets_have_worse_or_similar_rank(
         self,
         mock_user_state,
@@ -246,6 +251,7 @@ class TestTradeAgentUndervaluedIntegration:
     def trade_for_input(self) -> str:
         return "I want to acquire a new center with good underlying stats"
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_response_quality_with_undervalued_analysis(
         self,
         mock_user_state,
@@ -291,6 +297,7 @@ class TestTradeAgentUndervaluedIntegration:
             f"Response should include undervalued analysis: {eval_dict.get('comment', eval_dict)}"
         )
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_prioritizes_high_undervalued_score_players(
         self,
         mock_user_state,

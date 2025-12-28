@@ -379,17 +379,27 @@ def trade(
     team_id: str,
     state: Annotated[dict[str, Any], InjectedState] | None = None,
 ):
-    """Find players to trade for based on the user's request.
+    """Analyze trade opportunities and find trade targets using advanced hockey statistics.
+
+    Use this tool for:
+    - Trade suggestions and finding trade targets on other teams
+    - Player comparisons for trade decisions (uses xGoals, Fenwick%, Corsi%, TOI)
+    - Identifying undervalued players based on advanced analytics
+    - Finding trade partners when user has roster imbalances
+    - Questions like "who should I trade", "trade targets", "help me trade"
+
+    This tool performs comprehensive analysis including MoneyPuck advanced stats,
+    schedule analysis, linemate information, and undervalued player scoring.
 
     Args:
-        request (str): The user's request for players to trade for.
+        request (str): The user's trade request in natural language.
         user_email (str): The email address of the user.
         league_id (str): The ID of the fantasy league.
         team_id (str): The ID of the team.
         state: The state of the agent. Defaults to None.
 
     Returns:
-        str: The response from the agent.
+        str: Detailed trade analysis with specific player recommendations and statistical comparisons.
     """
     logger.info(f"Trade sub-agent invoked with request: {request}")
 

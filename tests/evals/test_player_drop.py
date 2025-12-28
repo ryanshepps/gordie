@@ -6,6 +6,7 @@ from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
 
 from agent.SupervisorAgent import supervisor_node
+from tests.evals.conftest import retry_on_rate_limit
 
 
 class TestPlayerDropDecision:
@@ -22,6 +23,7 @@ class TestPlayerDropDecision:
     the agent correctly routes to onboarding - this is expected behavior.
     """
 
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_response_gives_recommendation_with_stats_and_schedule(
         self,
         mock_user_state,

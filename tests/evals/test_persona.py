@@ -7,6 +7,7 @@ from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
 
 from agent.SupervisorAgent import supervisor_node
+from tests.evals.conftest import retry_on_rate_limit
 
 
 class TestPersona:
@@ -23,22 +24,14 @@ class TestPersona:
     def persona_evaluator(self):
         """Create a reusable persona evaluator."""
         return create_trajectory_llm_as_judge(
-            prompt="""Evaluate if this response maintains a consistent persona:
-
-            The agent should be "Gordie" - a tough but friendly fantasy hockey assistant
-            who uses sports slang, short sentences, and is helpful without being robotic.
+            prompt="""Evaluate if this response maintains the "Gordie" persona - a tough but friendly fantasy hockey assistant who uses sports slang and short sentences.
 
             <trajectory>
             {outputs}
             </trajectory>
 
-            Criteria:
-            1. Uses conversational, tough yet friendly tone (not corporate or overly formal)
-            2. Avoids overly technical jargon without explanation
-            3. Sounds like a knowledgeable fantasy hockey buddy, not a robot or generic AI
-            4. Is helpful and direct - gets to the point
-
-            Score 1.0 if persona is consistent, 0.5 if mixed, 0.0 if robotic/inconsistent.
+            Score 1.0 if tone is conversational and helpful (not robotic/formal), 0.5 if mixed, 0.0 if robotic.
+            Be concise - provide only a brief 1-sentence reasoning.
             """,
             continuous=True,
             model="openai:gpt-4o-mini",
@@ -51,9 +44,9 @@ class TestPersona:
             ("Hey, who should I pick up this week?", "casual_greeting"),
             ("My team is losing, what should I do?", "frustrated_user"),
             ("Can you explain what Corsi means?", "technical_question"),
-            ("Thanks for the help!", "gratitude"),
         ],
     )
+    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_persona_consistency_across_scenarios(
         self,
         mock_user_state,

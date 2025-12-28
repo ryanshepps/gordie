@@ -57,7 +57,7 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
-    # Mock get_user_teams to return test teams
+    # Mock get_user_teams in both locations
     mocker.patch(
         "agent.SupervisorAgent.get_user_teams",
         return_value=[
@@ -70,6 +70,29 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
             }
         ],
     )
+    mocker.patch(
+        "agent.context_validator.get_user_teams",
+        return_value=[
+            {
+                "league_id": "12345",
+                "team_id": "1",
+                "team_name": "Test Team",
+                "game_key": "nhl.l.12345",
+                "league_name": "Test League",
+            }
+        ],
+    )
+
+    # Mock OAuth tokens to simulate authenticated user
+    mocker.patch(
+        "agent.context_validator.load_tokens_from_db",
+        return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
+    )
+
+    # Mock memory store to simulate returning user (not first-time)
+    mock_memory_store = MagicMock()
+    mock_memory_store.search.return_value = [{"content": "past conversation"}]
+    mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
     # Create mock player data using SimpleNamespace for proper attribute access
     mock_players = [
@@ -236,7 +259,7 @@ class TestPlayerDropRouting:
 
         uses_advanced_tools = any(
             tool in tool_names
-            for tool in ["get_moneypuck_stats", "fuzzy_resolve_nhl_api_player_ids", "get_roster"]
+            for tool in ["get_comprehensive_player_stats", "get_moneypuck_stats", "fuzzy_resolve_nhl_api_player_ids", "get_roster"]
         )
 
         assert uses_advanced_tools, f"Expected advanced stat tools, got: {tool_names}"

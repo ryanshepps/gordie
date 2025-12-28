@@ -1,14 +1,60 @@
 """Shared fixtures and helpers for fantasy hockey agent evals."""
 
+import time
 import uuid
 from collections.abc import Generator
-from typing import Any
+from functools import wraps
+from typing import Any, Callable
 
 import pytest
 from langchain_core.messages import AIMessage
 from pytest_mock import MockerFixture
 
 from agent.agent_state import AgentState
+
+
+def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):
+    """Retry test on 429 rate limit errors with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts (default: 3)
+        base_delay: Base delay in seconds, doubled for each retry (default: 1.0)
+
+    Usage:
+        @retry_on_rate_limit(max_retries=3, base_delay=2.0)
+        def test_my_function():
+            # Test code that may hit rate limits
+            pass
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    error_msg = str(e).lower()
+                    # Check for rate limit indicators
+                    if "429" in error_msg or "rate limit" in error_msg or "rate_limit" in error_msg:
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2**attempt)  # exponential backoff
+                            print(
+                                f"\n⚠️  Rate limit hit (attempt {attempt + 1}/{max_retries}). "
+                                f"Retrying in {delay}s..."
+                            )
+                            time.sleep(delay)
+                            continue
+                    # If not a rate limit error, raise immediately
+                    raise
+            # If all retries exhausted, raise the last exception
+            raise last_exception
+
+        return wrapper
+
+    return decorator
 
 
 def _create_yahoo_response_handler(
@@ -74,7 +120,7 @@ def mock_yahoo_tools(
     mock_similar_ranked_players_response: dict[str, Any],
 ) -> Generator[dict[str, Any]]:
     """Mock Yahoo tools to return test data instead of calling Yahoo API."""
-    # Mock get_user_teams to return test teams (prevents onboarding redirect)
+    # Mock get_user_teams in both locations (prevents onboarding redirect)
     mock_get_user_teams = mocker.patch(
         "agent.SupervisorAgent.get_user_teams",
         return_value=[
@@ -87,6 +133,37 @@ def mock_yahoo_tools(
             }
         ],
     )
+    mocker.patch(
+        "agent.context_validator.get_user_teams",
+        return_value=[
+            {
+                "league_id": "12345",
+                "team_id": "1",
+                "team_name": "Test Team",
+                "game_key": "nhl.l.12345",
+                "league_name": "Test League",
+            }
+        ],
+    )
+
+    # Mock OAuth tokens to simulate authenticated user
+    mocker.patch(
+        "agent.context_validator.load_tokens_from_db",
+        return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
+    )
+
+    # Mock memory store to simulate returning user (not first-time)
+    mock_memory_store = mocker.MagicMock()
+    # Create mock item with .value attribute that search_past_conversations expects
+    mock_item = mocker.MagicMock()
+    mock_item.value = {
+        "summary": "Past conversation about fantasy hockey",
+        "players_mentioned": [],
+        "decisions_made": [],
+        "created_at": "2024-01-01",
+    }
+    mock_memory_store.search.return_value = [mock_item]
+    mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
     # Create mock client with all necessary responses configured
     mock_client = mocker.MagicMock()

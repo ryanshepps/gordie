@@ -6,8 +6,8 @@
 
 - [x] Email correspondence.
 - [ ] Trade Agent
-  - [ ] Makes consistent recommendations.
-  - [ ] Good recommendations.
+  - [x] Makes consistent recommendations.
+  - [x] Good recommendations.
   - [ ] Finds teams that are desperate for the subject player (e.g., Team 4 is desperate for Quarterback)
 - [ ] Waiver Agent
   - [ ] Makes consistent recommendations.

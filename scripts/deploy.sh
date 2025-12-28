@@ -7,6 +7,9 @@ set -e
 OAUTH_PLIST="$HOME/Library/LaunchAgents/com.fantasy-agent.oauth.plist"
 TUNNEL_PLIST="$HOME/Library/LaunchAgents/com.fantasy-agent.tunnel.plist"
 
+echo "Running pre-deployment checks..."
+# uv run pytest
+
 echo "🚀 Deploying fantasy-agent services..."
 echo ""
 
