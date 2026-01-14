@@ -130,9 +130,17 @@ def _prepare_input_state(state: AgentState, context_msg: SystemMessage) -> dict[
     return input_state
 
 
+def _add_error_response(state: AgentState, error_message: str) -> None:
+    """Add an error message as an AIMessage to state messages."""
+    messages = list(state.get("messages", []))
+    messages.append(AIMessage(content=error_message))
+    state["messages"] = messages
+    state["response"] = error_message
+
+
 def _invoke_supervisor(
     state: AgentState, user_email: str
-) -> Command[Literal["clarification", "email", "__end__"]]:
+) -> Command[Literal["email", "__end__"]]:
     """Invoke the supervisor agent and return the appropriate command."""
     try:
         context_msg, league_id, team_id = _build_context_message(state, user_email)
@@ -167,20 +175,20 @@ def _invoke_supervisor(
                     return Command(goto="email", update=state)
 
         # No valid response
-        state["response"] = "I couldn't process your request. Could you please rephrase?"
-        return Command(goto="clarification", update=state)
+        _add_error_response(state, "I couldn't process your request. Could you please rephrase?")
+        return Command(goto="email", update=state)
 
     except Exception as e:
         logger.error(f"Error in supervisor agent: {e}", exc_info=True)
-        state["response"] = (
-            "I encountered an error processing your request. Could you please try again?"
+        _add_error_response(
+            state, "I encountered an error processing your request. Could you please try again?"
         )
-        return Command(goto="clarification", update=state)
+        return Command(goto="email", update=state)
 
 
 def supervisor_node(
     state: AgentState,
-) -> Command[Literal["clarification", "email", "__end__"]]:
+) -> Command[Literal["email", "__end__"]]:
     """Supervisor node that routes user requests to appropriate sub-agents."""
     messages = state.get("messages", [])
     user_email = state.get("user_email") or ""
@@ -200,14 +208,3 @@ def supervisor_node(
 
     # Invoke supervisor agent
     return _invoke_supervisor(state, user_email)
-
-
-def clarification_node(state: AgentState) -> Command[Literal["__end__"]]:
-    """
-    Node that returns clarification message to user and ends the flow.
-    User must respond before the flow can continue.
-    """
-    if not state.get("response"):
-        state["response"] = "I need more information. Which team are you asking about?"
-
-    return Command(goto=END_NODE, update=state)

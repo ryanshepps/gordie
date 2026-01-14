@@ -13,15 +13,14 @@ from langgraph.graph import StateGraph
 
 from agent.agent_state import AgentState
 from agent.email_node import email_node
-from agent.SupervisorAgent import clarification_node, supervisor_node
+from agent.SupervisorAgent import supervisor_node
 
 
 def build_agent_graph():
     """Build and return the simplified agent graph.
 
-    The graph has 3 nodes:
+    The graph has 2 nodes:
     - supervisor: Handles requests via sub-agent tools
-    - clarification: Asks user for more information when needed
     - email: Sends the response to the user
 
     Sub-agents (onboarding, player_comparison) are invoked as tools
@@ -30,7 +29,6 @@ def build_agent_graph():
     workflow = StateGraph(AgentState)
 
     workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("clarification", clarification_node)
     workflow.add_node("email", email_node)
 
     workflow.set_entry_point("supervisor")
