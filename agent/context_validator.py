@@ -34,7 +34,6 @@ class ValidationResult:
     system_message: str
     league_id: str | None = None
     team_id: str | None = None
-    validation_status: str = "unknown"
 
 
 def _sanitize_namespace_label(label: str) -> str:
@@ -109,7 +108,6 @@ def _handle_missing_email() -> ValidationResult:
     """Handle case where user email is missing from state."""
     return ValidationResult(
         system_message="Error: No user email found. Tell the user there was an error and to try again.",
-        validation_status="missing_email",
     )
 
 
@@ -139,7 +137,6 @@ Your response MUST:
 4. Be friendly and welcoming
 
 Do NOT proceed with any fantasy-specific requests until they onboard."""
-        status = "first_time_user"
     else:
         system_message = f"""NO OAUTH TOKENS
 
@@ -151,9 +148,8 @@ Your response MUST:
 3. Explain that you cannot help with fantasy requests until they authenticate
 
 Do NOT proceed with their request."""
-        status = "no_oauth"
 
-    return ValidationResult(system_message=system_message, validation_status=status)
+    return ValidationResult(system_message=system_message)
 
 
 def _fetch_hockey_teams(user_email: str) -> list[dict[str, str]]:
@@ -231,14 +227,12 @@ Your response MUST:
 3. Once they have a hockey team, they can come back and you'll help them onboard
 
 Do NOT proceed with their request."""
-            return ValidationResult(
-                system_message=system_message, validation_status="no_hockey_teams"
-            )
+            return ValidationResult(system_message=system_message)
 
         formatted_teams = _format_teams_for_display(hockey_teams)
         system_message = _build_team_selection_message(formatted_teams, user_email)
 
-        return ValidationResult(system_message=system_message, validation_status="team_selection")
+        return ValidationResult(system_message=system_message)
 
     except Exception as e:
         logger.error(f"Error fetching available teams for {user_email}: {e}")
@@ -252,7 +246,7 @@ Your response MUST:
 3. If the problem persists, they should check their Yahoo Fantasy account
 
 Do NOT proceed with their request."""
-        return ValidationResult(system_message=system_message, validation_status="fetch_error")
+        return ValidationResult(system_message=system_message)
 
 
 def _handle_ambiguous_team_selection(user_teams: list[dict[str, str]]) -> ValidationResult:
@@ -272,9 +266,7 @@ Ask them to clarify which team they're referring to.
 
 Do NOT proceed with their request until you know which team."""
 
-    return ValidationResult(
-        system_message=system_message, validation_status="team_clarification_needed"
-    )
+    return ValidationResult(system_message=system_message)
 
 
 def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
@@ -283,7 +275,6 @@ def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
         system_message="Context validated. Proceed with the user's request.",
         league_id=league_id,
         team_id=team_id,
-        validation_status="validated",
     )
 
 
