@@ -280,7 +280,7 @@ def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
 
 def validate_and_build_system_message(
     state: AgentState, memory_store: BaseStore
-) -> tuple[str, str | None, str | None]:
+) -> ValidationResult:
     """
     Validate user context through a series of checks.
 
@@ -292,32 +292,24 @@ def validate_and_build_system_message(
     5. Final validation
 
     Returns:
-        Tuple of (system_message, league_id, team_id)
-        - system_message: Instructions for Gordie
-        - league_id: Resolved league ID or None
-        - team_id: Resolved team ID or None
+        ValidationResult containing system_message, league_id, and team_id
     """
     user_email, thread_id = _extract_user_info(state)
     if not user_email:
-        result = _handle_missing_email()
-        return result.system_message, result.league_id, result.team_id
+        return _handle_missing_email()
 
     has_oauth = _check_oauth_status(user_email)
     is_first_time = _is_first_time_user(user_email, memory_store)
 
     if is_first_time or not has_oauth:
-        result = _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
-        return result.system_message, result.league_id, result.team_id
+        return _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
 
     user_teams = get_user_teams(user_email)
     if not user_teams:
-        result = _handle_no_teams_in_db(user_email)
-        return result.system_message, result.league_id, result.team_id
+        return _handle_no_teams_in_db(user_email)
 
     league_id, team_id = _resolve_team_context(state, user_teams)
     if not league_id or not team_id:
-        result = _handle_ambiguous_team_selection(user_teams)
-        return result.system_message, result.league_id, result.team_id
+        return _handle_ambiguous_team_selection(user_teams)
 
-    result = _handle_validated_context(league_id, team_id)
-    return result.system_message, result.league_id, result.team_id
+    return _handle_validated_context(league_id, team_id)

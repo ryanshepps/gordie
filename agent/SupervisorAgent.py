@@ -105,19 +105,17 @@ def _build_context_message(
     from agent.memory_store import get_memory_store
 
     # Run context validation
-    validation_message, league_id, team_id = validate_and_build_system_message(
-        state, get_memory_store()
-    )
+    result = validate_and_build_system_message(state, get_memory_store())
 
     # Build the full context message
-    parts = [f"User email: {user_email}", "", validation_message]
+    parts = [f"User email: {user_email}", "", result.system_message]
 
-    if league_id:
-        parts.append(f"\nLeague ID: {league_id}")
-    if team_id:
-        parts.append(f"Team ID: {team_id}")
+    if result.league_id:
+        parts.append(f"\nLeague ID: {result.league_id}")
+    if result.team_id:
+        parts.append(f"Team ID: {result.team_id}")
 
-    return SystemMessage(content="\n".join(parts)), league_id, team_id
+    return SystemMessage(content="\n".join(parts)), result.league_id, result.team_id
 
 
 def _prepare_input_state(state: AgentState, context_msg: SystemMessage) -> dict[str, Any]:
