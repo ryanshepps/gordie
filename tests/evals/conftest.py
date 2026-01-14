@@ -139,8 +139,7 @@ def mock_yahoo_tools(
     mock_available_players_waiver_response: dict[str, Any],
 ) -> Generator[dict[str, Any]]:
     """Mock Yahoo tools to return test data instead of calling Yahoo API."""
-    # Mock get_user_teams to prevent onboarding redirect
-    # Must patch in both modules since context_validator imports it directly
+    # Mock get_user_teams_with_league_info on the repository to prevent onboarding redirect
     mock_teams = [
         {
             "league_id": "12345",
@@ -151,11 +150,7 @@ def mock_yahoo_tools(
         }
     ]
     mock_get_user_teams = mocker.patch(
-        "agent.agent_state.get_user_teams",
-        return_value=mock_teams,
-    )
-    mocker.patch(
-        "agent.context_validator.get_user_teams",
+        "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
         return_value=mock_teams,
     )
 

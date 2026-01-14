@@ -41,8 +41,11 @@ class TestFirstTimeUser:
         mocker,
     ):
         """Verify first-time user receives welcome message with OAuth link."""
-        # Mock get_user_teams to return empty list
-        mocker.patch("agent.context_validator.get_user_teams", return_value=[])
+        # Mock get_user_teams_with_league_info to return empty list
+        mocker.patch(
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            return_value=[],
+        )
 
         # Mock memory store to return no past conversations (first-time user)
         mock_memory_store = mocker.MagicMock()
@@ -125,8 +128,11 @@ class TestReturningUserNoTeams:
         mocker,
     ):
         """Verify returning user without teams is prompted to connect."""
-        # Mock get_user_teams to return empty list
-        mocker.patch("agent.context_validator.get_user_teams", return_value=[])
+        # Mock get_user_teams_with_league_info to return empty list
+        mocker.patch(
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            return_value=[],
+        )
 
         # Mock memory store to return past conversations (NOT first-time user)
         mock_memory_store = mocker.MagicMock()
@@ -235,9 +241,9 @@ class TestMultipleTeamsClarification:
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
-        # Mock get_user_teams to return multiple teams
+        # Mock get_user_teams_with_league_info to return multiple teams
         mocker.patch(
-            "agent.context_validator.get_user_teams",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
             return_value=multi_team_user_state.get("user_teams", []),
         )
 
@@ -327,9 +333,9 @@ class TestSingleTeamProceeds:
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
-        # Mock get_user_teams to return one team
+        # Mock get_user_teams_with_league_info to return one team
         mocker.patch(
-            "agent.context_validator.get_user_teams",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
             return_value=single_team_user_state.get("user_teams", []),
         )
 
@@ -399,8 +405,11 @@ class TestOAuthURLPresence:
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_oauth_url_never_paraphrased(self, mocker):
         """Verify OAuth URLs are included exactly, not paraphrased."""
-        # Mock get_user_teams to return empty list
-        mocker.patch("agent.context_validator.get_user_teams", return_value=[])
+        # Mock get_user_teams_with_league_info to return empty list
+        mocker.patch(
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            return_value=[],
+        )
 
         # Mock memory store (first-time user)
         mock_memory_store = mocker.MagicMock()

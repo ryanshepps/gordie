@@ -34,9 +34,9 @@ class TestOnboardingOAuth:
         mocker,
     ):
         """Verify the agent sends OAuth link on the very first email to unauthenticated user."""
-        # Mock get_user_teams to return empty list (unauthenticated user)
+        # Mock get_user_teams_with_league_info to return empty list (unauthenticated user)
         mocker.patch(
-            "agent.SupervisorAgent.get_user_teams",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
             return_value=[],
         )
 

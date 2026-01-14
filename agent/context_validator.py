@@ -20,7 +20,8 @@ from dataclasses import dataclass
 
 from langgraph.store.base import BaseStore
 
-from agent.agent_state import AgentState, get_user_teams
+from agent.agent_state import AgentState
+from data.yahoo_user_team_repository import YahooUserTeamRepository
 from tools.oauth.generate_oauth_link import generate_oauth_link
 from tools.yahoo.get_user_leagues import get_user_leagues
 
@@ -304,7 +305,11 @@ def validate_and_build_system_message(
     if is_first_time or not has_oauth:
         return _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
 
-    user_teams = get_user_teams(user_email)
+    repo = YahooUserTeamRepository()
+    try:
+        user_teams = repo.get_user_teams_with_league_info(user_email)
+    finally:
+        repo.close()
     if not user_teams:
         return _handle_no_teams_in_db(user_email)
 

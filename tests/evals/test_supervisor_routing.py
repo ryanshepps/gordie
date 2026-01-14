@@ -57,9 +57,9 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
-    # Mock get_user_teams - must patch where it's used (context_validator), not where it's defined
+    # Mock get_user_teams_with_league_info on the repository
     mocker.patch(
-        "agent.context_validator.get_user_teams",
+        "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
         return_value=[
             {
                 "league_id": "12345",

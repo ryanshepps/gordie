@@ -48,6 +48,45 @@ class YahooUserTeamRepository(Repository):
         """
         return self.get_all(user_email=user_email)
 
+    def get_user_teams_with_league_info(self, user_email: str) -> list[dict[str, str]]:
+        """Get all teams for a user with league details.
+
+        Joins yahoo_user_teams with yahoo_leagues to include league name and game key.
+
+        Args:
+            user_email: User's email address
+
+        Returns:
+            List of team dicts with keys: league_id, team_id, team_name, game_key, league_name
+
+        Used by: context_validator.validate_and_build_system_message
+        """
+        result = self.conn.execute(
+            """
+            SELECT
+                yut.league_id,
+                yut.team_id,
+                yut.team_name,
+                yl.game_key,
+                yl.league_name
+            FROM yahoo_user_teams yut
+            JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
+            WHERE yut.user_email = ?
+            """,
+            [user_email],
+        ).fetchall()
+
+        return [
+            {
+                "league_id": str(row[0]),
+                "team_id": str(row[1]),
+                "team_name": str(row[2]),
+                "game_key": str(row[3]),
+                "league_name": str(row[4]),
+            }
+            for row in result
+        ]
+
     def get_team(self, league_id: str, team_id: str) -> tuple[Any, ...] | None:
         """Get a specific team.
 

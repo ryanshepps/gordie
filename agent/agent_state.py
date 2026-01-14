@@ -6,8 +6,6 @@ from typing import Annotated, Any, Literal
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from client.duck_db_client import get_platform_db_connection
-
 logger = logging.getLogger(__name__)
 
 
@@ -52,38 +50,3 @@ class AgentState(_AgentStateRequired, total=False):
     # Email threading fields
     original_subject: str | None  # Original email subject for reply threading
     original_message: str | None  # Original user message for quoting in replies
-
-
-def get_user_teams(user_email: str) -> list[dict[str, str]]:
-    """Query database to get all teams for a user."""
-    conn = get_platform_db_connection()
-    try:
-        result = conn.execute(
-            """
-            SELECT
-                yut.league_id,
-                yut.team_id,
-                yut.team_name,
-                yl.game_key,
-                yl.league_name
-            FROM yahoo_user_teams yut
-            JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
-            WHERE yut.user_email = ?
-        """,
-            [user_email],
-        ).fetchall()
-
-        teams = []
-        for row in result:
-            teams.append(
-                {
-                    "league_id": str(row[0]),
-                    "team_id": str(row[1]),
-                    "team_name": str(row[2]),
-                    "game_key": str(row[3]),
-                    "league_name": str(row[4]),
-                }
-            )
-        return teams
-    finally:
-        conn.close()
