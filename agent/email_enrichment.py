@@ -135,15 +135,15 @@ def fetch_player_stats(
     player_names: list[str],
     user_email: str,
     league_id: str,
-    season: int = 2025,
 ) -> list[dict[str, Any]]:
     """Fetch comprehensive stats for players using the consolidated stats tool.
+
+    Automatically uses the current NHL season.
 
     Args:
         player_names: List of player names to fetch stats for
         user_email: User's email for Yahoo OAuth
         league_id: Yahoo fantasy league ID
-        season: NHL season year
 
     Returns:
         List of formatted player stat dicts
@@ -158,7 +158,6 @@ def fetch_player_stats(
             user_email=user_email,
             league_id=league_id,
             situation="all",
-            season=season,
         )
         data = json.loads(response)
 
@@ -308,9 +307,10 @@ def enrich_email_with_player_stats(
     message_content: str,
     user_email: str,
     league_id: str,
-    season: int = 2025,
 ) -> tuple[str, str]:
     """Extract players from email and generate stats tables.
+
+    Automatically uses the current NHL season.
 
     This is the main entry point for email enrichment. It:
     1. Extracts player names from the message content
@@ -321,7 +321,6 @@ def enrich_email_with_player_stats(
         message_content: The email message content
         user_email: User's email for Yahoo OAuth
         league_id: Yahoo fantasy league ID
-        season: NHL season year for stats
 
     Returns:
         Tuple of (markdown_table, html_table) to append to email
@@ -340,7 +339,6 @@ def enrich_email_with_player_stats(
         player_names=player_names,
         user_email=user_email,
         league_id=league_id,
-        season=season,
     )
 
     if not stats:

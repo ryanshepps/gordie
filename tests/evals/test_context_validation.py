@@ -231,14 +231,14 @@ class TestMultipleTeamsClarification:
         """Verify user with multiple teams is asked to clarify which team."""
         # Mock OAuth tokens (user is authenticated)
         mocker.patch(
-            "agent.context_validator.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
         # Mock get_user_teams to return multiple teams
         mocker.patch(
             "agent.context_validator.get_user_teams",
-            return_value=multi_team_user_state["user_teams"],
+            return_value=multi_team_user_state.get("user_teams", []),
         )
 
         # Mock memory store (has conversations, not first-time)
@@ -323,14 +323,14 @@ class TestSingleTeamProceeds:
         """Verify user with one team has it auto-assigned and request proceeds."""
         # Mock OAuth tokens (user is authenticated)
         mocker.patch(
-            "agent.context_validator.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
         # Mock get_user_teams to return one team
         mocker.patch(
             "agent.context_validator.get_user_teams",
-            return_value=single_team_user_state["user_teams"],
+            return_value=single_team_user_state.get("user_teams", []),
         )
 
         # Mock memory store (has conversations, not first-time)

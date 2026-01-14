@@ -13,6 +13,7 @@ Data is free for non-commercial use with attribution to MoneyPuck.com.
 """
 
 import time
+from datetime import datetime
 from io import StringIO
 from typing import cast
 
@@ -22,6 +23,29 @@ import requests
 from module.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def get_current_nhl_season() -> int:
+    """Get the current NHL season year.
+
+    NHL seasons run from October to June of the following year.
+    If it's currently October-December, the season started this year.
+    If it's January-September, we're in a season that started last year.
+
+    Returns:
+        Starting year of the current NHL season (e.g., 2025 for 2025-2026 season)
+    """
+    now = datetime.now()
+    current_year = now.year
+
+    # NHL season typically starts in October
+    # If we're in October, November, or December, the season started this year
+    # If we're in January-September, the season started last year
+    if now.month >= 10:
+        return current_year
+    else:
+        return current_year - 1
+
 
 # Cache configuration
 CACHE_TTL_SECONDS = 3600  # 1 hour cache
@@ -51,11 +75,11 @@ def _is_cache_valid(cache_key: str) -> bool:
     return (time.time() - timestamp) < CACHE_TTL_SECONDS
 
 
-def fetch_skater_stats(season: int = 2025, force_refresh: bool = False) -> pd.DataFrame:
+def fetch_skater_stats(season: int | None = None, force_refresh: bool = False) -> pd.DataFrame:
     """Fetch skater statistics from MoneyPuck.
 
     Args:
-        season: Starting year of the season (e.g., 2024 for 2024-2025)
+        season: Starting year of the season (e.g., 2024 for 2024-2025). Defaults to current season.
         force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
@@ -64,6 +88,9 @@ def fetch_skater_stats(season: int = 2025, force_refresh: bool = False) -> pd.Da
     Raises:
         requests.RequestException: If the download fails
     """
+    if season is None:
+        season = get_current_nhl_season()
+
     cache_key = f"skaters_{season}"
 
     if not force_refresh and _is_cache_valid(cache_key):
@@ -87,7 +114,7 @@ def get_player_stats(
     player_id: int | None = None,
     player_name: str | None = None,
     situation: str = "all",
-    season: int = 2025,
+    season: int | None = None,
 ) -> pd.DataFrame:
     """Get statistics for a specific player.
 
@@ -95,7 +122,7 @@ def get_player_stats(
         player_id: NHL player ID (preferred)
         player_name: Player name for fuzzy matching (used if player_id not provided)
         situation: Game situation filter - 'all', '5on5', '5on4', '4on5', 'other'
-        season: Starting year of the season
+        season: Starting year of the season. Defaults to current season.
 
     Returns:
         DataFrame with player statistics (may have multiple rows for different situations)
@@ -105,6 +132,9 @@ def get_player_stats(
     """
     if player_id is None and player_name is None:
         raise ValueError("Either player_id or player_name must be provided")
+
+    if season is None:
+        season = get_current_nhl_season()
 
     df = fetch_skater_stats(season)
 
@@ -126,18 +156,21 @@ def get_player_stats(
 def get_multiple_players_stats(
     player_ids: list[int],
     situation: str = "all",
-    season: int = 2025,
+    season: int | None = None,
 ) -> pd.DataFrame:
     """Get statistics for multiple players.
 
     Args:
         player_ids: List of NHL player IDs
         situation: Game situation filter
-        season: Starting year of the season
+        season: Starting year of the season. Defaults to current season.
 
     Returns:
         DataFrame with statistics for all requested players
     """
+    if season is None:
+        season = get_current_nhl_season()
+
     df = fetch_skater_stats(season)
 
     # Filter by situation
@@ -152,7 +185,7 @@ def get_multiple_players_stats(
 def search_players(
     query: str,
     situation: str = "all",
-    season: int = 2025,
+    season: int | None = None,
     limit: int = 10,
 ) -> pd.DataFrame:
     """Search for players by name.
@@ -160,12 +193,15 @@ def search_players(
     Args:
         query: Search string (case-insensitive)
         situation: Game situation filter
-        season: Starting year of the season
+        season: Starting year of the season. Defaults to current season.
         limit: Maximum number of results
 
     Returns:
         DataFrame with matching players, sorted by games played
     """
+    if season is None:
+        season = get_current_nhl_season()
+
     df = fetch_skater_stats(season)
 
     # Filter by situation
@@ -185,7 +221,7 @@ def search_players(
 def get_league_leaders(
     stat: str,
     situation: str = "all",
-    season: int = 2025,
+    season: int | None = None,
     limit: int = 10,
     min_games: int = 10,
     ascending: bool = False,
@@ -195,7 +231,7 @@ def get_league_leaders(
     Args:
         stat: Column name to rank by (e.g., 'I_F_xGoals', 'I_F_goals', 'onIce_fenwickPercentage')
         situation: Game situation filter
-        season: Starting year of the season
+        season: Starting year of the season. Defaults to current season.
         limit: Number of leaders to return
         min_games: Minimum games played filter
         ascending: If True, return lowest values first
@@ -203,6 +239,9 @@ def get_league_leaders(
     Returns:
         DataFrame with league leaders for the specified stat
     """
+    if season is None:
+        season = get_current_nhl_season()
+
     df = fetch_skater_stats(season)
 
     # Filter by situation and minimum games

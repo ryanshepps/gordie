@@ -16,7 +16,6 @@ scrape_configs:
         labels:
           job: fantasy-agent
           component: server
-          log_type: application
           __path__: /app/server.log
     pipeline_stages:
       - json:
@@ -28,35 +27,12 @@ scrape_configs:
             agent_name: agent_name
             tool_name: tool_name
             user_email: user_email
+            exception: exception
       - labels:
           level:
           filename:
           agent_name:
           tool_name:
-      - timestamp:
-          source: timestamp
-          format: RFC3339
-
-  - job_name: server-error
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: fantasy-agent
-          component: server
-          log_type: error
-          __path__: /app/server-error.log
-    pipeline_stages:
-      - json:
-          expressions:
-            timestamp: timestamp
-            level: level
-            filename: filename
-            message: message
-            exception: exception
-      - labels:
-          level:
-          filename:
       - timestamp:
           source: timestamp
           format: RFC3339

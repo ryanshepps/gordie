@@ -8,6 +8,7 @@ for OAuth authentication and email processing.
 import atexit
 import logging
 import threading
+from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify
@@ -57,9 +58,8 @@ class Server:
         self.code_received = threading.Event()
 
         # Initialize Prometheus metrics for Flask
-        self.metrics = PrometheusMetrics(
-            self.app, path=None, defaults_prefix="fantasy_agent_flask"
-        )
+        # path=None disables automatic endpoint (we create custom /metrics endpoint later)
+        self.metrics = PrometheusMetrics(self.app, path=cast(str, cast(object, None)), defaults_prefix="fantasy_agent_flask")
 
         # Set up periodic metrics updates
         self.scheduler = BackgroundScheduler()
@@ -102,7 +102,9 @@ class Server:
 
         def run_server():
             # Add prometheus wsgi middleware to serve /metrics
-            self.app.wsgi_app = DispatcherMiddleware(self.app.wsgi_app, {"/metrics": make_wsgi_app()})
+            self.app.wsgi_app = DispatcherMiddleware(
+                self.app.wsgi_app, {"/metrics": make_wsgi_app()}
+            )
 
             self.app.run(
                 host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True

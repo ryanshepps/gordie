@@ -17,7 +17,7 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-from client.duck_db_client import get_platform_db_connection
+from data.yahoo_token_repository import save_tokens
 from module.logger import get_logger
 
 load_dotenv()
@@ -200,44 +200,6 @@ def get_yahoo_email(access_token: str) -> str | None:
         return None
 
 
-def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, Any]) -> None:
-    """Save OAuth tokens to database."""
-    logger = get_logger(__name__)
-    conn = get_platform_db_connection()
-    try:
-        # Ensure user exists first (to satisfy foreign key constraint)
-        _ = conn.execute(
-            """
-            INSERT INTO users (email) VALUES (?)
-            ON CONFLICT (email) DO NOTHING
-        """,
-            (user_email,),
-        )
-
-        # Now insert/update tokens
-        _ = conn.execute(
-            """
-            INSERT OR REPLACE INTO yahoo_tokens (
-                user_email, yahoo_email, access_token, refresh_token,
-                token_time, token_type, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """,
-            (
-                user_email,
-                yahoo_email,
-                token_data["access_token"],
-                token_data["refresh_token"],
-                token_data["token_time"],
-                token_data["token_type"],
-            ),
-        )
-        conn.commit()
-        logger.debug(f"Saved tokens for user {user_email}")
-    except Exception as e:
-        conn.rollback()
-        raise RuntimeError(f"Failed to save tokens: {e}") from e
-    finally:
-        conn.close()
 
 
 def notify_onboarding_agent(user_email: str, thread_id: str | None = None) -> None:
@@ -262,7 +224,9 @@ def notify_onboarding_agent(user_email: str, thread_id: str | None = None) -> No
         # Use provided thread_id or fallback to user_email for backwards compatibility
         active_thread_id = thread_id if thread_id else user_email
 
-        logger.info(f"Notifying OnboardingAgent for user {user_email} (thread: {active_thread_id})...")
+        logger.info(
+            f"Notifying OnboardingAgent for user {user_email} (thread: {active_thread_id})..."
+        )
         config: RunnableConfig = {"configurable": {"thread_id": active_thread_id}}
 
         # Send a message to the agent indicating OAuth is complete
@@ -295,35 +259,3 @@ def notify_onboarding_agent(user_email: str, thread_id: str | None = None) -> No
         # Don't raise - OAuth was successful, agent notification is secondary
 
 
-def load_tokens_from_db(user_email: str) -> dict[str, Any] | None:
-    """
-    Load OAuth tokens from database.
-
-    Args:
-        user_email: Email address of the user
-
-    Returns:
-        dict with token data if found, None otherwise
-    """
-    conn = get_platform_db_connection()
-    try:
-        result = conn.execute(
-            """
-            SELECT access_token, refresh_token, token_time, token_type
-            FROM yahoo_tokens
-            WHERE user_email = ?
-        """,
-            (user_email,),
-        ).fetchone()
-
-        if not result:
-            return None
-
-        return {
-            "access_token": result[0],
-            "refresh_token": result[1],
-            "token_time": result[2],
-            "token_type": result[3],
-        }
-    finally:
-        conn.close()

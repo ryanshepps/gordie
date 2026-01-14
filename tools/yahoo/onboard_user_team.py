@@ -9,7 +9,6 @@ from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
-from server.email_service import EmailService
 
 logger = get_logger(__name__)
 

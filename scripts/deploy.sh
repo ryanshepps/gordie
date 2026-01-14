@@ -65,5 +65,7 @@ echo ""
 echo "✅ Deployment complete!"
 echo ""
 echo "📝 View logs:"
-echo "  Server: tail -f server.log server-error.log"
+cat <<'EOF'
+  Server: tail -f server.log | jq -R 'fromjson? | select(.) | "\(.timestamp // "N/A") [\(.level)] \(.filename // ""):\(.line // "") \(.function // "") - \(.message)"'
+EOF
 echo "  Tunnel: tail -f tunnel.log tunnel-error.log"

@@ -165,15 +165,70 @@ class AuthenticatedYahooClient:
         # Use a dummy league_id if none provided (needed for user league queries)
         query_league_id = self.league_id or 0
 
-        return YahooFantasySportsQuery(
+        query = YahooFantasySportsQuery(
             league_id=str(query_league_id),
             game_code="nhl",
             game_id=None,
             yahoo_consumer_key=self.consumer_key,
             yahoo_consumer_secret=self.consumer_secret,
             env_file_location=Path("."),
-            save_token_data_to_env_file=True,
+            save_token_data_to_env_file=False,  # Disabled - we save to DB instead
         )
+
+        # Hook into the OAuth token refresh to save updated tokens to database
+        if query.oauth:
+            original_refresh = query.oauth.refresh_access_token
+
+            def refresh_with_db_save(*args, **kwargs):
+                # Call original refresh
+                result = original_refresh(*args, **kwargs)
+                # Save refreshed tokens to database
+                logger.info("Token refreshed - saving to database")
+                self._save_tokens_to_db(query)
+                return result
+
+            query.oauth.refresh_access_token = refresh_with_db_save
+
+        return query
+
+    def _save_tokens_to_db(self, query: YahooFantasySportsQuery) -> None:
+        """
+        Save current tokens from the query object to the database.
+
+        Args:
+            query: YahooFantasySportsQuery instance with current tokens
+        """
+        try:
+            # Extract token data from the query's oauth session
+            oauth = query.oauth
+            if oauth and hasattr(oauth, "access_token"):
+                token_time = datetime.now()
+
+                conn = get_platform_db_connection()
+                try:
+                    conn.execute(
+                        """
+                        UPDATE yahoo_tokens
+                        SET access_token = ?,
+                            refresh_token = ?,
+                            token_time = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_email = ?
+                        """,
+                        (
+                            oauth.access_token,
+                            oauth.refresh_token,
+                            token_time,
+                            self.user_email,
+                        ),
+                    )
+                    conn.commit()
+                    logger.info(f"Updated refreshed tokens in database for user: {self.user_email}")
+                finally:
+                    conn.close()
+        except Exception as e:
+            logger.error(f"Failed to save refreshed tokens to database: {e}")
+            # Don't raise - token refresh succeeded, DB update is secondary
 
     def _create_query_with_token(self, token_data: dict[str, str]) -> YahooFantasySportsQuery:
         """
@@ -183,7 +238,7 @@ class AuthenticatedYahooClient:
             token_data: Dictionary containing token information
 
         Returns:
-            Configured YahooFantasySportsQuery object
+            Configured YahooFantasySportsQuery object with token refresh hook
 
         Raises:
             RuntimeError: If query creation fails
@@ -199,7 +254,7 @@ class AuthenticatedYahooClient:
             # Use a dummy league_id if none provided (needed for user league queries)
             query_league_id = self.league_id or 0
 
-            return YahooFantasySportsQuery(
+            query = YahooFantasySportsQuery(
                 league_id=str(query_league_id),
                 game_code="nhl",
                 game_id=None,
@@ -207,8 +262,25 @@ class AuthenticatedYahooClient:
                 yahoo_consumer_secret=self.consumer_secret,
                 yahoo_access_token_json=full_token_data,
                 env_file_location=Path("."),
-                save_token_data_to_env_file=True,
+                save_token_data_to_env_file=False,  # Disabled - we save to DB instead
             )
+
+            # Hook into the OAuth token refresh to save updated tokens to database
+            if query.oauth:
+                original_refresh = query.oauth.refresh_access_token
+
+                def refresh_with_db_save(*args, **kwargs):
+                    # Call original refresh
+                    result = original_refresh(*args, **kwargs)
+                    # Save refreshed tokens to database
+                    logger.info("Token refreshed - saving to database")
+                    self._save_tokens_to_db(query)
+                    return result
+
+                query.oauth.refresh_access_token = refresh_with_db_save
+
+            return query
+
         except Exception as e:
             raise RuntimeError(
                 f"Failed to create Yahoo query: {e}. "

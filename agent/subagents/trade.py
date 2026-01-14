@@ -249,7 +249,10 @@ class TradeResponse(BaseModel):
 
         # For "trading_away", require subject player stats (the player being traded)
         # For "trading_for", subject player stats are optional (user may just want to acquire)
-        if self.trade_direction == "trading_away" and self.subject_player.lower() not in player_names_with_stats:
+        if (
+            self.trade_direction == "trading_away"
+            and self.subject_player.lower() not in player_names_with_stats
+        ):
             raise ValueError(
                 f"Missing stats for subject player '{self.subject_player}'. "
                 "You MUST call get_comprehensive_player_stats for the subject player."

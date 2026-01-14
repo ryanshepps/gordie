@@ -71,9 +71,7 @@ llm_tokens_used_total = Counter(
 )
 
 # System Resource Metrics
-system_cpu_usage_percent = Gauge(
-    "fantasy_agent_cpu_usage_percent", "Current CPU usage percentage"
-)
+system_cpu_usage_percent = Gauge("fantasy_agent_cpu_usage_percent", "Current CPU usage percentage")
 
 system_memory_usage_bytes = Gauge(
     "fantasy_agent_memory_usage_bytes", "Current memory usage in bytes"
@@ -86,9 +84,7 @@ system_disk_usage_bytes = Gauge(
 # Business Metrics
 active_users_total = Gauge("fantasy_agent_active_users_total", "Total number of active users")
 
-active_leagues_total = Gauge(
-    "fantasy_agent_active_leagues_total", "Total number of active leagues"
-)
+active_leagues_total = Gauge("fantasy_agent_active_leagues_total", "Total number of active leagues")
 
 emails_sent_total = Counter(
     "fantasy_agent_emails_sent_total", "Total emails sent to users", ["status"]

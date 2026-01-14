@@ -23,13 +23,15 @@ def test_comprehensive_stats():
 
     print(f"Testing comprehensive stats for: {', '.join(player_names)}\n")
 
-    result = get_comprehensive_player_stats.invoke({
-        "player_names": player_names,
-        "user_email": user_email,
-        "league_id": league_id,
-        "situation": "all",
-        "season": 2024,
-    })
+    result = get_comprehensive_player_stats.invoke(
+        {
+            "player_names": player_names,
+            "user_email": user_email,
+            "league_id": league_id,
+            "situation": "all",
+            "season": 2024,
+        }
+    )
 
     # Pretty print the results
     data = json.loads(result)

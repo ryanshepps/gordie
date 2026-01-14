@@ -6,12 +6,12 @@ import time
 
 from dotenv import load_dotenv
 
-from module.logger import get_logger
+from data.yahoo_token_repository import save_tokens
+from module.logger import get_logger, redirect_stderr_to_logger
 from server.oauth import (
     exchange_code,
     get_yahoo_email,
     notify_onboarding_agent,
-    save_tokens,
 )
 from server.oauth_nonce import delete_oauth_nonce, get_oauth_nonce_and_thread
 from server.server import Server
@@ -104,6 +104,9 @@ def handle_oauth_callback(server: Server) -> bool:
 
 def main():
     """Start the server."""
+    # Redirect all stderr output to structured JSON logs
+    redirect_stderr_to_logger(logger)
+
     host = "localhost"
     port = 8000
 

@@ -71,9 +71,7 @@ class TestMoneyPuckLookup:
 
     def test_finds_player_by_full_name(self, mock_moneypuck_search):
         """Player found by full name returns success with moneypuck source."""
-        result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids(player_names=["Connor McDavid"])
-        )
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Connor McDavid"]))
 
         assert "Connor McDavid" in result
         player_result = result["Connor McDavid"]
@@ -94,9 +92,7 @@ class TestMoneyPuckLookup:
 
     def test_finds_player_by_partial_name(self, mock_moneypuck_search):
         """Player found by partial name match returns success."""
-        result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids(player_names=["Draisaitl"])
-        )
+        result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Draisaitl"]))
 
         assert "Draisaitl" in result
         player_result = result["Draisaitl"]
@@ -106,9 +102,7 @@ class TestMoneyPuckLookup:
     def test_resolves_multiple_players(self, mock_moneypuck_search):
         """Multiple player names are resolved in a single call."""
         result = json.loads(
-            fuzzy_resolve_nhl_api_player_ids(
-                player_names=["McDavid", "Draisaitl", "Makar"]
-            )
+            fuzzy_resolve_nhl_api_player_ids(player_names=["McDavid", "Draisaitl", "Makar"])
         )
 
         assert len(result) == 3
@@ -154,9 +148,7 @@ class TestNHLAPIFallback:
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
             return_value=mock_response,
         ) as mock_get:
-            result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"])
-            )
+            result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"]))
 
             # Verify NHL API was called
             mock_get.assert_called_once()
@@ -184,9 +176,7 @@ class TestNHLAPIFallback:
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
             return_value=mock_response,
         ):
-            result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"])
-            )
+            result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"]))
 
         assert "message" in result["Crosby"]
         assert "NHL API" in result["Crosby"]["message"]
@@ -224,9 +214,7 @@ class TestNHLAPIFallback:
             "tools.player_comparison.fuzzy_resolve_nhl_api_player_ids.requests.get",
             side_effect=requests.RequestException("API Error"),
         ):
-            result = json.loads(
-                fuzzy_resolve_nhl_api_player_ids(player_names=["UnknownPlayer"])
-            )
+            result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["UnknownPlayer"]))
 
         player_result = result["UnknownPlayer"]
         assert player_result["status"] == "error"

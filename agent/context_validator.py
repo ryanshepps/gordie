@@ -1,19 +1,40 @@
-"""Context validation for agent initialization.
+"""
+Context Validation Pipeline
+===========================
 
-This module validates user context (first-time user, team availability, etc.)
-and returns system message instructions for Gordie.
+This module validates user context in 5 steps:
+
+1. Email validation - Ensure we have a user email
+2. Authentication check - First-time user or OAuth status
+3. Team availability - Check if user has onboarded teams
+4. Team resolution - Resolve which team the user is asking about
+5. Final validation - All checks passed
+
+Each step returns early with instructions for Gordie if validation fails.
+Only when all steps pass does the user get full access.
 """
 
 import ast
 import logging
+from dataclasses import dataclass
+
+from langgraph.store.base import BaseStore
 
 from agent.agent_state import AgentState, get_user_teams
-from langgraph.store.base import BaseStore
-from server.oauth import load_tokens_from_db
 from tools.oauth.generate_oauth_link import generate_oauth_link
 from tools.yahoo.get_user_leagues import get_user_leagues
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ValidationResult:
+    """Result of context validation."""
+
+    system_message: str
+    league_id: str | None = None
+    team_id: str | None = None
+    validation_status: str = "unknown"
 
 
 def _sanitize_namespace_label(label: str) -> str:
@@ -52,7 +73,6 @@ def _resolve_team_context(
 
     Returns: (league_id, team_id) or (None, None) if can't resolve
     """
-    # Check for team_context in last message
     messages = state.get("messages", [])
     if messages:
         last_message = messages[-1]
@@ -68,11 +88,9 @@ def _resolve_team_context(
             if len(parts) >= 4:
                 return parts[2], parts[3]
 
-    # Check state for existing league_id/team_id
     if state.get("league_id") and state.get("team_id"):
         return state.get("league_id"), state.get("team_id")
 
-    # Only one team - auto-assign
     if len(user_teams) == 1:
         team = user_teams[0]
         return team["league_id"], team["team_id"]
@@ -80,47 +98,37 @@ def _resolve_team_context(
     return None, None
 
 
-def validate_and_build_system_message(
-    state: AgentState, memory_store: BaseStore
-) -> tuple[str, str | None, str | None]:
-    """
-    Validate user context and build system message instructions for Gordie.
-
-    This runs deterministic checks and returns a system message that tells Gordie
-    what to do based on the validation results.
-
-    Returns:
-        Tuple of (system_message, league_id, team_id)
-        - system_message: Instructions for Gordie
-        - league_id: Resolved league ID or None
-        - team_id: Resolved team ID or None
-    """
+def _extract_user_info(state: AgentState) -> tuple[str, str]:
+    """Extract user email and thread ID from state."""
     user_email = state.get("user_email", "")
     thread_id = state.get("thread_id", "")
+    return user_email, thread_id
 
-    if not user_email:
-        return (
-            "Error: No user email found. Tell the user there was an error and to try again.",
-            None,
-            None,
-        )
 
-    # Check if user has OAuth tokens
+def _handle_missing_email() -> ValidationResult:
+    """Handle case where user email is missing from state."""
+    return ValidationResult(
+        system_message="Error: No user email found. Tell the user there was an error and to try again.",
+        validation_status="missing_email",
+    )
+
+
+def _check_oauth_status(user_email: str) -> bool:
+    """Check if user has valid OAuth tokens."""
+    from data.yahoo_token_repository import load_tokens_from_db
+
     user_tokens = load_tokens_from_db(user_email)
-    has_oauth = user_tokens is not None
+    return user_tokens is not None
 
-    # Get user's teams
-    user_teams = get_user_teams(user_email)
 
-    # Check if first-time user
-    is_first_time = _is_first_time_user(user_email, memory_store)
+def _handle_first_time_or_no_oauth(
+    user_email: str, thread_id: str, is_first_time: bool, has_oauth: bool
+) -> ValidationResult:
+    """Handle first-time users or users without OAuth tokens."""
+    oauth_url = generate_oauth_link.invoke({"user_email": user_email, "thread_id": thread_id})
 
-    # First-time user OR user without OAuth tokens
-    if is_first_time or not has_oauth:
-        oauth_url = generate_oauth_link.invoke({"user_email": user_email, "thread_id": thread_id})
-
-        if is_first_time:
-            system_message = f"""FIRST TIME USER DETECTED
+    if is_first_time:
+        system_message = f"""FIRST TIME USER DETECTED
 
 This is the very first message from this user.
 
@@ -131,8 +139,9 @@ Your response MUST:
 4. Be friendly and welcoming
 
 Do NOT proceed with any fantasy-specific requests until they onboard."""
-        else:
-            system_message = f"""NO OAUTH TOKENS
+        status = "first_time_user"
+    else:
+        system_message = f"""NO OAUTH TOKENS
 
 The user does not have valid Yahoo authentication.
 
@@ -142,68 +151,48 @@ Your response MUST:
 3. Explain that you cannot help with fantasy requests until they authenticate
 
 Do NOT proceed with their request."""
+        status = "no_oauth"
 
-        return system_message, None, None
+    return ValidationResult(system_message=system_message, validation_status=status)
 
-    # User is authenticated but has no teams in database
-    # Fetch their available teams from Yahoo and present them deterministically
-    if not user_teams:
-        logger.info(f"User {user_email} is authenticated but has no teams. Fetching available teams from Yahoo.")
 
-        try:
-            # Call get_user_leagues to fetch available teams
-            available_teams_str = get_user_leagues.invoke({"user_email": user_email})
+def _fetch_hockey_teams(user_email: str) -> list[dict[str, str]]:
+    """
+    Fetch user's hockey teams from Yahoo.
 
-            # Parse the string representation of the list
-            available_teams = ast.literal_eval(available_teams_str)
+    Returns list of hockey teams (sport='nhl').
+    Raises exception if API call fails.
+    """
+    available_teams_str = get_user_leagues.invoke({"user_email": user_email})
+    available_teams = ast.literal_eval(available_teams_str)
 
-            if not available_teams:
-                system_message = """NO TEAMS AVAILABLE
+    hockey_teams = [team for team in available_teams if team.get("sport") == "nhl"]
 
-The user has authenticated with Yahoo but has no Fantasy Hockey teams.
+    return hockey_teams
 
-Your response MUST:
-1. Explain that they don't have any Yahoo Fantasy Hockey teams
-2. Tell them to create a team on Yahoo Fantasy first
-3. Once they have a team, they can come back and you'll help them onboard
 
-Do NOT proceed with their request."""
-                return system_message, None, None
+def _format_teams_for_display(teams: list[dict[str, str]]) -> str:
+    """Format list of teams for display to user."""
+    teams_list = []
+    for team in teams:
+        active_status = "Active" if team.get("is_active", False) else "Off-season"
+        team_str = (
+            f"  - Team: {team['team_name']}\n"
+            f"    Season: {team['season']} ({active_status})\n"
+            f"    game_key={team['game_key']}, league_id={team['league_id']}, team_id={team['team_id']}"
+        )
+        teams_list.append(team_str)
 
-            # Filter to only hockey teams (game_code='nhl')
-            hockey_teams = [team for team in available_teams if team.get('sport') == 'nhl']
+    return "\n\n".join(teams_list)
 
-            if not hockey_teams:
-                system_message = """NO HOCKEY TEAMS AVAILABLE
 
-The user has authenticated with Yahoo but has no Fantasy Hockey teams (only other sports).
-
-Your response MUST:
-1. Explain that they don't have any Yahoo Fantasy Hockey teams
-2. Tell them to create a hockey team on Yahoo Fantasy first
-3. Once they have a hockey team, they can come back and you'll help them onboard
-
-Do NOT proceed with their request."""
-                return system_message, None, None
-
-            # Build a formatted list of teams
-            teams_list = []
-            for team in hockey_teams:
-                active_status = "Active" if team.get('is_active', False) else "Off-season"
-                team_str = (
-                    f"  - Team: {team['team_name']}\n"
-                    f"    Season: {team['season']} ({active_status})\n"
-                    f"    game_key={team['game_key']}, league_id={team['league_id']}, team_id={team['team_id']}"
-                )
-                teams_list.append(team_str)
-
-            teams_formatted = "\n\n".join(teams_list)
-
-            system_message = f"""SELECT TEAM TO ONBOARD
+def _build_team_selection_message(formatted_teams: str, user_email: str) -> str:
+    """Build system message prompting Gordie to help user select a team."""
+    return f"""SELECT TEAM TO ONBOARD
 
 The user has authenticated with Yahoo. Here are their available Fantasy Hockey teams:
 
-{teams_formatted}
+{formatted_teams}
 
 Your response MUST:
 1. Ask them which team they want to track with Gordie
@@ -217,11 +206,43 @@ Your response MUST:
 
 Do NOT ask them for technical IDs - just ask which team/league name, then YOU extract the IDs from the list above."""
 
-            return system_message, None, None
 
-        except Exception as e:
-            logger.error(f"Error fetching available teams for {user_email}: {e}")
-            system_message = f"""ERROR FETCHING TEAMS
+def _handle_no_teams_in_db(user_email: str) -> ValidationResult:
+    """
+    Handle case where user is authenticated but has no teams in database.
+
+    Fetches available teams from Yahoo and prompts user to select one.
+    """
+    logger.info(
+        f"User {user_email} is authenticated but has no teams. Fetching available teams from Yahoo."
+    )
+
+    try:
+        hockey_teams = _fetch_hockey_teams(user_email)
+
+        if not hockey_teams:
+            system_message = """NO HOCKEY TEAMS AVAILABLE
+
+The user has authenticated with Yahoo but has no Fantasy Hockey teams.
+
+Your response MUST:
+1. Explain that they don't have any Yahoo Fantasy Hockey teams
+2. Tell them to create a hockey team on Yahoo Fantasy first
+3. Once they have a hockey team, they can come back and you'll help them onboard
+
+Do NOT proceed with their request."""
+            return ValidationResult(
+                system_message=system_message, validation_status="no_hockey_teams"
+            )
+
+        formatted_teams = _format_teams_for_display(hockey_teams)
+        system_message = _build_team_selection_message(formatted_teams, user_email)
+
+        return ValidationResult(system_message=system_message, validation_status="team_selection")
+
+    except Exception as e:
+        logger.error(f"Error fetching available teams for {user_email}: {e}")
+        system_message = f"""ERROR FETCHING TEAMS
 
 There was an error fetching the user's Yahoo Fantasy teams: {e}
 
@@ -231,17 +252,15 @@ Your response MUST:
 3. If the problem persists, they should check their Yahoo Fantasy account
 
 Do NOT proceed with their request."""
-            return system_message, None, None
+        return ValidationResult(system_message=system_message, validation_status="fetch_error")
 
-    # Resolve team context
-    league_id, team_id = _resolve_team_context(state, user_teams)
 
-    # Multiple teams but can't determine which one
-    if not league_id or not team_id:
-        teams_list = "\n".join(
-            [f"- {team['team_name']} in {team['league_name']}" for team in user_teams]
-        )
-        system_message = f"""TEAM CLARIFICATION NEEDED
+def _handle_ambiguous_team_selection(user_teams: list[dict[str, str]]) -> ValidationResult:
+    """Handle case where user has multiple teams but context is unclear."""
+    teams_list = "\n".join(
+        [f"- {team['team_name']} in {team['league_name']}" for team in user_teams]
+    )
+    system_message = f"""TEAM CLARIFICATION NEEDED
 
 The user has multiple teams but you cannot determine which one they're asking about.
 
@@ -253,9 +272,61 @@ Ask them to clarify which team they're referring to.
 
 Do NOT proceed with their request until you know which team."""
 
-        return system_message, None, None
+    return ValidationResult(
+        system_message=system_message, validation_status="team_clarification_needed"
+    )
 
-    # All checks passed
-    system_message = "Context validated. Proceed with the user's request."
 
-    return system_message, league_id, team_id
+def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
+    """Handle case where all validation checks have passed."""
+    return ValidationResult(
+        system_message="Context validated. Proceed with the user's request.",
+        league_id=league_id,
+        team_id=team_id,
+        validation_status="validated",
+    )
+
+
+def validate_and_build_system_message(
+    state: AgentState, memory_store: BaseStore
+) -> tuple[str, str | None, str | None]:
+    """
+    Validate user context through a series of checks.
+
+    This function runs through the validation pipeline:
+    1. Email validation
+    2. Authentication check
+    3. Team availability check
+    4. Team resolution
+    5. Final validation
+
+    Returns:
+        Tuple of (system_message, league_id, team_id)
+        - system_message: Instructions for Gordie
+        - league_id: Resolved league ID or None
+        - team_id: Resolved team ID or None
+    """
+    user_email, thread_id = _extract_user_info(state)
+    if not user_email:
+        result = _handle_missing_email()
+        return result.system_message, result.league_id, result.team_id
+
+    has_oauth = _check_oauth_status(user_email)
+    is_first_time = _is_first_time_user(user_email, memory_store)
+
+    if is_first_time or not has_oauth:
+        result = _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
+        return result.system_message, result.league_id, result.team_id
+
+    user_teams = get_user_teams(user_email)
+    if not user_teams:
+        result = _handle_no_teams_in_db(user_email)
+        return result.system_message, result.league_id, result.team_id
+
+    league_id, team_id = _resolve_team_context(state, user_teams)
+    if not league_id or not team_id:
+        result = _handle_ambiguous_team_selection(user_teams)
+        return result.system_message, result.league_id, result.team_id
+
+    result = _handle_validated_context(league_id, team_id)
+    return result.system_message, result.league_id, result.team_id

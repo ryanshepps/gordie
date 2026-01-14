@@ -57,19 +57,7 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
-    # Mock get_user_teams in both locations
-    mocker.patch(
-        "agent.SupervisorAgent.get_user_teams",
-        return_value=[
-            {
-                "league_id": "12345",
-                "team_id": "1",
-                "team_name": "Test Team",
-                "game_key": "nhl.l.12345",
-                "league_name": "Test League",
-            }
-        ],
-    )
+    # Mock get_user_teams - must patch where it's used (context_validator), not where it's defined
     mocker.patch(
         "agent.context_validator.get_user_teams",
         return_value=[
@@ -85,7 +73,7 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
 
     # Mock OAuth tokens to simulate authenticated user
     mocker.patch(
-        "agent.context_validator.load_tokens_from_db",
+        "data.yahoo_token_repository.load_tokens_from_db",
         return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
     )
 
@@ -147,7 +135,9 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
             team_id="2",
             team_key="nhl.l.12345.t.2",
             name="Opponent Team",
-            managers=[SimpleNamespace(nickname="Opponent", email="opp@test.com", is_commissioner=False)],
+            managers=[
+                SimpleNamespace(nickname="Opponent", email="opp@test.com", is_commissioner=False)
+            ],
             waiver_priority=3,
             number_of_moves=8,
             number_of_trades=1,
@@ -243,12 +233,12 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
 class TestPlayerDropRouting:
     """Test that player drop requests route to appropriate tools."""
 
-    def test_uses_advanced_stats_tools_for_drop_decision(
+    def test_uses_subagents_for_drop_decision(
         self,
         mock_user_state: AgentState,
         mock_yahoo_tools: None,
     ) -> None:
-        """Verify agent uses advanced stats tools for drop decisions."""
+        """Verify agent delegates to subagents for drop decisions."""
         mock_user_state["messages"] = [HumanMessage(content="Should I drop Timo Meier?")]
         result = supervisor_node(mock_user_state)
 
@@ -257,12 +247,12 @@ class TestPlayerDropRouting:
         tool_calls = extract_tool_calls_from_messages(result_messages)
         tool_names = [tc["name"] for tc in tool_calls]
 
-        uses_advanced_tools = any(
+        uses_subagents = any(
             tool in tool_names
-            for tool in ["get_comprehensive_player_stats", "get_moneypuck_stats", "fuzzy_resolve_nhl_api_player_ids", "get_roster"]
+            for tool in ["trade", "available_players"]
         )
 
-        assert uses_advanced_tools, f"Expected advanced stat tools, got: {tool_names}"
+        assert uses_subagents, f"Expected 'trade' or 'available_players' subagent, got: {tool_names}"
 
 
 class TestTradeRouting:

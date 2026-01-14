@@ -2,9 +2,9 @@
 
 import time
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -27,7 +27,7 @@ def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):
             pass
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args, **kwargs):
             last_exception = None
@@ -38,19 +38,22 @@ def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):
                     last_exception = e
                     error_msg = str(e).lower()
                     # Check for rate limit indicators
-                    if "429" in error_msg or "rate limit" in error_msg or "rate_limit" in error_msg:
-                        if attempt < max_retries - 1:
-                            delay = base_delay * (2**attempt)  # exponential backoff
-                            print(
-                                f"\n⚠️  Rate limit hit (attempt {attempt + 1}/{max_retries}). "
-                                f"Retrying in {delay}s..."
-                            )
-                            time.sleep(delay)
-                            continue
+                    if (
+                        "429" in error_msg or "rate limit" in error_msg or "rate_limit" in error_msg
+                    ) and attempt < max_retries - 1:
+                        delay = base_delay * (2**attempt)  # exponential backoff
+                        print(
+                            f"\n⚠️  Rate limit hit (attempt {attempt + 1}/{max_retries}). "
+                            f"Retrying in {delay}s..."
+                        )
+                        time.sleep(delay)
+                        continue
                     # If not a rate limit error, raise immediately
                     raise
             # If all retries exhausted, raise the last exception
-            raise last_exception
+            if last_exception is not None:
+                raise last_exception
+            raise RuntimeError("Retry logic failed without capturing an exception")
 
         return wrapper
 
@@ -59,6 +62,8 @@ def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):
 
 def _create_yahoo_response_handler(
     similar_ranked_players_response: dict[str, Any],
+    available_players_fa_response: dict[str, Any] | None = None,
+    available_players_waiver_response: dict[str, Any] | None = None,
 ) -> Any:
     """Create a handler that returns appropriate responses based on URL."""
     from unittest.mock import MagicMock
@@ -101,6 +106,18 @@ def _create_yahoo_response_handler(
         if "search=" in url.lower():
             # Player search query (get_player_season_rank)
             response.json.return_value = draisaitl_search_response
+        elif "status=FA" in url:
+            # Free agents query (get_available_players)
+            if available_players_fa_response:
+                response.json.return_value = available_players_fa_response
+            else:
+                response.json.return_value = similar_ranked_players_response
+        elif "status=W" in url:
+            # Waivers query (get_available_players)
+            if available_players_waiver_response:
+                response.json.return_value = available_players_waiver_response
+            else:
+                response.json.return_value = similar_ranked_players_response
         elif "sort=AR" in url:
             # Ranked players query (find_similar_ranked_players or rank lookup)
             response.json.return_value = similar_ranked_players_response
@@ -118,37 +135,33 @@ def mock_yahoo_tools(
     mock_roster_response: dict[str, Any],
     mock_league_teams_response: dict[str, Any],
     mock_similar_ranked_players_response: dict[str, Any],
+    mock_available_players_fa_response: dict[str, Any],
+    mock_available_players_waiver_response: dict[str, Any],
 ) -> Generator[dict[str, Any]]:
     """Mock Yahoo tools to return test data instead of calling Yahoo API."""
-    # Mock get_user_teams in both locations (prevents onboarding redirect)
+    # Mock get_user_teams to prevent onboarding redirect
+    # Must patch in both modules since context_validator imports it directly
+    mock_teams = [
+        {
+            "league_id": "12345",
+            "team_id": "1",
+            "team_name": "Test Team",
+            "game_key": "nhl.l.12345",
+            "league_name": "Test League",
+        }
+    ]
     mock_get_user_teams = mocker.patch(
-        "agent.SupervisorAgent.get_user_teams",
-        return_value=[
-            {
-                "league_id": "12345",
-                "team_id": "1",
-                "team_name": "Test Team",
-                "game_key": "nhl.l.12345",
-                "league_name": "Test League",
-            }
-        ],
+        "agent.agent_state.get_user_teams",
+        return_value=mock_teams,
     )
     mocker.patch(
         "agent.context_validator.get_user_teams",
-        return_value=[
-            {
-                "league_id": "12345",
-                "team_id": "1",
-                "team_name": "Test Team",
-                "game_key": "nhl.l.12345",
-                "league_name": "Test League",
-            }
-        ],
+        return_value=mock_teams,
     )
 
     # Mock OAuth tokens to simulate authenticated user
     mocker.patch(
-        "agent.context_validator.load_tokens_from_db",
+        "data.yahoo_token_repository.load_tokens_from_db",
         return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
     )
 
@@ -173,7 +186,9 @@ def mock_yahoo_tools(
 
     # Use side_effect to return different responses based on URL
     mock_client.query.get_response.side_effect = _create_yahoo_response_handler(
-        mock_similar_ranked_players_response
+        mock_similar_ranked_players_response,
+        mock_available_players_fa_response,
+        mock_available_players_waiver_response,
     )
 
     # Patch AuthenticatedYahooClient in ALL modules where it's imported
@@ -186,6 +201,7 @@ def mock_yahoo_tools(
         "tools.yahoo.get_player_season_rank",
         "tools.yahoo.get_roster",
         "tools.yahoo.get_available_players",
+        "tools.yahoo.get_available_players_with_stats",
         "tools.yahoo.onboard_user_team",
         "tools.yahoo.get_user_leagues",
     ]
@@ -353,6 +369,135 @@ def mock_league_teams_response() -> list[Any]:
         teams.append(team)
 
     return teams
+
+
+@pytest.fixture
+def mock_available_players_fa_response() -> dict[str, Any]:
+    """Mock response for get_available_players(status='FA') - Free Agents."""
+    return {
+        "fantasy_content": {
+            "league": [
+                {"league_key": "nhl.l.12345"},
+                {
+                    "players": {
+                        "0": {
+                            "player": [
+                                [
+                                    {"name": {"full": "Teuvo Teravainen"}},
+                                    {"player_key": "nhl.p.6334"},
+                                    {"player_id": "6334"},
+                                    {"display_position": "RW"},
+                                    {"editorial_team_abbr": "CHI"},
+                                    {"editorial_team_full_name": "Chicago Blackhawks"},
+                                    {
+                                        "ownership": {
+                                            "ownership_type": "freeagents",
+                                            "percent_owned": "45%",
+                                        }
+                                    },
+                                    {"status": None, "status_full": None},
+                                ]
+                            ]
+                        },
+                        "1": {
+                            "player": [
+                                [
+                                    {"name": {"full": "Brock Boeser"}},
+                                    {"player_key": "nhl.p.8478444"},
+                                    {"player_id": "8478444"},
+                                    {"display_position": "RW"},
+                                    {"editorial_team_abbr": "VAN"},
+                                    {"editorial_team_full_name": "Vancouver Canucks"},
+                                    {
+                                        "ownership": {
+                                            "ownership_type": "freeagents",
+                                            "percent_owned": "52%",
+                                        }
+                                    },
+                                    {"status": None, "status_full": None},
+                                ]
+                            ]
+                        },
+                        "2": {
+                            "player": [
+                                [
+                                    {"name": {"full": "Jake Guentzel"}},
+                                    {"player_key": "nhl.p.7753"},
+                                    {"player_id": "7753"},
+                                    {"display_position": "LW"},
+                                    {"editorial_team_abbr": "TBL"},
+                                    {"editorial_team_full_name": "Tampa Bay Lightning"},
+                                    {
+                                        "ownership": {
+                                            "ownership_type": "freeagents",
+                                            "percent_owned": "38%",
+                                        }
+                                    },
+                                    {"status": None, "status_full": None},
+                                ]
+                            ]
+                        },
+                        "count": 3,
+                    }
+                },
+            ]
+        }
+    }
+
+
+@pytest.fixture
+def mock_available_players_waiver_response() -> dict[str, Any]:
+    """Mock response for get_available_players(status='W') - Waivers."""
+    return {
+        "fantasy_content": {
+            "league": [
+                {"league_key": "nhl.l.12345"},
+                {
+                    "players": {
+                        "0": {
+                            "player": [
+                                [
+                                    {"name": {"full": "Filip Forsberg"}},
+                                    {"player_key": "nhl.p.6527"},
+                                    {"player_id": "6527"},
+                                    {"display_position": "LW"},
+                                    {"editorial_team_abbr": "NSH"},
+                                    {"editorial_team_full_name": "Nashville Predators"},
+                                    {
+                                        "ownership": {
+                                            "ownership_type": "waivers",
+                                            "percent_owned": "85%",
+                                        }
+                                    },
+                                    {"status": None, "status_full": None},
+                                ]
+                            ]
+                        },
+                        "1": {
+                            "player": [
+                                [
+                                    {"name": {"full": "Kirill Kaprizov"}},
+                                    {"player_key": "nhl.p.8479339"},
+                                    {"player_id": "8479339"},
+                                    {"display_position": "LW"},
+                                    {"editorial_team_abbr": "MIN"},
+                                    {"editorial_team_full_name": "Minnesota Wild"},
+                                    {
+                                        "ownership": {
+                                            "ownership_type": "waivers",
+                                            "percent_owned": "92%",
+                                        }
+                                    },
+                                    {"status": None, "status_full": None},
+                                ]
+                            ]
+                        },
+                        "count": 2,
+                    }
+                },
+            ]
+        }
+    }
 
 
 @pytest.fixture

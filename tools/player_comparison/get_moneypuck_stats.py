@@ -9,7 +9,7 @@ from typing import cast
 
 from pydantic import BaseModel, Field
 
-from client.moneypuck_client import get_multiple_players_stats
+from client.moneypuck_client import get_current_nhl_season, get_multiple_players_stats
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,10 +25,6 @@ class GetMoneyPuckStatsInput(BaseModel):
             "Game situation: 'all' (default), '5on5', '5on4' (power play), "
             "'4on5' (penalty kill), 'other'"
         ),
-    )
-    season: int = Field(
-        default=2025,
-        description="Starting year of the season (e.g., 2025 for 2025-2026 season)",
     )
 
 
@@ -157,10 +153,9 @@ def _format_player_stats(row: dict[str, object]) -> dict[str, str | int | float 
 def get_moneypuck_stats(
     player_ids: list[int],
     situation: str = "all",
-    season: int = 2024,
 ) -> str:
     """
-    Fetch advanced player statistics from MoneyPuck.
+    Fetch advanced player statistics from MoneyPuck for the current NHL season.
 
     MoneyPuck provides analytics not available from the NHL API including:
     - Expected Goals (xGoals): Probability-weighted shot quality metric
@@ -170,15 +165,16 @@ def get_moneypuck_stats(
     - Game Score: Composite player rating
 
     Data is cached for 1 hour to minimize API calls.
+    Automatically uses the current NHL season.
 
     Args:
         player_ids: List of NHL API player IDs
         situation: Game situation filter (all, 5on5, 5on4, 4on5, other)
-        season: Starting year of season (e.g., 2024 for 2024-25)
 
     Returns:
         JSON string with player statistics including advanced metrics
     """
+    season = get_current_nhl_season()
     results = {}
 
     try:

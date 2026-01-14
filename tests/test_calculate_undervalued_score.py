@@ -1,6 +1,5 @@
 """Unit tests for the calculate_undervalued_score function."""
 
-
 from tools.player_comparison.get_comprehensive_player_stats import (
     calculate_undervalued_score,
 )

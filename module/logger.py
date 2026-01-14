@@ -47,28 +47,33 @@ class CustomFormatter(logging.Formatter):
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     """JSON formatter for structured logging to files (for Loki ingestion)."""
 
-    def add_fields(self, log_record, record, message_dict):
-        super().add_fields(log_record, record, message_dict)
+    def add_fields(self, log_data, record, message_dict):
+        super().add_fields(log_data, record, message_dict)
 
-        log_record["timestamp"] = datetime.fromtimestamp(record.created).isoformat()
-        log_record["level"] = record.levelname
-        log_record["filename"] = Path(record.pathname).name
-        log_record["function"] = record.funcName
-        log_record["line"] = record.lineno
+        log_data["timestamp"] = datetime.fromtimestamp(record.created).isoformat()
+        log_data["level"] = record.levelname
+        log_data["filename"] = Path(record.pathname).name
+        log_data["function"] = record.funcName
+        log_data["line"] = record.lineno
 
-        if hasattr(record, "agent_name"):
-            log_record["agent_name"] = record.agent_name
-        if hasattr(record, "tool_name"):
-            log_record["tool_name"] = record.tool_name
-        if hasattr(record, "user_email"):
-            log_record["user_email"] = record.user_email
-        if hasattr(record, "duration_ms"):
-            log_record["duration_ms"] = record.duration_ms
-        if hasattr(record, "status"):
-            log_record["status"] = record.status
+        agent_name = getattr(record, "agent_name", None)
+        if agent_name is not None:
+            log_data["agent_name"] = agent_name
+        tool_name = getattr(record, "tool_name", None)
+        if tool_name is not None:
+            log_data["tool_name"] = tool_name
+        user_email = getattr(record, "user_email", None)
+        if user_email is not None:
+            log_data["user_email"] = user_email
+        duration_ms = getattr(record, "duration_ms", None)
+        if duration_ms is not None:
+            log_data["duration_ms"] = duration_ms
+        status = getattr(record, "status", None)
+        if status is not None:
+            log_data["status"] = status
 
         if record.exc_info:
-            log_record["exception"] = self.formatException(record.exc_info)
+            log_data["exception"] = self.formatException(record.exc_info)
 
 
 def get_logger(
@@ -121,3 +126,60 @@ def get_logger(
             logger.addHandler(console_handler)
 
     return logger
+
+
+class StderrToLogger:
+    """Stream wrapper that redirects stderr writes to the logger."""
+
+    def __init__(self, logger: logging.Logger, log_level: int = logging.ERROR):
+        self.logger = logger
+        self.log_level = log_level
+        self.buffer = ""
+
+    def write(self, message: str) -> int:
+        """Write message to logger instead of stderr."""
+        # Accumulate the message in buffer
+        self.buffer += message
+
+        # When we get a newline, log the accumulated message
+        if "\n" in self.buffer:
+            lines = self.buffer.split("\n")
+            # Log all complete lines (everything except the last item which might be incomplete)
+            for line in lines[:-1]:
+                if line.strip():  # Only log non-empty lines
+                    self.logger.log(self.log_level, line.rstrip())
+            # Keep the last incomplete part in the buffer
+            self.buffer = lines[-1]
+
+        return len(message)
+
+    def flush(self) -> None:
+        """Flush any remaining buffer content."""
+        if self.buffer.strip():
+            self.logger.log(self.log_level, self.buffer.rstrip())
+            self.buffer = ""
+
+    def isatty(self) -> bool:
+        """Return False since this is not a TTY."""
+        return False
+
+
+def redirect_stderr_to_logger(logger: logging.Logger | None = None) -> None:
+    """
+    Redirect all stderr output to the logger as ERROR level JSON logs.
+
+    This captures uncaught exceptions, framework errors, and any other
+    stderr output and formats them as structured JSON logs.
+
+    Args:
+        logger: Logger to redirect stderr to. If None, uses root logger.
+
+    Example:
+        # In your main script
+        logger = get_logger(__name__)
+        redirect_stderr_to_logger(logger)
+    """
+    if logger is None:
+        logger = logging.getLogger()
+
+    sys.stderr = StderrToLogger(logger, logging.ERROR)  # type: ignore[assignment]

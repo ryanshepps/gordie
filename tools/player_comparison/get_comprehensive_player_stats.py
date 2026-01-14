@@ -195,10 +195,6 @@ class GetComprehensivePlayerStatsInput(BaseModel):
             "'4on5' (penalty kill), 'other'"
         ),
     )
-    season: int = Field(
-        default=2025,
-        description="Starting year of the season (e.g., 2025 for 2025-2026 season)",
-    )
 
 
 class LinemateDict(TypedDict, total=False):
@@ -263,7 +259,6 @@ def _get_comprehensive_player_stats_impl(
     user_email: str,
     league_id: str,
     situation: str = "all",
-    season: int = 2025,
 ) -> str:
     """Internal implementation for get_comprehensive_player_stats."""
     results: dict[str, PlayerStatsDict] = {}
@@ -312,13 +307,11 @@ def _get_comprehensive_player_stats_impl(
             logger.info(f"Fetching MoneyPuck stats for {len(nhl_ids)} players")
 
             try:
-                moneypuck_response = get_moneypuck_stats(
-                    player_ids=nhl_ids, situation=situation, season=season
-                )
+                moneypuck_response = get_moneypuck_stats(player_ids=nhl_ids, situation=situation)
                 moneypuck_data = json.loads(moneypuck_response)
             except Exception as e:
                 logger.error(f"MoneyPuck fetch failed: {e}")
-                moneypuck_data = {}
+                raise  # Re-raise to make this a hard error instead of silently continuing
 
             # Step 3: Fetch team schedules for all unique teams
             teams_to_fetch = set()
@@ -459,7 +452,9 @@ def _get_comprehensive_player_stats_impl(
                     logger.warning(f"{full_name}: {warning}")
 
                 # Calculate undervalued score based on all collected stats
-                undervalued_score, undervalued_reasons = calculate_undervalued_score(cast(dict[str, Any], cast(object, player_result)))
+                undervalued_score, undervalued_reasons = calculate_undervalued_score(
+                    cast(dict[str, Any], cast(object, player_result))
+                )
                 player_result["undervalued_score"] = undervalued_score
                 player_result["undervalued_reasons"] = undervalued_reasons
 
@@ -492,14 +487,15 @@ def get_comprehensive_player_stats(
     user_email: str,
     league_id: str,
     situation: str = "all",
-    season: int = 2025,
 ) -> str:
     """
     Get comprehensive stats for multiple players including NHL IDs, MoneyPuck advanced stats, Yahoo fantasy rank, schedule, and linemates.
 
+    Automatically uses the current NHL season.
+
     This is a consolidated tool that:
     1. Resolves player names to NHL API IDs using fuzzy matching
-    2. Fetches advanced stats from MoneyPuck (xGoals, Fenwick%, Corsi%, etc.)
+    2. Fetches advanced stats from MoneyPuck (xGoals, Fenwick%, Corsi%, etc.) for current season
     3. Gets Yahoo fantasy league rank and ownership info
     4. Gets games remaining this week and next week for each player's team
     5. Gets linemate information including player IDs for easy lookup
@@ -510,11 +506,8 @@ def get_comprehensive_player_stats(
         user_email: User's email for Yahoo OAuth
         league_id: Yahoo fantasy league ID
         situation: MoneyPuck game situation filter (all, 5on5, 5on4, 4on5, other)
-        season: Starting year of season (e.g., 2025 for 2025-26)
 
     Returns:
         JSON string with comprehensive stats for each player
     """
-    return _get_comprehensive_player_stats_impl(
-        player_names, user_email, league_id, situation, season
-    )
+    return _get_comprehensive_player_stats_impl(player_names, user_email, league_id, situation)

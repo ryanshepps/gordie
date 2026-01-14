@@ -6,6 +6,9 @@ from langchain.tools import tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.player_comparison.get_comprehensive_player_stats import (
+    get_comprehensive_player_stats_internal,
+)
 
 logger = get_logger(__name__)
 
@@ -79,6 +82,8 @@ def get_available_players(
     count: int = 25,
     sort: str = "OR",
     sort_type: str = "season",
+    include_stats: bool = False,
+    enrich_top_n: int = 10,
 ) -> str:
     """
     Get available players (free agents and/or waivers) in a fantasy hockey league.
@@ -103,10 +108,13 @@ def get_available_players(
             - "season" = Full season stats (default)
             - "lastweek" = Stats from the last week
             - "lastmonth" = Stats from the last month
+        include_stats: If True, enrich top players with comprehensive stats
+            (MoneyPuck analytics, schedule, linemates, undervalued score)
+        enrich_top_n: Number of top players to enrich with stats (default 10)
 
     Returns:
         JSON string with available player information including names, positions,
-        teams, ownership status, and stats.
+        teams, ownership status, and optionally comprehensive stats.
     """
     yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
 
@@ -163,15 +171,43 @@ def get_available_players(
         if not result:
             return json.dumps({"players": [], "message": "No available players found"})
 
+        # Optionally enrich top players with comprehensive stats
+        if include_stats and result:
+            players_to_enrich = result[:enrich_top_n]
+            names_to_enrich = [p["name"] for p in players_to_enrich if p.get("name")]
+
+            if names_to_enrich:
+                logger.info(f"Enriching stats for {len(names_to_enrich)} players")
+                try:
+                    stats_response = get_comprehensive_player_stats_internal(
+                        player_names=names_to_enrich,
+                        user_email=user_email,
+                        league_id=league_id,
+                        situation="all",
+                    )
+                    enriched_stats = json.loads(stats_response)
+
+                    # Merge stats back into player results
+                    for player in result:
+                        name = player.get("name")
+                        if name and name in enriched_stats:
+                            player_stats = enriched_stats[name]
+                            if player_stats.get("status") == "success":
+                                player["comprehensive_stats"] = player_stats
+                except Exception as e:
+                    logger.error(f"Failed to enrich player stats: {e}")
+
         return json.dumps(
             {
                 "players": result,
                 "count": len(result),
+                "enriched_count": len([p for p in result if "comprehensive_stats" in p]) if include_stats else 0,
                 "filters": {
                     "status": status,
                     "position": position or "all",
                     "sort": sort,
                     "sort_type": sort_type,
+                    "include_stats": include_stats,
                 },
             }
         )

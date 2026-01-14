@@ -12,16 +12,13 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from agent.agent_state import AgentState, build_context, get_user_teams
+from agent.agent_state import AgentState
 from agent.context_validator import validate_and_build_system_message
+from agent.subagents.available import available_players
 from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
-from tools.player_comparison.compare_players_comprehensive import compare_players_comprehensive
-from tools.player_comparison.get_comprehensive_player_stats import get_comprehensive_player_stats
-from tools.yahoo.get_available_players import get_available_players
-from tools.yahoo.get_roster import get_roster
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 # Use literal string for END to satisfy type checker
@@ -60,11 +57,6 @@ URL in your response to the user. Never paraphrase or omit URLs.
 simply follow them. Present OAuth links or team lists exactly as specified. When the user selects \
 a team, call onboard_user_team with the correct parameters from the system message.
 4. Use search_past_conversations proactively when it would help provide better context-aware advice.
-5. **ALWAYS USE TOOLS FOR PLAYER ANALYSIS**: When asked about dropping/adding/analyzing a player, \
-you MUST call get_comprehensive_player_stats to get their actual stats before giving advice. \
-Never give vague responses - provide specific data-driven recommendations.
-
-The user's email and team context will be provided in system messages.
 """
 
 # Database setup for checkpointer
@@ -89,62 +81,16 @@ def create_supervisor_agent():
     return create_agent(
         model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
         tools=[
-            get_roster,
             trade,
+            available_players,
             onboard_user_team,
             search_past_conversations,
-            # Player analysis and comparison tools for roster decisions
-            get_comprehensive_player_stats,
-            compare_players_comprehensive,
-            get_available_players,
         ],
         middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
         system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
         checkpointer=checkpointer,
         state_schema=AgentState,  # type: ignore[arg-type]
     )
-
-
-def _get_team_context(message: Any) -> Any:
-    """Extract team_context from a message."""
-    if isinstance(message, dict):
-        return message.get("team_context")
-    return getattr(message, "team_context", None)
-
-
-def _resolve_team_context(
-    state: AgentState, team_context: Any, message_content: str, user_email: str
-) -> Command[Literal["clarification", "email", "__end__"]] | None:
-    """
-    Resolve team context and update state.
-
-    Returns a Command if clarification is needed, otherwise None.
-    """
-    user_teams = get_user_teams(user_email)
-    state["user_teams"] = user_teams
-
-    if team_context:
-        context = build_context(team_context, message_content, user_email)
-        if context.get("needs_clarification"):
-            state["response"] = cast(str | None, context.get("clarification_message"))
-            logger.info("Clarification needed - asking user to specify team")
-            return Command(goto="clarification", update=state)
-        state.update(
-            {
-                "league_id": cast(str | None, context.get("league_id")),
-                "team_id": cast(str | None, context.get("team_id")),
-            }
-        )
-    elif len(user_teams) == 1:
-        team = user_teams[0]
-        state.update(
-            {
-                "league_id": team.get("league_id"),
-                "team_id": team.get("team_id"),
-            }
-        )
-
-    return None
 
 
 def _build_context_message(
@@ -251,13 +197,8 @@ def supervisor_node(
     message_content = (
         last_message.content if hasattr(last_message, "content") else str(last_message)
     )
-    team_context = _get_team_context(last_message)
 
-    logger.info(f"Supervisor processing: {message_content[:100]}...")
-
-    # Resolve team context (may return early with clarification)
-    if cmd := _resolve_team_context(state, team_context, message_content, user_email):
-        return cmd
+    logger.info(f"Supervisor processing: {message_content}...")
 
     # Invoke supervisor agent
     return _invoke_supervisor(state, user_email)
