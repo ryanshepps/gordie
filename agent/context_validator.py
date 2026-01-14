@@ -38,8 +38,8 @@ class ValidationResult:
 
 
 def _sanitize_namespace_label(label: str) -> str:
-    """Sanitize a string for use in LangGraph store namespace."""
-    return label.replace(".", "_dot_").replace("@", "_at_")
+    """LangGraph store namespace uses "." for hierarchical paths internally."""
+    return label.replace(".", "_dot_")
 
 
 def _is_first_time_user(user_email: str, memory_store: BaseStore) -> bool:
@@ -49,12 +49,11 @@ def _is_first_time_user(user_email: str, memory_store: BaseStore) -> bool:
     Checks the memory store for any past conversations with this user.
     """
     try:
-        safe_email = _sanitize_namespace_label(user_email)
-        namespace = ("memories", safe_email)
+        sanitized_email = _sanitize_namespace_label(user_email)
+        namespace = ("memories", sanitized_email)
         results = memory_store.search(namespace, query="", limit=1)
 
         if results and len(results) > 0:
-            logger.info(f"User {user_email} has past conversations")
             return False
 
         logger.info(f"First time user: {user_email}")
