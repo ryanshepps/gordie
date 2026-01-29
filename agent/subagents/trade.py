@@ -11,7 +11,6 @@ from tools.player_comparison.get_comprehensive_player_stats import (
     get_comprehensive_player_stats,
 )
 from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
-from tools.yahoo.find_undervalued_players import find_undervalued_players
 from tools.yahoo.get_league_teams import get_league_teams
 from tools.yahoo.get_team_roster import get_team_roster
 
@@ -315,16 +314,10 @@ but have BETTER advanced stats indicating they'll improve:
    - Player on user's team → "trading_away" (sell to opponents)
    - Player not on team → "trading_for" (acquire from opponents)
 
-2. Find trade targets using the appropriate approach:
-
-   a) For "trading_away" (user has the player):
-      - Use find_undervalued_players to find players with WORSE rank but BETTER underlying stats
-      - These players look bad but have upside - you can acquire them cheaply
-      - Target rank should be WORSE than subject player (higher rank number)
-
-   b) For "trading_for" (user wants to acquire):
-      - Use find_similar_ranked_players to find similarly-ranked players
-      - Look for players ranked similarly with better upside indicators
+2. Find trade targets using find_similar_ranked_players:
+   - Find players ranked in a similar range to the subject player
+   - For "trading_away": look for players with WORSE rank but BETTER underlying stats
+   - For "trading_for": look for similarly-ranked players with better upside indicators
 
 3. Get comprehensive stats for ALL players (subject + targets) using get_comprehensive_player_stats:
    - Pass ALL player names in a single call (subject player + trade targets)
@@ -368,7 +361,6 @@ agent = create_subagent(
         get_league_teams,
         get_comprehensive_player_stats,
         find_similar_ranked_players,
-        find_undervalued_players,
     ],
     response_format=TradeResponse,
 )

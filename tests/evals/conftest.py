@@ -195,8 +195,8 @@ def mock_yahoo_tools(
         "tools.yahoo.find_similar_ranked_players",
         "tools.yahoo.get_player_season_rank",
         "tools.yahoo.get_roster",
-        "tools.yahoo.get_available_players",
-        "tools.yahoo.get_available_players_with_stats",
+        "tools.yahoo.get_player_yahoo_info",
+        "tools.available.search_available_players",
         "tools.yahoo.onboard_user_team",
         "tools.yahoo.get_user_leagues",
     ]

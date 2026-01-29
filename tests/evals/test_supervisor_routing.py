@@ -218,7 +218,8 @@ def mock_yahoo_tools(mocker: MockerFixture) -> None:
         "tools.yahoo.find_similar_ranked_players",
         "tools.yahoo.get_player_season_rank",
         "tools.yahoo.get_roster",
-        "tools.yahoo.get_available_players",
+        "tools.yahoo.get_player_yahoo_info",
+        "tools.available.search_available_players",
         "tools.yahoo.onboard_user_team",
         "tools.yahoo.get_user_leagues",
     ]
@@ -276,12 +277,12 @@ class TestTradeRouting:
 
         assert "trade" in tool_names, f"Expected 'trade' in tool calls, got: {tool_names}"
 
-    def test_uses_find_undervalued_players_tool(
+    def test_uses_trade_subagent_for_undervalued_request(
         self,
         mock_user_state: AgentState,
         mock_yahoo_tools: None,
     ) -> None:
-        """Verify the agent uses find_undervalued_players for trade acquisition requests."""
+        """Verify the agent uses trade subagent for finding undervalued trade targets."""
         mock_user_state["messages"] = [
             HumanMessage(content="Find me some undervalued players I could trade for")
         ]
@@ -292,10 +293,7 @@ class TestTradeRouting:
         tool_calls = extract_tool_calls_from_messages(result_messages)
         tool_names = [tc["name"] for tc in tool_calls]
 
-        # Should use either find_undervalued_players directly or the trade sub-agent
-        uses_undervalued_tool = "find_undervalued_players" in tool_names
-        uses_trade_agent = "trade" in tool_names
-
-        assert uses_undervalued_tool or uses_trade_agent, (
-            f"Expected 'find_undervalued_players' or 'trade' in tool calls, got: {tool_names}"
+        # Should use the trade sub-agent for trade-related queries
+        assert "trade" in tool_names, (
+            f"Expected 'trade' in tool calls, got: {tool_names}"
         )
