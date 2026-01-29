@@ -9,71 +9,15 @@ import logging
 import re
 from typing import Any
 
-from tools.player_comparison.get_comprehensive_player_stats import (
-    get_comprehensive_player_stats_internal,
-)
+from client.moneypuck_client import get_player_name_lookup
+from tools.player_comparison.get_moneypuck_stats import get_moneypuck_stats
 
 logger = logging.getLogger(__name__)
-
-# Common words that might be mistaken for player names
-EXCLUDED_WORDS = {
-    "the",
-    "and",
-    "for",
-    "you",
-    "your",
-    "with",
-    "from",
-    "this",
-    "that",
-    "have",
-    "has",
-    "had",
-    "will",
-    "would",
-    "could",
-    "should",
-    "may",
-    "might",
-    "team",
-    "player",
-    "trade",
-    "pick",
-    "power",
-    "play",
-    "drop",
-    "add",
-    "roster",
-    "fantasy",
-    "hockey",
-    "nhl",
-    "league",
-    "season",
-    "game",
-    "games",
-    "week",
-    "weeks",
-    "points",
-    "goals",
-    "assists",
-    "shots",
-    "hits",
-    "blocks",
-    "saves",
-    "goalie",
-    "forward",
-    "defenseman",
-    "center",
-    "wing",
-    "left",
-    "right",
-}
 
 # Stats to include in the table (subset for readability)
 TABLE_STATS = [
     ("name", "Player"),
     ("position", "Pos"),
-    ("estimated_line_number", "Line"),
     ("games_played", "GP"),
     ("goals", "G"),
     ("assists", "A"),
@@ -86,21 +30,20 @@ TABLE_STATS = [
     ("corsi_pct", "CF%"),
     ("shots_on_goal", "SOG"),
     ("high_danger_goals", "HDG"),
-    ("yahoo_rank", "Rank"),
 ]
 
 
-def extract_player_names(content: str) -> list[str]:
-    """Extract potential player names from email content.
+def extract_and_validate_player_names(content: str) -> list[tuple[str, int]]:
+    """Extract player names from content and validate against database.
 
-    Uses heuristics to find capitalized name patterns that look like
-    hockey player names (First Last, or just Last name).
+    Uses regex to find "First Last" patterns, then validates each
+    against the MoneyPuck player database via O(1) lookup.
 
     Args:
         content: The email message content
 
     Returns:
-        List of potential player name strings
+        List of (canonical_name, player_id) tuples for valid players
     """
     # Pattern for "First Last" names (capitalized words)
     # Matches: Connor McDavid, Auston Matthews, etc.
@@ -109,95 +52,75 @@ def extract_player_names(content: str) -> list[str]:
     # Find all matches
     matches = re.findall(full_name_pattern, content)
 
-    # Filter out excluded words and deduplicate
+    if not matches:
+        return []
+
+    # Get player lookup (uses cached MoneyPuck data)
+    player_lookup = get_player_name_lookup()
+
+    # Validate each candidate against database
     seen = set()
-    player_names = []
+    validated = []
 
     for name in matches:
         name_lower = name.lower()
-        # Skip if any word is in excluded list
-        words = name_lower.split()
-        if any(word in EXCLUDED_WORDS for word in words):
-            continue
-        # Skip very short names (likely false positives)
-        if len(name) < 5:
-            continue
         # Skip duplicates
         if name_lower in seen:
             continue
         seen.add(name_lower)
-        player_names.append(name)
 
-    return player_names
+        # O(1) lookup - if it's a real player, we get their ID
+        if name_lower in player_lookup:
+            canonical_name, player_id = player_lookup[name_lower]
+            validated.append((canonical_name, player_id))
+
+    return validated
 
 
-def fetch_player_stats(
-    player_names: list[str],
-    user_email: str,
-    league_id: str,
-) -> list[dict[str, Any]]:
-    """Fetch comprehensive stats for players using the consolidated stats tool.
-
-    Automatically uses the current NHL season.
+def fetch_player_stats(player_ids: list[int]) -> list[dict[str, Any]]:
+    """Fetch MoneyPuck stats for players by ID.
 
     Args:
-        player_names: List of player names to fetch stats for
-        user_email: User's email for Yahoo OAuth
-        league_id: Yahoo fantasy league ID
+        player_ids: List of NHL player IDs
 
     Returns:
         List of formatted player stat dicts
     """
-    if not player_names:
+    if not player_ids:
         return []
 
     try:
-        # Use comprehensive stats tool
-        response = get_comprehensive_player_stats_internal(
-            player_names=player_names,
-            user_email=user_email,
-            league_id=league_id,
-            situation="all",
-        )
-        data = json.loads(response)
-
-        # Check for top-level error
-        if data.get("status") == "error":
-            logger.error(f"Comprehensive stats error: {data.get('error')}")
-            return []
+        stats_json = get_moneypuck_stats(player_ids, situation="all")
+        stats_data = json.loads(stats_json)
 
         stats_list = []
-        for player_name, player_data in data.items():
-            if player_data.get("status") != "success":
-                logger.debug(f"Skipping {player_name}: {player_data.get('error', 'unknown error')}")
+        for _, player_stats in stats_data.items():
+            if player_stats.get("status") != "success":
                 continue
 
-            # Format line number for display (None -> "-")
-            line_num = player_data.get("estimated_line_number")
-            line_display = str(line_num) if line_num is not None else "-"
+            stats = player_stats.get("stats", {})
 
-            # Format yahoo rank (None -> "-")
-            yahoo_rank = player_data.get("yahoo_rank")
-            rank_display = str(yahoo_rank) if yahoo_rank is not None else "-"
+            # Calculate assists from primary + secondary
+            primary_assists = stats.get("primary_assists", 0)
+            secondary_assists = stats.get("secondary_assists", 0)
+            total_assists = primary_assists + secondary_assists
 
             stats_list.append(
                 {
-                    "name": player_data.get("name", player_name),
-                    "position": player_data.get("position", ""),
-                    "estimated_line_number": line_display,
-                    "games_played": player_data.get("games_played", 0),
-                    "goals": player_data.get("goals", 0),
-                    "assists": player_data.get("assists", 0),
-                    "points": player_data.get("points", 0),
-                    "points_per_game": round(player_data.get("points_per_game", 0), 2),
-                    "toi_per_game_minutes": round(player_data.get("toi_per_game_minutes", 0), 1),
-                    "x_goals": round(player_data.get("x_goals", 0), 2),
-                    "goals_above_expected": round(player_data.get("goals_above_expected", 0), 2),
-                    "fenwick_pct": round(player_data.get("fenwick_pct", 0), 1),
-                    "corsi_pct": round(player_data.get("corsi_pct", 0), 1),
-                    "shots_on_goal": player_data.get("shots_on_goal", 0),
-                    "high_danger_goals": player_data.get("high_danger_goals", 0),
-                    "yahoo_rank": rank_display,
+                    "name": stats.get("name", "Unknown"),
+                    "position": stats.get("position", ""),
+                    "games_played": stats.get("games_played", 0),
+                    "goals": stats.get("goals", 0),
+                    "assists": total_assists,
+                    "points": stats.get("points", 0),
+                    "points_per_game": round(stats.get("points_per_game", 0), 2),
+                    "toi_per_game_minutes": round(stats.get("toi_per_game_minutes", 0), 1),
+                    "x_goals": round(stats.get("x_goals", 0), 2),
+                    "goals_above_expected": round(stats.get("goals_above_expected", 0), 2),
+                    "fenwick_pct": round(stats.get("fenwick_pct", 0), 1),
+                    "corsi_pct": round(stats.get("corsi_pct", 0), 1),
+                    "shots_on_goal": stats.get("shots_on_goal", 0),
+                    "high_danger_goals": stats.get("high_danger_goals", 0),
                 }
             )
 
@@ -278,10 +201,10 @@ def format_stats_table_html(stats: list[dict[str, Any]]) -> str:
 
     summary_style = "font-weight: bold; cursor: pointer; margin-bottom: 10px;"
     stats_note = (
-        "Stats: Line=Estimated Line #, GP=Games Played, G=Goals, A=Assists, "
+        "Stats: GP=Games Played, G=Goals, A=Assists, "
         "P=Points, P/GP=Points Per Game, TOI=Time On Ice (min/game), xG=Expected Goals, "
         "G-xG=Goals Above Expected, F%=Fenwick %, CF%=Corsi %, SOG=Shots On Goal, "
-        "HDG=High Danger Goals, Rank=Yahoo Season Rank"
+        "HDG=High Danger Goals"
     )
     return f'''
 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
@@ -310,36 +233,36 @@ def enrich_email_with_player_stats(
 ) -> tuple[str, str]:
     """Extract players from email and generate stats tables.
 
-    Automatically uses the current NHL season.
-
     This is the main entry point for email enrichment. It:
-    1. Extracts player names from the message content
-    2. Fetches comprehensive statistics (MoneyPuck, Yahoo rank, line info)
+    1. Extracts and validates player names against MoneyPuck database
+    2. Fetches MoneyPuck statistics for matched players
     3. Returns formatted tables to append to the email
+
+    Note: user_email and league_id are kept for API compatibility but
+    are no longer used since we now use only MoneyPuck stats (no Yahoo data).
 
     Args:
         message_content: The email message content
-        user_email: User's email for Yahoo OAuth
-        league_id: Yahoo fantasy league ID
+        user_email: User's email (unused, kept for compatibility)
+        league_id: Yahoo fantasy league ID (unused, kept for compatibility)
 
     Returns:
         Tuple of (markdown_table, html_table) to append to email
     """
-    # Extract player names from content
-    player_names = extract_player_names(message_content)
+    # Extract and validate player names against database
+    player_matches = extract_and_validate_player_names(message_content)
 
-    if not player_names:
-        logger.debug("No player names found in email content")
+    if not player_matches:
+        logger.debug("No valid player names found in email content")
         return "", ""
 
-    logger.info(f"Found {len(player_names)} potential player names: {player_names}")
+    player_names = [name for name, _ in player_matches]
+    player_ids = [pid for _, pid in player_matches]
 
-    # Fetch comprehensive stats directly using player names
-    stats = fetch_player_stats(
-        player_names=player_names,
-        user_email=user_email,
-        league_id=league_id,
-    )
+    logger.info(f"Found {len(player_matches)} players: {player_names}")
+
+    # Fetch stats directly by ID (no fuzzy resolution needed)
+    stats = fetch_player_stats(player_ids)
 
     if not stats:
         logger.debug("Could not fetch stats for any players")

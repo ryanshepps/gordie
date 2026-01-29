@@ -260,6 +260,28 @@ def clear_cache() -> None:
     logger.info("MoneyPuck cache cleared")
 
 
+def get_player_name_lookup(season: int | None = None) -> dict[str, tuple[str, int]]:
+    """Get lookup dict for validating player names.
+
+    Returns a dictionary mapping lowercase player names to their canonical
+    name and player ID. Uses cached data from fetch_skater_stats().
+
+    Args:
+        season: Starting year of the season. Defaults to current season.
+
+    Returns:
+        Dict mapping lowercase name -> (canonical_name, player_id)
+    """
+    df = fetch_skater_stats(season)
+    # Filter to "all" situation to avoid duplicate rows per player
+    df = df[df["situation"] == "all"]
+
+    return {
+        str(row["name"]).lower(): (str(row["name"]), int(row["playerId"]))
+        for _, row in df.iterrows()
+    }
+
+
 # Key statistics columns for easy reference
 KEY_STATS = {
     # Identifiers
