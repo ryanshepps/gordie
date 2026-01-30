@@ -12,11 +12,13 @@ from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from prometheus_client import make_wsgi_app
 from prometheus_flask_exporter import PrometheusMetrics
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 from module.metrics import update_business_metrics, update_system_metrics
+from module.tracing import init_tracing
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 
@@ -56,6 +58,10 @@ class Server:
         self.auth_error: str | None = None
         self.user_email: str | None = None
         self.code_received = threading.Event()
+
+        # Initialize OpenTelemetry tracing
+        init_tracing()
+        FlaskInstrumentor().instrument_app(self.app)
 
         # Initialize Prometheus metrics for Flask
         # path=None disables automatic endpoint (we create custom /metrics endpoint later)
