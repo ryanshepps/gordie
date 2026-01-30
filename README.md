@@ -9,10 +9,9 @@
   - [x] Makes consistent recommendations.
   - [x] Good recommendations.
   - [ ] Finds teams that are desperate for the subject player (e.g., Team 4 is desperate for Quarterback)
-- [ ] Waiver Agent
+- [ ] Available Players Agent
   - [ ] Makes consistent recommendations.
   - [ ] Good recommendations.
-- [ ] Player Comparison Agent (When trades/waivers don't apply; e.g, dropping a player on your roster for a player who has become healthy on IR)
 - [ ] Weekly Agent
   - [ ] Emails player weekly with lineup recommendations.
   - [ ] Analyzes opponent's lineup and gives strategy recommendations.
