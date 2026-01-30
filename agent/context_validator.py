@@ -299,9 +299,12 @@ def validate_and_build_system_message(
         return _handle_missing_email()
 
     has_oauth = _check_oauth_status(user_email)
-    is_first_time = _is_first_time_user(user_email, memory_store)
 
-    if is_first_time or not has_oauth:
+    # Only check first-time status if user doesn't have OAuth tokens.
+    # If they have OAuth, they've already authenticated and shouldn't be
+    # treated as first-time users (even if no memories exist yet).
+    if not has_oauth:
+        is_first_time = _is_first_time_user(user_email, memory_store)
         return _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
 
     repo = YahooUserTeamRepository()
