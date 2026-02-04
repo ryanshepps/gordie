@@ -19,6 +19,7 @@ from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
+from tools.notifications.manage_notifications import manage_notifications
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 # Use literal string for END to satisfy type checker
@@ -85,6 +86,7 @@ def create_supervisor_agent():
             available_players,
             onboard_user_team,
             search_past_conversations,
+            manage_notifications,
         ],
         middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
         system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),

@@ -19,6 +19,7 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 from module.metrics import update_business_metrics, update_system_metrics
 from module.tracing import init_tracing
+from scheduled.jobs import register_scheduled_jobs
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 
@@ -72,6 +73,9 @@ class Server:
         self.scheduler.add_job(func=update_system_metrics, trigger="interval", seconds=15)
         self.scheduler.add_job(func=update_business_metrics, trigger="interval", seconds=60)
         self.scheduler.start()
+
+        # Register scheduled notification jobs
+        register_scheduled_jobs(self.scheduler)
 
         # Shut down the scheduler when exiting
         atexit.register(lambda: self.scheduler.shutdown())
