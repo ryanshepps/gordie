@@ -1,10 +1,17 @@
 import argparse
 
-from langchain_core.runnables import RunnableConfig
+# Initialize tracing BEFORE any application imports so that
+# Logfire's auto-tracing can rewrite modules at import time.
+from module.tracing import init
 
-from agent.agent_state import AgentState
-from agent.graph_builder import agent
-from module.logger import get_logger
+init()
+
+from langchain_core.runnables import RunnableConfig  # noqa: E402
+
+from agent.agent_state import AgentState  # noqa: E402
+from agent.graph_builder import agent  # noqa: E402
+from module.logger import get_logger  # noqa: E402
+from module.tracing import create_span  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -32,64 +39,65 @@ def message_agent(
         Agent's response as a string, or empty string if error occurs
     """
 
-    try:
-        # Use provided thread_id or fall back to email for backwards compatibility
-        resolved_thread_id = thread_id or email
-        config: RunnableConfig = {"configurable": {"thread_id": resolved_thread_id}}
+    with create_span("agent.message", {"user.email": email, "thread.id": thread_id or email}):
+        try:
+            # Use provided thread_id or fall back to email for backwards compatibility
+            resolved_thread_id = thread_id or email
+            config: RunnableConfig = {"configurable": {"thread_id": resolved_thread_id}}
 
-        # Build message payload
-        message_payload = {"role": "user", "content": message}
-        if team_context:
-            message_payload["team_context"] = team_context
+            # Build message payload
+            message_payload = {"role": "user", "content": message}
+            if team_context:
+                message_payload["team_context"] = team_context
 
-        # Build initial state
-        initial_state: AgentState = {
-            "user_email": email,
-            "thread_id": resolved_thread_id,
-            "messages": [message_payload],
-            "user_teams": [],
-            "league_id": None,
-            "team_id": None,
-            "response": None,
-            "route_to": None,
-            "agent_flow": [],
-            "current_agent_index": 0,
-            "flow_complete": False,
-            "flow_reasoning": None,
-            "original_subject": original_subject,
-            "original_message": original_message or message,
-        }
+            # Build initial state
+            initial_state: AgentState = {
+                "user_email": email,
+                "thread_id": resolved_thread_id,
+                "messages": [message_payload],
+                "user_teams": [],
+                "league_id": None,
+                "team_id": None,
+                "response": None,
+                "route_to": None,
+                "agent_flow": [],
+                "current_agent_index": 0,
+                "flow_complete": False,
+                "flow_reasoning": None,
+                "original_subject": original_subject,
+                "original_message": original_message or message,
+            }
 
-        # Send message to agent graph
-        response = agent.invoke(initial_state, config=config)
+            # Send message to agent graph
+            response = agent.invoke(initial_state, config=config)
 
-        logger.info("\nGordie's Response:\n")
+            logger.info("\nGordie's Response:\n")
 
-        # Extract response text
-        response_text = ""
+            # Extract response text
+            response_text = ""
 
-        # Check for direct response first (from clarification node)
-        if response and response.get("response"):
-            response_text = response["response"]
-            logger.info(response_text)
-        # Otherwise check messages - only extract NEW agent messages (not entire history)
-        elif response and "messages" in response:
-            response_parts = []
-            # The initial_state contains 1 user message
-            # So we want messages AFTER the first one (index 0)
-            new_messages = response["messages"][len(initial_state["messages"]) :]
-            for msg in new_messages:
-                # Only include assistant/AI messages, not user messages
-                if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
-                    response_parts.append(msg.content)
-                    logger.info(msg.content)
-            response_text = "\n".join(response_parts)
+            # Check for direct response first (from clarification node)
+            if response and response.get("response"):
+                response_text = response["response"]
+                logger.info(response_text)
+            # Otherwise check messages - only extract NEW agent messages (not entire history)
+            elif response and "messages" in response:
+                response_parts = []
+                # The initial_state contains 1 user message
+                # So we want messages AFTER the first one (index 0)
+                new_messages = response["messages"][len(initial_state["messages"]) :]
+                for msg in new_messages:
+                    # Only include assistant/AI messages, not user messages
+                    if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
+                        response_parts.append(msg.content)
+                        logger.info(msg.content)
+                response_text = "\n".join(response_parts)
 
-        return response_text.strip()
+            return response_text.strip()
 
-    except Exception as e:
-        logger.error(f"\n✗ Failed to send message to agent: {e}")
-        return ""
+        except Exception as e:
+            logger.error(f"\n✗ Failed to send message to agent: {e}")
+            return ""
 
 
 def main():

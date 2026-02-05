@@ -1,77 +1,65 @@
-"""OpenTelemetry tracing for the fantasy-agent application."""
+"""Tracing initialization via Logfire with auto-instrumentation."""
 
 import os
 from contextlib import contextmanager
 from typing import Any
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
-# Global tracer provider
-_tracer_provider: TracerProvider | None = None
+_initialized = False
 
-# Service configuration
 SERVICE_NAME = "fantasy-agent"
 SERVICE_VERSION = "0.1.0"
 
+# Application packages to auto-trace.
+# install_auto_tracing() rewrites these at import time,
+# so init() MUST be called before they are imported.
+_AUTO_TRACE_PACKAGES = [
+    "agent",
+    "client",
+    "data",
+    "middleware",
+    "scheduled",
+    "server",
+    "tools",
+]
 
-def init_tracing(
-    endpoint: str | None = None,
-    environment: str | None = None,
-) -> TracerProvider:
+
+def init() -> None:
     """
-    Initialize OpenTelemetry tracing with OTLP exporter.
+    Initialize Logfire tracing with auto-instrumentation.
 
-    Args:
-        endpoint: OTLP gRPC endpoint (default: localhost:4317)
-        environment: Deployment environment (default: from ENVIRONMENT env var or "development")
+    MUST be called before importing any application packages
+    (agent, client, data, middleware, scheduled, server, tools).
 
-    Returns:
-        Configured TracerProvider
+    Safe to call multiple times — subsequent calls are no-ops.
     """
-    global _tracer_provider
+    global _initialized
+    if _initialized:
+        return
 
-    if _tracer_provider is not None:
-        return _tracer_provider
+    import logfire
 
-    endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
-    environment = environment or os.getenv("ENVIRONMENT", "development")
+    environment = os.getenv("ENVIRONMENT", "development")
 
-    resource = Resource.create({
-        "service.name": SERVICE_NAME,
-        "service.version": SERVICE_VERSION,
-        "deployment.environment": environment,
-    })
+    # Set the OTLP endpoint for Tempo if not already configured.
+    # Logfire uses HTTP/protobuf (port 4318), not gRPC (4317).
+    os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
 
-    _tracer_provider = TracerProvider(resource=resource)
+    logfire.configure(
+        service_name=SERVICE_NAME,
+        service_version=SERVICE_VERSION,
+        send_to_logfire=False,
+        environment=environment,
+    )
 
-    otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-    span_processor = BatchSpanProcessor(otlp_exporter)
-    _tracer_provider.add_span_processor(span_processor)
+    logfire.install_auto_tracing(
+        modules=_AUTO_TRACE_PACKAGES,
+        min_duration=0,
+    )
 
-    trace.set_tracer_provider(_tracer_provider)
-
-    return _tracer_provider
-
-
-def get_tracer(name: str | None = None) -> trace.Tracer:
-    """
-    Get a tracer instance.
-
-    Args:
-        name: Tracer name (defaults to service name)
-
-    Returns:
-        Tracer instance
-    """
-    if _tracer_provider is None:
-        init_tracing()
-
-    return trace.get_tracer(name or SERVICE_NAME)
+    _initialized = True
 
 
 @contextmanager
@@ -90,44 +78,23 @@ def create_span(
 
     Yields:
         The created span
-
-    Example:
-        with create_span("agent.controller", {"user_email": "test@example.com"}) as span:
-            # Do work
-            span.add_event("processing_started")
     """
-    tracer = get_tracer(tracer_name)
+    tracer = trace.get_tracer(tracer_name or SERVICE_NAME)
     with tracer.start_as_current_span(name, attributes=attributes) as span:
         yield span
 
 
 def record_exception(span: trace.Span, exception: Exception) -> None:
-    """
-    Record an exception on a span and set error status.
-
-    Args:
-        span: The span to record the exception on
-        exception: The exception to record
-    """
+    """Record an exception on a span and set error status."""
     span.record_exception(exception)
     span.set_status(Status(StatusCode.ERROR, str(exception)))
 
 
 def set_span_ok(span: trace.Span) -> None:
-    """
-    Set span status to OK.
-
-    Args:
-        span: The span to set status on
-    """
+    """Set span status to OK."""
     span.set_status(Status(StatusCode.OK))
 
 
 def get_current_span() -> trace.Span:
-    """
-    Get the current active span.
-
-    Returns:
-        Current span (may be a no-op span if none is active)
-    """
+    """Get the current active span."""
     return trace.get_current_span()

@@ -7,7 +7,6 @@ from typing import Any
 
 from agent.email_enrichment import enrich_email_with_player_stats
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
-from data.notification_preference_repository import NotificationPreferenceRepository
 from data.schemas import (
     DigestData,
     EnrichedFreeAgent,
@@ -18,6 +17,7 @@ from data.schemas import (
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
+from scheduled.job_runner import run_per_user_job
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
 from tools.available.search_available_players import search_available_players
@@ -32,30 +32,17 @@ logger = get_logger(__name__)
 
 def run_weekly_digest() -> None:
     """Send weekly digest emails to all opted-in users."""
-    logger.info("Starting weekly digest job")
+    run_per_user_job(
+        job_name="weekly_digest",
+        notification_type="weekly_digest",
+        handler=_send_digest_handler,
+    )
 
-    repo = NotificationPreferenceRepository()
-    try:
-        user_leagues = repo.get_all_enabled_for_type("weekly_digest")
-    finally:
-        repo.close()
 
-    if not user_leagues:
-        logger.info("No users opted in for weekly digest")
-        return
-
-    logger.info(f"Sending weekly digest to {len(user_leagues)} user+league combinations")
-
-    success, failed = 0, 0
-    for user_email, league_id in user_leagues:
-        try:
-            send_digest(user_email, league_id)
-            success += 1
-        except Exception as e:
-            failed += 1
-            logger.error(f"Digest failed for {user_email}/{league_id}: {e}")
-
-    logger.info(f"Weekly digest complete: {success} sent, {failed} failed")
+def _send_digest_handler(user_email: str, league_id: str) -> bool:
+    """Handler adapter for run_per_user_job."""
+    send_digest(user_email, league_id)
+    return True
 
 
 def send_digest(user_email: str, league_id: str) -> None:

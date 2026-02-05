@@ -18,10 +18,10 @@ from prometheus_flask_exporter import PrometheusMetrics
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 from module.metrics import update_business_metrics, update_system_metrics
-from module.tracing import init_tracing
 from scheduled.jobs import register_scheduled_jobs
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
+from server.routes.signup_routes import register_signup_routes
 
 # Suppress Flask's default logging
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -60,8 +60,7 @@ class Server:
         self.user_email: str | None = None
         self.code_received = threading.Event()
 
-        # Initialize OpenTelemetry tracing
-        init_tracing()
+        # Instrument Flask with OpenTelemetry (TracerProvider is set up by module.tracing.init())
         FlaskInstrumentor().instrument_app(self.app)
 
         # Initialize Prometheus metrics for Flask
@@ -88,6 +87,7 @@ class Server:
         # Register route handlers from separate modules
         register_oauth_routes(self.app, self)
         register_email_routes(self.app)
+        register_signup_routes(self.app)
 
         # Health check stays inline since it's trivial
         @self.app.route("/health")

@@ -6,17 +6,23 @@ import time
 
 from dotenv import load_dotenv
 
-from data.yahoo_token_repository import save_tokens
-from module.logger import get_logger, redirect_stderr_to_logger
-from server.oauth import (
+load_dotenv()
+
+# Initialize tracing BEFORE any application imports so that
+# Logfire's auto-tracing can rewrite modules at import time.
+from module.tracing import init  # noqa: E402
+
+init()
+
+from data.yahoo_token_repository import save_tokens  # noqa: E402
+from module.logger import get_logger, redirect_stderr_to_logger  # noqa: E402
+from server.oauth import (  # noqa: E402
     exchange_code,
     get_yahoo_email,
     notify_onboarding_agent,
 )
-from server.oauth_nonce import delete_oauth_nonce, get_oauth_nonce_and_thread
-from server.server import Server
-
-load_dotenv()
+from server.oauth_nonce import delete_oauth_nonce, get_oauth_nonce_and_thread  # noqa: E402
+from server.server import Server  # noqa: E402
 
 logger = get_logger(__name__)
 

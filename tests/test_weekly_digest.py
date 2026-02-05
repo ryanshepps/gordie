@@ -246,7 +246,7 @@ def mock_digest_dependencies(
 
     patches = [
         patch(
-            "scheduled.weekly_digest.NotificationPreferenceRepository",
+            "scheduled.job_runner.NotificationPreferenceRepository",
             return_value=mock_pref_repo,
         ),
         patch(
