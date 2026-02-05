@@ -13,6 +13,7 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
     Args:
         scheduler: APScheduler BackgroundScheduler instance
     """
+    from agent.news.send_news_digest import run_news_digest
     from scheduled.weekly_digest import run_weekly_digest
 
     scheduler.add_job(
@@ -25,5 +26,15 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         replace_existing=True,
         misfire_grace_time=3600,
     )
-
     logger.info("Registered scheduled job: weekly_digest (Sundays at 8:00 AM)")
+
+    scheduler.add_job(
+        func=run_news_digest,
+        trigger="cron",
+        hour=8,
+        minute=0,
+        id="news_digest",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    logger.info("Registered scheduled job: news_digest (Daily at 8:00 AM UTC)")

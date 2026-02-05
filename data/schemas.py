@@ -260,6 +260,11 @@ def seed_notification_types(conn: duckdb.DuckDBPyConnection) -> None:
         VALUES ('weekly_digest', 'Weekly Digest', 'Weekly fantasy hockey summary with roster updates and recommendations', TRUE)
         ON CONFLICT (type_key) DO NOTHING
     """)
+    conn.execute("""
+        INSERT INTO notification_types (type_key, display_name, description, default_enabled)
+        VALUES ('news_digest', 'Daily News Digest', 'Daily NHL news alerts for injuries, trades, and favorable matchups', TRUE)
+        ON CONFLICT (type_key) DO NOTHING
+    """)
     conn.commit()
     logger.debug("Seeded notification_types table")
 
