@@ -46,6 +46,7 @@ def init() -> None:
     # Set the OTLP endpoint for Tempo if not already configured.
     # Logfire uses HTTP/protobuf (port 4318), not gRPC (4317).
     os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+    os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
 
     logfire.configure(
         service_name=SERVICE_NAME,
