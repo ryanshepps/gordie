@@ -38,7 +38,8 @@ class YahooLeagueRepository(Repository):
             league_type: Type of league (e.g., "nhl", "nfl")
             league_settings: JSON string of league settings
         """
-        self.insert(
+        self.upsert(
+            ["league_id"],
             league_id=league_id,
             game_key=game_key,
             league_name=league_name,

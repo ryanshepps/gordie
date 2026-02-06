@@ -1,0 +1,24 @@
+{
+	"name": "gordie-website",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-cloudflare": "^7.2.6",
+		"@sveltejs/kit": "^2.50.2",
+		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"mdsvex": "^0.12.6",
+		"svelte": "^5.49.2",
+		"svelte-check": "^4.3.6",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1",
+		"wrangler": "^4.63.0"
+	}
+}
