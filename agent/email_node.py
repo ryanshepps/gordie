@@ -75,7 +75,6 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
     user_email = state.get("user_email")
     thread_id = state.get("thread_id")
     original_subject = state.get("original_subject")
-    original_message = state.get("original_message")
 
     if not user_email:
         logger.error("No user email found in state, cannot send email")
@@ -108,7 +107,6 @@ def email_node(state: AgentState) -> Command[Literal["__end__"]]:
     email_content = format_email(
         content=message_content,
         footer_type=FooterType.BETA,
-        quoted_reply=original_message,
         stats_html=stats_html if stats_html else None,
     )
 

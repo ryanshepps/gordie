@@ -4,7 +4,6 @@ Provides consistent markdown-to-HTML conversion and email formatting
 across all email-sending components (graph nodes and scheduled jobs).
 """
 
-import html
 from dataclasses import dataclass
 from enum import Enum
 
@@ -67,31 +66,6 @@ def wrap_html_document(html_content: str) -> str:
 </html>"""
 
 
-def format_quoted_reply_html(original_message: str) -> str:
-    """Format the original message as a quoted HTML block for email replies.
-
-    Args:
-        original_message: The original user message to quote
-
-    Returns:
-        HTML formatted blockquote
-    """
-    escaped = html.escape(original_message.strip())
-    escaped = escaped.replace("\n", "<br>")
-
-    blockquote_style = (
-        "margin: 0; padding: 10px 15px; border-left: 3px solid #ccc; "
-        "background-color: #f9f9f9; color: #555;"
-    )
-    return f"""
-<div style="margin-top: 20px;">
-    <p style="color: #666; font-size: 12px; margin-bottom: 10px;">You wrote:</p>
-    <blockquote style="{blockquote_style}">
-        {escaped}
-    </blockquote>
-</div>
-"""
-
 
 def get_beta_footer_html() -> str:
     """Get the beta disclaimer footer HTML.
@@ -151,7 +125,6 @@ def get_unsubscribe_footer_text() -> str:
 def format_email(
     content: str,
     footer_type: FooterType = FooterType.NONE,
-    quoted_reply: str | None = None,
     stats_html: str | None = None,
 ) -> EmailContent:
     """Format email content with markdown conversion and optional components.
@@ -159,7 +132,6 @@ def format_email(
     Args:
         content: Markdown-formatted email body content
         footer_type: Type of footer to append (NONE, BETA, or UNSUBSCRIBE)
-        quoted_reply: Optional original message to include as quoted reply
         stats_html: Optional HTML stats table to include
 
     Returns:
@@ -177,9 +149,6 @@ def format_email(
 
     if stats_html:
         html_body = html_body + stats_html
-
-    if quoted_reply:
-        html_body = html_body + format_quoted_reply_html(quoted_reply)
 
     if footer_type == FooterType.BETA:
         html_body = html_body + get_beta_footer_html()
