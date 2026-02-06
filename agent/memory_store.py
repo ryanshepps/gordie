@@ -3,6 +3,7 @@
 This module handles conversation memory storage and summarization.
 """
 
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -10,6 +11,8 @@ from typing import Any
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.store.memory import InMemoryStore
 from pydantic import BaseModel, Field
+
+from client.duck_db_client import get_platform_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +69,81 @@ class ConversationSummary(BaseModel):
     )
 
 
+def _persist_summary_to_duckdb(
+    thread_id: str,
+    user_email: str,
+    summary: ConversationSummary,
+) -> None:
+    """Persist a conversation summary to DuckDB for durable storage."""
+    try:
+        conn = get_platform_db_connection()
+        now = datetime.now().isoformat()
+        conn.execute(
+            """
+            INSERT INTO conversation_summaries
+                (thread_id, user_email, summary, key_topics, players_mentioned, decisions_made, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (thread_id) DO UPDATE SET
+                summary = excluded.summary,
+                key_topics = excluded.key_topics,
+                players_mentioned = excluded.players_mentioned,
+                decisions_made = excluded.decisions_made,
+                updated_at = excluded.updated_at
+            """,
+            [
+                thread_id,
+                user_email,
+                summary.summary,
+                json.dumps(summary.key_topics),
+                json.dumps(summary.players_mentioned),
+                json.dumps(summary.decisions_made),
+                now,
+                now,
+            ],
+        )
+        conn.close()
+        logger.info(f"Persisted conversation summary to DuckDB for thread {thread_id}")
+    except Exception as e:
+        logger.error(f"Failed to persist summary to DuckDB: {e}")
+
+
+def get_conversation_summaries_by_email(user_email: str) -> list[dict[str, Any]]:
+    """Fetch all conversation summaries for a user from DuckDB.
+
+    Args:
+        user_email: The user's email address
+
+    Returns:
+        List of summary dicts with parsed JSON fields
+    """
+    conn = get_platform_db_connection()
+    rows = conn.execute(
+        """
+        SELECT thread_id, user_email, summary, key_topics, players_mentioned,
+               decisions_made, created_at, updated_at
+        FROM conversation_summaries
+        WHERE user_email = ?
+        ORDER BY created_at DESC
+        """,
+        [user_email],
+    ).fetchall()
+    conn.close()
+
+    return [
+        {
+            "thread_id": row[0],
+            "user_email": row[1],
+            "summary": row[2],
+            "key_topics": json.loads(row[3]) if row[3] else [],
+            "players_mentioned": json.loads(row[4]) if row[4] else [],
+            "decisions_made": json.loads(row[5]) if row[5] else [],
+            "created_at": row[6].isoformat() if hasattr(row[6], "isoformat") else str(row[6]),
+            "updated_at": row[7].isoformat() if hasattr(row[7], "isoformat") else str(row[7]),
+        }
+        for row in rows
+    ]
+
+
 def summarize_and_store_conversation(
     messages: list[Any],
     thread_id: str,
@@ -73,7 +151,7 @@ def summarize_and_store_conversation(
     store: InMemoryStore,
 ) -> bool:
     """
-    Summarize a conversation and store it in the memory store.
+    Summarize a conversation and store it in the memory store and DuckDB.
 
     Args:
         messages: List of conversation messages
@@ -134,7 +212,7 @@ Generate a summary that captures:
 
         result: Any = structured_llm.invoke(prompt)
 
-        # Store in the memory store
+        # Store in the in-memory store (for semantic search)
         store.put(
             namespace,
             thread_id,
@@ -147,6 +225,9 @@ Generate a summary that captures:
                 "thread_id": thread_id,
             },
         )
+
+        # Persist to DuckDB (durable storage, survives restarts)
+        _persist_summary_to_duckdb(thread_id, user_email, result)
 
         logger.info(f"Stored conversation memory for thread {thread_id}")
         logger.debug(f"Summary: {result.summary}")

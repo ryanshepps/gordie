@@ -19,6 +19,7 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
+from server.routes.admin_routes import register_admin_routes
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
@@ -88,6 +89,7 @@ class Server:
         register_oauth_routes(self.app, self)
         register_email_routes(self.app)
         register_signup_routes(self.app)
+        register_admin_routes(self.app)
 
         # Health check stays inline since it's trivial
         @self.app.route("/health")

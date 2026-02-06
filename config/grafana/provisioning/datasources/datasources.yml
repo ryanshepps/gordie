@@ -37,3 +37,13 @@ datasources:
         enabled: true
       serviceMap:
         datasourceUid: prometheus
+
+  - name: Infinity
+    uid: infinity
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    editable: true
+    jsonData:
+      httpHeaderName1: X-Admin-Key
+    secureJsonData:
+      httpHeaderValue1: ${ADMIN_API_KEY}

@@ -1,0 +1,164 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Conversation Timeline",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{component=\"server\"} |= `` | json | user_email = `$user_email`",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      }
+    },
+    {
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
+      "id": 2,
+      "title": "Conversation Summaries",
+      "type": "table",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "infinity"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://host.docker.internal:8000/admin/conversations?email=${user_email}",
+          "url_options": {
+            "method": "GET",
+            "headers": [
+              { "key": "X-Admin-Key", "value": "${admin_key}" }
+            ]
+          },
+          "root_selector": "",
+          "columns": [
+            { "selector": "thread_id", "text": "Thread ID", "type": "string" },
+            { "selector": "summary", "text": "Summary", "type": "string" },
+            { "selector": "key_topics", "text": "Topics", "type": "string" },
+            { "selector": "players_mentioned", "text": "Players", "type": "string" },
+            { "selector": "decisions_made", "text": "Decisions", "type": "string" },
+            { "selector": "created_at", "text": "Created", "type": "string" }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Thread ID" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Messages",
+                    "url": "/d/conversation-explorer/conversation-explorer?var-thread_id=${__value.text}&var-user_email=${user_email}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 8 },
+      "id": 3,
+      "title": "Thread Messages",
+      "type": "table",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "infinity"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://host.docker.internal:8000/admin/conversations/${thread_id}/messages",
+          "url_options": {
+            "method": "GET",
+            "headers": [
+              { "key": "X-Admin-Key", "value": "${admin_key}" }
+            ]
+          },
+          "root_selector": "messages",
+          "columns": [
+            { "selector": "role", "text": "Role", "type": "string" },
+            { "selector": "content", "text": "Content", "type": "string" },
+            { "selector": "timestamp", "text": "Timestamp", "type": "string" }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Content" },
+            "properties": [
+              { "id": "custom.width", "value": 600 }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["conversations", "observability"],
+  "templating": {
+    "list": [
+      {
+        "name": "user_email",
+        "type": "query",
+        "label": "User Email",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values(user_email)",
+        "refresh": 2,
+        "sort": 1,
+        "current": { "text": "", "value": "" }
+      },
+      {
+        "name": "thread_id",
+        "type": "textbox",
+        "label": "Thread ID",
+        "current": { "text": "", "value": "" }
+      },
+      {
+        "name": "admin_key",
+        "type": "textbox",
+        "label": "Admin API Key",
+        "current": { "text": "", "value": "" },
+        "hide": 2
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "title": "Conversation Explorer",
+  "uid": "conversation-explorer"
+}

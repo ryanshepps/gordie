@@ -269,6 +269,27 @@ def seed_notification_types(conn: duckdb.DuckDBPyConnection) -> None:
     logger.debug("Seeded notification_types table")
 
 
+def create_conversation_summaries_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create table for persistent conversation summaries."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_summaries (
+            thread_id TEXT PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            summary TEXT,
+            key_topics TEXT,
+            players_mentioned TEXT,
+            decisions_made TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_conversation_summaries_user_email
+        ON conversation_summaries(user_email)
+    """)
+    logger.debug("Created conversation_summaries table")
+
+
 def create_notification_preferences_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create table for user notification preferences per league."""
     conn.execute("""
@@ -302,6 +323,7 @@ if __name__ == "__main__":
     create_notification_types_table(platform_conn)
     seed_notification_types(platform_conn)
     create_notification_preferences_table(platform_conn)
+    create_conversation_summaries_table(platform_conn)
     platform_conn.close()
 
     logger.info("Database setup complete")
