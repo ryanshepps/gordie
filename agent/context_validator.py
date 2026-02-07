@@ -160,7 +160,16 @@ def _fetch_hockey_teams(user_email: str) -> list[dict[str, str]]:
     Raises exception if API call fails.
     """
     available_teams_str = get_user_leagues.invoke({"user_email": user_email})
-    available_teams = ast.literal_eval(available_teams_str)
+
+    # Handle error case - get_user_leagues returns error string on failure
+    if available_teams_str.startswith("Error"):
+        raise RuntimeError(f"Failed to fetch user leagues: {available_teams_str}")
+
+    try:
+        available_teams = ast.literal_eval(available_teams_str)
+    except (ValueError, SyntaxError) as e:
+        logger.error(f"Failed to parse teams data: {e}. Raw data: {available_teams_str[:200]}")
+        raise RuntimeError(f"Invalid teams data format: {e}") from e
 
     hockey_teams = [team for team in available_teams if team.get("sport") == "nhl"]
 

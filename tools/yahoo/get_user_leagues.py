@@ -9,6 +9,54 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _normalize_games(user_games):
+    """
+    Normalize user_games to always return a list of Game objects.
+
+    yfpy's get_user_teams() returns either:
+    - A list of Game objects when user has multiple games
+    - A dict {'game': Game(...)} when user has a single game
+    - An empty list when user has no games
+    """
+    if isinstance(user_games, dict):
+        # Single game returned as dict
+        game = user_games.get("game")
+        if game:
+            return [game]
+        return []
+    elif isinstance(user_games, list):
+        return user_games
+    else:
+        logger.warning(f"Unexpected user_games type: {type(user_games)}")
+        return []
+
+
+def _normalize_teams(teams_data):
+    """
+    Normalize teams_data to always return a list of Team objects.
+
+    Game.teams can be either:
+    - A list of Team objects when game has multiple teams
+    - A dict {'team': Team(...)} when game has a single team
+    - A string error message when Yahoo returns an error
+    """
+    if isinstance(teams_data, str):
+        # Error message from Yahoo
+        logger.error(f"Yahoo returned error for teams: {teams_data}")
+        return []
+    elif isinstance(teams_data, dict):
+        # Single team returned as dict
+        team = teams_data.get("team")
+        if team:
+            return [team]
+        return []
+    elif isinstance(teams_data, list):
+        return teams_data
+    else:
+        logger.warning(f"Unexpected teams_data type: {type(teams_data)}")
+        return []
+
+
 @tool
 def get_user_leagues(user_email: str) -> str:
     """
@@ -26,20 +74,28 @@ def get_user_leagues(user_email: str) -> str:
     try:
         user_games = yahoo_query.get_user_teams()
 
-        # Format the output in a structured way for the AI agent
-        # get_user_teams returns a list of Game objects, each containing teams
+        # Normalize to list of Game objects
+        games = _normalize_games(user_games)
+        logger.info(f"Found {len(games)} game(s) for user {user_email}")
+
         result = []
-        for game in user_games:
-            for team in game.teams:
-                # Extract game_key, league_id, and team_id from team_key (format: "game_key.l.league_id.t.team_id")
+        for game in games:
+            if not hasattr(game, "teams"):
+                logger.error(f"Game object missing teams attribute: {type(game)}")
+                continue
+
+            # Normalize teams to list
+            teams = _normalize_teams(game.teams)
+
+            for team in teams:
                 if not hasattr(team, "team_key") or not team.team_key:
-                    raise ValueError("Team is missing team_key attribute")
+                    logger.warning(f"Team missing team_key: {team}")
+                    continue
 
                 parts = team.team_key.split(".")
                 if len(parts) < 5 or parts[1] != "l" or parts[3] != "t":
-                    raise ValueError(
-                        f"team_key '{team.team_key}' is not in expected format 'game_key.l.league_id.t.team_id'"
-                    )
+                    logger.warning(f"Invalid team_key format: {team.team_key}")
+                    continue
 
                 game_key = parts[0]
                 league_id = parts[2]
@@ -58,9 +114,8 @@ def get_user_leagues(user_email: str) -> str:
 
         return str(result)
     except YahooFantasySportsDataNotFound:
-        # User has no Yahoo Fantasy leagues
         logger.info(f"User {user_email} has no Yahoo Fantasy leagues")
         return "[]"
     except Exception as e:
-        logger.error(f"Error fetching user leagues: {e}")
+        logger.error(f"Error fetching user leagues: {e}", exc_info=True)
         return "Error fetching user leagues"
