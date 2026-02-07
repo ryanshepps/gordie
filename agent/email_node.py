@@ -3,7 +3,6 @@
 Handles sending email responses to users with proper formatting.
 """
 
-import logging
 from typing import Literal
 
 from langgraph.types import Command
@@ -11,11 +10,12 @@ from langgraph.types import Command
 from agent.agent_state import AgentState
 from agent.email_enrichment import enrich_email_with_player_stats
 from agent.memory_store import get_memory_store, summarize_and_store_conversation
+from module.logger import get_logger
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
 from server.email_thread_manager import save_message_id_mapping
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 END_NODE: Literal["__end__"] = "__end__"
 

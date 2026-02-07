@@ -1,12 +1,13 @@
 """Shared agent state and utility functions."""
 
-import logging
 from typing import Annotated, Any, Literal
 
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-logger = logging.getLogger(__name__)
+from module.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # Type alias for team_context format: app:game_key:league_id:team_id

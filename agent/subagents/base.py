@@ -1,6 +1,5 @@
 """Base utilities for sub-agents to reduce code duplication."""
 
-import logging
 import os
 import sqlite3
 from typing import Any, cast
@@ -15,8 +14,9 @@ from pydantic import BaseModel
 from agent.agent_state import AgentState
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
+from module.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _DB_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),

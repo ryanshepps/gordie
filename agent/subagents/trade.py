@@ -1,12 +1,12 @@
 """Trade sub-agent for finding players to trade for"""
 
-import logging
 from typing import Annotated, Any
 
 from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
+from module.logger import get_logger
 from tools.player_comparison.get_comprehensive_player_stats import (
     get_comprehensive_player_stats,
 )
@@ -14,7 +14,7 @@ from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
 from tools.yahoo.get_league_teams import get_league_teams
 from tools.yahoo.get_team_roster import get_team_roster
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Linemate(BaseModel):

@@ -5,14 +5,14 @@ fetches their MoneyPuck statistics, and appends a formatted table.
 """
 
 import json
-import logging
 import re
 from typing import Any
 
 from client.moneypuck_client import get_player_name_lookup
+from module.logger import get_logger
 from tools.player_comparison.get_moneypuck_stats import get_moneypuck_stats
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Stats to include in the table (subset for readability)
 TABLE_STATS = [

@@ -1,13 +1,13 @@
-import logging
 import time
 
 from langchain.agents.middleware import wrap_tool_call
 from langchain.messages import ToolMessage
 
+from module.logger import get_logger
 from module.metrics import tool_calls_total, tool_errors_total, tool_execution_duration_seconds
 from module.tracing import create_span, record_exception, set_span_ok
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @wrap_tool_call

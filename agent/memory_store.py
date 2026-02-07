@@ -4,7 +4,6 @@ This module handles conversation memory storage and summarization.
 """
 
 import json
-import logging
 from datetime import datetime
 from typing import Any
 
@@ -13,8 +12,9 @@ from langgraph.store.memory import InMemoryStore
 from pydantic import BaseModel, Field
 
 from client.duck_db_client import get_platform_db_connection
+from module.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Memory store singleton - lazily initialized to avoid import-time API key requirements
 _memory_store: InMemoryStore | None = None

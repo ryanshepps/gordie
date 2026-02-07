@@ -1,6 +1,5 @@
 """Supervisor agent that coordinates sub-agents via tool calls."""
 
-import logging
 import os
 import sqlite3
 from typing import Any, Literal, cast
@@ -18,6 +17,7 @@ from agent.subagents.available import available_players
 from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
+from module.logger import get_logger
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.notifications.manage_notifications import manage_notifications
 from tools.yahoo.onboard_user_team import onboard_user_team
@@ -25,7 +25,7 @@ from tools.yahoo.onboard_user_team import onboard_user_team
 # Use literal string for END to satisfy type checker
 END_NODE: Literal["__end__"] = "__end__"
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Persona for user-facing communication
 PERSONA = """
