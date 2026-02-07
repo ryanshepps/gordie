@@ -1,7 +1,5 @@
 """Tool to get all Yahoo Fantasy leagues for a user."""
 
-import sys
-
 from langchain.tools import tool
 from yfpy.exceptions import YahooFantasySportsDataNotFound
 
@@ -65,4 +63,4 @@ def get_user_leagues(user_email: str) -> str:
         return "[]"
     except Exception as e:
         logger.error(f"Error fetching user leagues: {e}")
-        sys.exit(1)
+        return "Error fetching user leagues"
