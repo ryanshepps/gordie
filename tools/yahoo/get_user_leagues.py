@@ -3,6 +3,7 @@
 import sys
 
 from langchain.tools import tool
+from yfpy.exceptions import YahooFantasySportsDataNotFound
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
@@ -58,6 +59,10 @@ def get_user_leagues(user_email: str) -> str:
                 result.append(team_info)
 
         return str(result)
+    except YahooFantasySportsDataNotFound:
+        # User has no Yahoo Fantasy leagues
+        logger.info(f"User {user_email} has no Yahoo Fantasy leagues")
+        return "[]"
     except Exception as e:
         logger.error(f"Error fetching user leagues: {e}")
         sys.exit(1)
