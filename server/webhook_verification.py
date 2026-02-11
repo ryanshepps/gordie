@@ -1,5 +1,5 @@
 """
-Webhook verification utilities for Mailgun webhooks.
+Webhook verification utilities for Mailgun and Sinch webhooks.
 
 This module provides security functions to verify webhook authenticity
 and prevent replay attacks.
@@ -70,3 +70,27 @@ def is_timestamp_fresh(timestamp: str, max_age_seconds: int = 300) -> bool:
     except (ValueError, TypeError) as e:
         logger.error(f"Invalid timestamp format: {timestamp} - {e}")
         return False
+
+
+def verify_sinch_webhook(raw_body: bytes, signature: str) -> bool:
+    """Verify Sinch webhook signature using HMAC-SHA256.
+
+    Args:
+        raw_body: Raw request body bytes
+        signature: Signature from x-sinch-webhook-signature header
+
+    Returns:
+        True if signature is valid, False otherwise
+    """
+    webhook_secret = os.getenv("SINCH_WEBHOOK_SECRET")
+    if not webhook_secret:
+        logger.error("SINCH_WEBHOOK_SECRET not configured")
+        return False
+
+    hmac_digest = hmac.new(
+        key=webhook_secret.encode("utf-8"),
+        msg=raw_body,
+        digestmod=hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, hmac_digest)

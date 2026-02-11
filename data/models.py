@@ -48,9 +48,7 @@ class YahooUserTeam(Base):
         String, ForeignKey("yahoo_leagues.league_id"), primary_key=True
     )
     team_id: Mapped[str] = mapped_column(String, primary_key=True)
-    user_email: Mapped[str] = mapped_column(
-        String, ForeignKey("users.email"), primary_key=True
-    )
+    user_email: Mapped[str] = mapped_column(String, ForeignKey("users.email"), primary_key=True)
     team_name: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -58,9 +56,7 @@ class YahooUserTeam(Base):
 class YahooToken(Base):
     __tablename__ = "yahoo_tokens"
 
-    user_email: Mapped[str] = mapped_column(
-        String, ForeignKey("users.email"), primary_key=True
-    )
+    user_email: Mapped[str] = mapped_column(String, ForeignKey("users.email"), primary_key=True)
     yahoo_email: Mapped[str] = mapped_column(String, nullable=False)
     access_token: Mapped[str] = mapped_column(String, nullable=False)
     refresh_token: Mapped[str] = mapped_column(String, nullable=False)
@@ -97,9 +93,7 @@ class NotificationType(Base):
 class NotificationPreference(Base):
     __tablename__ = "notification_preferences"
 
-    user_email: Mapped[str] = mapped_column(
-        String, ForeignKey("users.email"), primary_key=True
-    )
+    user_email: Mapped[str] = mapped_column(String, ForeignKey("users.email"), primary_key=True)
     league_id: Mapped[str] = mapped_column(
         String, ForeignKey("yahoo_leagues.league_id"), primary_key=True
     )
@@ -166,6 +160,22 @@ class SmsThread(Base):
     thread_id: Mapped[str] = mapped_column(String, primary_key=True)
     phone_number: Mapped[str] = mapped_column(String, nullable=False, index=True)
     last_message_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ProcessedSms(Base):
+    __tablename__ = "processed_sms"
+
+    message_id: Mapped[str] = mapped_column(String, primary_key=True)
+    phone_number: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ProcessedEmail(Base):
+    __tablename__ = "processed_emails"
+
+    message_id: Mapped[str] = mapped_column(String, primary_key=True)
+    sender_email: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

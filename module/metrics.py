@@ -90,6 +90,20 @@ emails_sent_total = Counter(
     "fantasy_agent_emails_sent_total", "Total emails sent to users", ["status"]
 )
 
+sms_sent_total = Counter(
+    "fantasy_agent_sms_sent_total", "Total SMS messages sent to users", ["status"]
+)
+
+sms_webhook_requests_total = Counter(
+    "fantasy_agent_sms_webhook_requests_total", "Total SMS webhook requests received", ["status"]
+)
+
+sms_rate_limited_total = Counter(
+    "fantasy_agent_sms_rate_limited_total",
+    "Total SMS messages dropped due to rate limiting",
+    ["phone_number"],
+)
+
 trades_analyzed_total = Counter(
     "fantasy_agent_trades_analyzed_total", "Total trades analyzed", ["user_email"]
 )

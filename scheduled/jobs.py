@@ -21,6 +21,30 @@ def cleanup_expired_pending_oauth() -> None:
         repo.close()
 
 
+def cleanup_processed_messages() -> None:
+    """Delete processed_sms and processed_emails records older than 24 hours."""
+    from sqlalchemy import text
+
+    from data.database import get_session
+
+    session = get_session()
+    try:
+        for table in ("processed_sms", "processed_emails"):
+            session.execute(
+                text(
+                    f"DELETE FROM {table} WHERE created_at < NOW() - MAKE_INTERVAL(hours => :hours)"
+                ),
+                {"hours": 24},
+            )
+        session.commit()
+        logger.info("Cleaned up expired processed message records")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Failed to clean up processed messages: {e}")
+    finally:
+        session.close()
+
+
 def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
     """Register all scheduled notification jobs.
 
@@ -61,3 +85,12 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         replace_existing=True,
     )
     logger.info("Registered scheduled job: cleanup_pending_oauth (hourly)")
+
+    scheduler.add_job(
+        func=cleanup_processed_messages,
+        trigger="interval",
+        hours=1,
+        id="cleanup_processed_messages",
+        replace_existing=True,
+    )
+    logger.info("Registered scheduled job: cleanup_processed_messages (hourly)")

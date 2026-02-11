@@ -23,6 +23,7 @@ from server.routes.admin_routes import register_admin_routes
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
+from server.routes.sms_routes import register_sms_routes
 
 # Suppress Hypercorn's default access logging
 logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
@@ -82,6 +83,7 @@ class Server:
         register_email_routes(self.app)
         register_signup_routes(self.app)
         register_admin_routes(self.app)
+        register_sms_routes(self.app)
 
         # Health check stays inline since it's trivial
         @self.app.route("/health")

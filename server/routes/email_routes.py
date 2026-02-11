@@ -35,7 +35,7 @@ def register_email_routes(app):
         # Extract email threading headers
         in_reply_to = form.get("In-Reply-To")
         references = form.get("References")
-        _ = form.get("Message-Id")  # Extracted but not currently used
+        message_id = form.get("Message-Id")
 
         # Validate required fields
         if not all([sender_email, timestamp, token, signature]):
@@ -76,6 +76,35 @@ def register_email_routes(app):
 
             logger.error(f"Invalid webhook signature from {sender_email}")
             return jsonify({"error": "Invalid signature"}), 403
+
+        # Idempotency: check if we've already processed this Message-Id
+        if message_id:
+            from sqlalchemy import text as sql_text
+
+            from data.database import get_session
+
+            session = get_session()
+            try:
+                existing = session.execute(
+                    sql_text("SELECT 1 FROM processed_emails WHERE message_id = :message_id"),
+                    {"message_id": message_id},
+                ).fetchone()
+
+                if existing:
+                    logger.info(f"Duplicate email {message_id}, skipping")
+                    webhook_requests_total.labels(webhook_type="email", status="duplicate").inc()
+                    return jsonify({"status": "duplicate"}), 200
+
+                session.execute(
+                    sql_text(
+                        "INSERT INTO processed_emails (message_id, sender_email) "
+                        "VALUES (:message_id, :sender_email)"
+                    ),
+                    {"message_id": message_id, "sender_email": sender_email},
+                )
+                session.commit()
+            finally:
+                session.close()
 
         logger.info(
             f"Received email from {sender_email}: {subject}", extra={"user_email": sender_email}
