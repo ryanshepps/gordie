@@ -123,7 +123,9 @@ def _handle_first_time_or_no_oauth(
     user_email: str, thread_id: str, is_first_time: bool, has_oauth: bool
 ) -> ValidationResult:
     """Handle first-time users or users without OAuth tokens."""
-    oauth_url = generate_oauth_link.invoke({"user_email": user_email, "thread_id": thread_id})
+    oauth_url = generate_oauth_link.invoke(
+        {"user_email": user_email, "thread_id": thread_id, "channel": "email"}
+    )
 
     if is_first_time:
         system_message = f"""FIRST TIME USER DETECTED

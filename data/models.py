@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -122,12 +123,21 @@ class ConversationSummary(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-class OauthNonce(Base):
-    __tablename__ = "oauth_nonces"
+class PendingOAuth(Base):
+    __tablename__ = "pending_oauth"
+    __table_args__ = (
+        CheckConstraint(
+            "user_email IS NOT NULL OR phone_number IS NOT NULL",
+            name="ck_pending_oauth_has_identifier",
+        ),
+    )
 
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True)
     nonce: Mapped[str] = mapped_column(String, nullable=False)
+    user_email: Mapped[str | None] = mapped_column(String)
+    phone_number: Mapped[str | None] = mapped_column(String)
     thread_id: Mapped[str] = mapped_column(String, nullable=False)
+    channel: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

@@ -1,26 +1,31 @@
-from datetime import datetime
+"""Dev-only CLI script for generating an OAuth URL."""
 
-from data.user_repository import UserRepository
+import os
+import secrets
+
+from dotenv import load_dotenv
+
 from module.logger import get_logger
-from server.oauth import initiate_oauth_flow
+from server.oauth import build_auth_url
+
+load_dotenv()
 
 logger = get_logger(__name__)
 
 
 def main():
-    # Create a random user email with date appended
-    email = f"user_{datetime.now().strftime('%Y%m%d%H%M%S')}@example.com"
-    user_repo = UserRepository()
-    user_repo.add_user(email)
-    user_repo.close()
+    client_id = os.getenv("YAHOO_CLIENT_ID")
+    oauth_base_url = os.getenv("OAUTH_BASE_URL", "http://localhost:8000")
 
-    # Run OAuth flow for the user
-    try:
-        initiate_oauth_flow(email)
-        logger.info(f"✓ OAuth flow completed for {email}")
-    except Exception as e:
-        logger.error(f"\n✗ OAuth flow failed: {e}")
-        raise
+    if not client_id:
+        logger.error("YAHOO_CLIENT_ID not set")
+        return
+
+    callback_url = f"{oauth_base_url.rstrip('/')}/callback"
+    nonce = secrets.token_urlsafe(32)
+    auth_url = build_auth_url(client_id, callback_url, "openid email fspt-r", nonce)
+
+    print(f"OAuth URL:\n{auth_url}")
 
 
 if __name__ == "__main__":
