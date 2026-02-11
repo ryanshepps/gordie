@@ -25,6 +25,8 @@ class User(Base):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String, primary_key=True)
+    phone_number: Mapped[str | None] = mapped_column(String, unique=True)
+    sms_opted_out: Mapped[bool] = mapped_column(Boolean, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -138,6 +140,32 @@ class PendingOAuth(Base):
     phone_number: Mapped[str | None] = mapped_column(String)
     thread_id: Mapped[str] = mapped_column(String, nullable=False)
     channel: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class PendingUser(Base):
+    __tablename__ = "pending_users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    phone_number: Mapped[str | None] = mapped_column(String)
+    email: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class WebThread(Base):
+    __tablename__ = "web_threads"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    thread_id: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class SmsThread(Base):
+    __tablename__ = "sms_threads"
+
+    thread_id: Mapped[str] = mapped_column(String, primary_key=True)
+    phone_number: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    last_message_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

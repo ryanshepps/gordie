@@ -280,6 +280,30 @@ Do NOT proceed with their request until you know which team."""
     return ValidationResult(system_message=system_message)
 
 
+CHANNEL_GUIDELINES = {
+    "sms": """CHANNEL: SMS
+- Keep responses under 2 sentences.
+- If a task requires tool calls, send an immediate acknowledgment first (e.g., "On it — checking waivers now").
+- Break complex responses into multiple short messages.
+- Do NOT use markdown formatting (no headers, bold, tables). Plain text only.
+- If the user references a topic you have no context for, proactively use search_past_conversations to check other threads before saying you don't know.""",
+    "email": """CHANNEL: Email
+- Send one comprehensive response with full stats tables, detailed analysis, and formatting.
+- Use markdown for structure (headers, bold, tables).
+- If the user references a topic you have no context for, proactively use search_past_conversations to check other threads before saying you don't know.""",
+    "web": """CHANNEL: Web Chat
+- Be conversational like SMS but with rich formatting like email.
+- Send an immediate acknowledgment when working on something (e.g., "On it — checking waivers now").
+- Use markdown for formatting (headers, bold, tables).
+- If the user references a topic you have no context for, proactively use search_past_conversations to check other threads before saying you don't know.""",
+}
+
+
+def _get_channel_guidelines(channel: str) -> str:
+    """Get channel-specific behavior guidelines for the system prompt."""
+    return CHANNEL_GUIDELINES.get(channel, CHANNEL_GUIDELINES["email"])
+
+
 def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
     """Handle case where all validation checks have passed."""
     return ValidationResult(
@@ -302,9 +326,13 @@ def validate_and_build_system_message(
     4. Team resolution
     5. Final validation
 
+    Channel-specific behavior guidelines are appended to every result.
+
     Returns:
         ValidationResult containing system_message, league_id, and team_id
     """
+    channel = state.get("channel", "email")
+    channel_guidelines = _get_channel_guidelines(channel)
     user_email, thread_id = _extract_user_info(state)
     if not user_email:
         return _handle_missing_email()
@@ -316,7 +344,12 @@ def validate_and_build_system_message(
     # treated as first-time users (even if no memories exist yet).
     if not has_oauth:
         is_first_time = _is_first_time_user(user_email, memory_store)
-        return _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
+        result = _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
+        return ValidationResult(
+            system_message=f"{result.system_message}\n\n{channel_guidelines}",
+            league_id=result.league_id,
+            team_id=result.team_id,
+        )
 
     repo = YahooUserTeamRepository()
     try:
@@ -324,10 +357,25 @@ def validate_and_build_system_message(
     finally:
         repo.close()
     if not user_teams:
-        return _handle_no_teams_in_db(user_email)
+        result = _handle_no_teams_in_db(user_email)
+        return ValidationResult(
+            system_message=f"{result.system_message}\n\n{channel_guidelines}",
+            league_id=result.league_id,
+            team_id=result.team_id,
+        )
 
     league_id, team_id = _resolve_team_context(state, user_teams)
     if not league_id or not team_id:
-        return _handle_ambiguous_team_selection(user_teams)
+        result = _handle_ambiguous_team_selection(user_teams)
+        return ValidationResult(
+            system_message=f"{result.system_message}\n\n{channel_guidelines}",
+            league_id=result.league_id,
+            team_id=result.team_id,
+        )
 
-    return _handle_validated_context(league_id, team_id)
+    result = _handle_validated_context(league_id, team_id)
+    return ValidationResult(
+        system_message=f"{result.system_message}\n\n{channel_guidelines}",
+        league_id=result.league_id,
+        team_id=result.team_id,
+    )

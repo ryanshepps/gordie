@@ -33,7 +33,7 @@ def register_signup_routes(app):
 
         logger.info(f"Website signup from {email}")
 
-        from server.email_thread_manager import resolve_thread
+        from server.thread_manager import resolve_thread
 
         thread_info = resolve_thread(user_email=email, subject="Website Signup")
 
@@ -42,9 +42,10 @@ def register_signup_routes(app):
                 from scripts.message_agent import message_agent
 
                 message_agent(
-                    email=email,
                     message="Hi! I just signed up on the website. I'd like to get started with Gordie.",
                     thread_id=thread_info.thread_id,
+                    channel="email",
+                    user_email=email,
                     original_subject="Welcome to Gordie",
                 )
                 logger.info(f"Signup agent processing complete for {email}")

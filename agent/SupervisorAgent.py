@@ -135,7 +135,7 @@ def _add_error_response(state: AgentState, error_message: str) -> None:
 
 def _invoke_supervisor(
     state: AgentState, user_email: str
-) -> Command[Literal["email", "__end__"]]:
+) -> Command[Literal["response", "__end__"]]:
     """Invoke the supervisor agent and return the appropriate command."""
     try:
         context_msg, league_id, team_id = _build_context_message(state, user_email)
@@ -167,23 +167,23 @@ def _invoke_supervisor(
                     state["response"] = response_content
                     state["messages"] = result_messages
                     logger.info(f"Supervisor response: {response_content[:200]}...")
-                    return Command(goto="email", update=state)
+                    return Command(goto="response", update=state)
 
         # No valid response
         _add_error_response(state, "I couldn't process your request. Could you please rephrase?")
-        return Command(goto="email", update=state)
+        return Command(goto="response", update=state)
 
     except Exception as e:
         logger.error(f"Error in supervisor agent: {e}", exc_info=True)
         _add_error_response(
             state, "I encountered an error processing your request. Could you please try again?"
         )
-        return Command(goto="email", update=state)
+        return Command(goto="response", update=state)
 
 
 def supervisor_node(
     state: AgentState,
-) -> Command[Literal["email", "__end__"]]:
+) -> Command[Literal["response", "__end__"]]:
     """Supervisor node that routes user requests to appropriate sub-agents."""
     messages = state.get("messages", [])
     user_email = state.get("user_email") or ""

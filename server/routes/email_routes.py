@@ -84,7 +84,7 @@ def register_email_routes(app):
             logger.info(f"Email is a reply to: {in_reply_to}")
 
         # Resolve thread_id based on email headers
-        from server.email_thread_manager import resolve_thread
+        from server.thread_manager import resolve_thread
 
         thread_info = resolve_thread(
             user_email=sender_email,
@@ -106,9 +106,10 @@ def register_email_routes(app):
                 # Process through agent - email sending is handled by the agent graph's email_node
                 logger.info(f"Processing email from {sender_email}")
                 message_agent(
-                    email=sender_email,
                     message=message_body,
                     thread_id=thread_info.thread_id,
+                    channel="email",
+                    user_email=sender_email,
                     original_subject=thread_info.subject,
                     original_message=message_body,
                 )

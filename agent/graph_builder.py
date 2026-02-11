@@ -9,7 +9,7 @@ from langgraph.graph import StateGraph
 
 from agent.agent_state import AgentState
 from agent.checkpointer import checkpointer
-from agent.email_node import email_node
+from agent.response_node import response_node
 from agent.SupervisorAgent import supervisor_node
 
 
@@ -18,7 +18,7 @@ def build_agent_graph():
 
     The graph has 2 nodes:
     - supervisor: Handles requests via sub-agent tools
-    - email: Sends the response to the user
+    - response: Dispatches the response to the appropriate channel (email, SMS, web)
 
     Sub-agents (onboarding, player_comparison) are invoked as tools
     by the supervisor rather than being separate graph nodes.
@@ -26,7 +26,7 @@ def build_agent_graph():
     workflow = StateGraph(AgentState)
 
     workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("email", email_node)
+    workflow.add_node("response", response_node)
 
     workflow.set_entry_point("supervisor")
 

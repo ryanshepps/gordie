@@ -16,11 +16,62 @@ from module.tracing import create_span  # noqa: E402
 logger = get_logger(__name__)
 
 
+def _resolve_user_email(
+    channel: str,
+    user_email: str | None,
+    phone_number: str | None,
+    thread_id: str,
+) -> str | None:
+    """Resolve user email based on channel and available identifiers.
+
+    Args:
+        channel: Channel type ("email", "sms", or "web")
+        user_email: Provided user email (if any)
+        phone_number: Provided phone number (if any)
+        thread_id: Thread ID (for web channel lookups)
+
+    Returns:
+        Resolved email address or None if not resolvable
+    """
+    if user_email:
+        return user_email
+
+    if channel == "sms" and phone_number:
+        from data.user_repository import UserRepository
+
+        repo = UserRepository()
+        try:
+            user = repo.get_user_by_phone(phone_number)
+            if user:
+                return str(user[0])  # email is the first column
+        finally:
+            repo.close()
+        return None
+
+    if channel == "web":
+        from data.web_thread_repository import WebThreadRepository
+
+        repo = WebThreadRepository()
+        try:
+            web_thread = repo.get_web_thread_by_thread_id(thread_id)
+            if web_thread:
+                # thread_id format is "email:uuid", extract email
+                parts = thread_id.split(":")
+                if len(parts) >= 2:
+                    return parts[0]
+        finally:
+            repo.close()
+
+    return None
+
+
 def message_agent(
-    email: str,
     message: str,
+    thread_id: str,
+    channel: str = "email",
+    user_email: str | None = None,
+    phone_number: str | None = None,
     team_context: str | None = None,
-    thread_id: str | None = None,
     original_subject: str | None = None,
     original_message: str | None = None,
 ) -> str:
@@ -28,22 +79,27 @@ def message_agent(
     Send a message to the agent graph and continue the conversation.
 
     Args:
-        email: User's email address
         message: Message content to send to the agent
+        thread_id: Conversation thread ID
+        channel: Channel type ("email", "sms", or "web")
+        user_email: User's email address (required for email channel)
+        phone_number: User's phone number (required for sms channel)
         team_context: Optional team context in format app:game_key:league_id:team_id
-        thread_id: Conversation thread ID (defaults to email for backwards compatibility)
         original_subject: Original email subject line for reply threading
         original_message: Original user message for quoting in replies
 
     Returns:
         Agent's response as a string, or empty string if error occurs
     """
+    # Resolve user email based on channel
+    email = _resolve_user_email(channel, user_email, phone_number, thread_id)
+    if not email:
+        logger.error(f"Could not resolve user email for channel={channel}")
+        return ""
 
-    with create_span("agent.message", {"user.email": email, "thread.id": thread_id or email}):
+    with create_span("agent.message", {"user.email": email, "thread.id": thread_id}):
         try:
-            # Use provided thread_id or fall back to email for backwards compatibility
-            resolved_thread_id = thread_id or email
-            config: RunnableConfig = {"configurable": {"thread_id": resolved_thread_id}}
+            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
             # Build message payload
             message_payload = {"role": "user", "content": message}
@@ -53,7 +109,8 @@ def message_agent(
             # Build initial state
             initial_state: AgentState = {
                 "user_email": email,
-                "thread_id": resolved_thread_id,
+                "thread_id": thread_id,
+                "channel": channel,
                 "messages": [message_payload],
                 "user_teams": [],
                 "league_id": None,
@@ -66,6 +123,7 @@ def message_agent(
                 "flow_reasoning": None,
                 "original_subject": original_subject,
                 "original_message": original_message or message,
+                "has_rich_content": False,
             }
 
             # Send message to agent graph
@@ -113,7 +171,16 @@ def main():
 
     args = parser.parse_args()
     try:
-        message_agent(args.email, args.message, args.team_context)
+        from server.thread_manager import resolve_thread
+
+        thread_info = resolve_thread(user_email=args.email)
+        message_agent(
+            message=args.message,
+            thread_id=thread_info.thread_id,
+            channel="email",
+            user_email=args.email,
+            team_context=args.team_context,
+        )
     except Exception as e:
         logger.error(f"\n✗ Failed to message agent: {e}")
         raise

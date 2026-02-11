@@ -60,7 +60,7 @@ def register_oauth_routes(app):
 
             # Unpack record columns
             # (id, nonce, user_email, phone_number, thread_id, channel, created_at)
-            _, nonce, user_email, phone_number, thread_id, _channel, _ = record
+            _, nonce, user_email, phone_number, thread_id, channel, _ = record
 
             # Exchange code for tokens
             client_id = os.getenv("YAHOO_CLIENT_ID")
@@ -110,9 +110,11 @@ def register_oauth_routes(app):
                     from scripts.message_agent import message_agent
 
                     message_agent(
-                        email=identifier,
                         message="I've completed the OAuth authentication!",
                         thread_id=thread_id,
+                        channel=channel,
+                        user_email=user_email,
+                        phone_number=phone_number,
                         original_subject="Yahoo Fantasy Authentication",
                     )
                     logger.info(f"Agent resumed for user={identifier} thread={thread_id}")
