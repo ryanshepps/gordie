@@ -4,7 +4,7 @@ import os
 from functools import wraps
 from typing import Any
 
-from flask import Flask, jsonify, request
+from quart import Quart, jsonify, request
 from sqlalchemy import text
 
 from agent.memory_store import get_conversation_summaries_by_email
@@ -20,11 +20,11 @@ def _require_admin_key(f):
     """Decorator that validates the X-Admin-Key header."""
 
     @wraps(f)
-    def decorated(*args, **kwargs):
+    async def decorated(*args, **kwargs):
         provided_key = request.headers.get("X-Admin-Key", "")
         if not _ADMIN_KEY or provided_key != _ADMIN_KEY:
             return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
+        return await f(*args, **kwargs)
 
     return decorated
 
@@ -108,16 +108,16 @@ def _extract_messages_from_checkpoint(thread_id: str) -> list[dict[str, Any]]:
         session.close()
 
 
-def register_admin_routes(app: Flask) -> None:
-    """Register admin API routes on the Flask app.
+def register_admin_routes(app: Quart) -> None:
+    """Register admin API routes on the Quart app.
 
     Args:
-        app: Flask application instance
+        app: Quart application instance
     """
 
     @app.route("/admin/conversations", methods=["GET"])
     @_require_admin_key
-    def get_conversations():
+    async def get_conversations():
         """Get conversation summaries for a user."""
         email = request.args.get("email")
         if not email:
@@ -128,7 +128,7 @@ def register_admin_routes(app: Flask) -> None:
 
     @app.route("/admin/conversations/<path:thread_id>/messages", methods=["GET"])
     @_require_admin_key
-    def get_conversation_messages(thread_id: str):
+    async def get_conversation_messages(thread_id: str):
         """Get full message history for a conversation thread."""
         messages = _extract_messages_from_checkpoint(thread_id)
 

@@ -3,7 +3,7 @@
 import re
 import threading
 
-from flask import jsonify, request
+from quart import jsonify, request
 
 from module.logger import get_logger
 
@@ -19,11 +19,11 @@ def register_signup_routes(app):
     """
 
     @app.route("/api/signup", methods=["POST"])
-    def signup():
+    async def signup():
         """Handle website signup requests."""
         logger = get_logger(__name__, log_file="server.log")
 
-        data = request.get_json(silent=True)
+        data = await request.get_json(silent=True)
         if not data:
             return jsonify({"error": "Invalid request body."}), 400
 

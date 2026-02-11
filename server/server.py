@@ -1,21 +1,21 @@
 """
 HTTP Server for handling OAuth callbacks and email webhooks.
 
-This module provides the Flask server that handles incoming HTTP requests
+This module provides the Quart server that handles incoming HTTP requests
 for OAuth authentication and email processing.
 """
 
+import asyncio
 import atexit
 import logging
 import threading
-from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, jsonify
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from prometheus_client import make_wsgi_app
-from prometheus_flask_exporter import PrometheusMetrics
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
+from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from quart import Quart, jsonify
 
 from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
@@ -24,8 +24,8 @@ from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
 
-# Suppress Flask's default logging
-logging.getLogger("werkzeug").setLevel(logging.ERROR)
+# Suppress Hypercorn's default access logging
+logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
 
 # Global singleton server instance
 _server_instance: "Server | None" = None
@@ -34,7 +34,7 @@ _server_lock = threading.Lock()
 
 class Server:
     """
-    Flask server for handling OAuth callbacks and email webhooks.
+    Quart server for handling OAuth callbacks and email webhooks.
 
     The server listens on the configured host/port and handles:
     - /callback - OAuth authorization code redirects from Yahoo
@@ -52,15 +52,13 @@ class Server:
         """
         self.host = host
         self.port = port
-        self.app = Flask(__name__)
+        self.app = Quart(__name__)
         self.server_thread: threading.Thread | None = None
 
-        # Instrument Flask with OpenTelemetry (TracerProvider is set up by module.tracing.init())
-        FlaskInstrumentor().instrument_app(self.app)
-
-        # Initialize Prometheus metrics for Flask
-        # path=None disables automatic endpoint (we create custom /metrics endpoint later)
-        self.metrics = PrometheusMetrics(self.app, path=cast(str, cast(object, None)), defaults_prefix="fantasy_agent_flask")
+        # Instrument with OpenTelemetry via ASGI middleware.
+        # Type ignore: OpenTelemetry types ASGI params as MutableMapping[str, Any] while
+        # Quart/Hypercorn use narrower TypedDict aliases — both follow the ASGI 3.0 spec.
+        self.app.asgi_app = OpenTelemetryMiddleware(self.app.asgi_app)  # pyright: ignore[reportAttributeAccessIssue]
 
         # Set up periodic metrics updates
         self.scheduler = BackgroundScheduler()
@@ -78,7 +76,7 @@ class Server:
         self._setup_routes()
 
     def _setup_routes(self):
-        """Configure Flask routes."""
+        """Configure Quart routes."""
         # Register route handlers from separate modules
         register_oauth_routes(self.app)
         register_email_routes(self.app)
@@ -87,16 +85,15 @@ class Server:
 
         # Health check stays inline since it's trivial
         @self.app.route("/health")
-        def health():
+        async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
 
         # Prometheus metrics endpoint
         @self.app.route("/metrics")
-        def metrics():
+        async def metrics():
             """Prometheus metrics endpoint."""
-            metrics_app = make_wsgi_app()
-            return metrics_app
+            return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
     def start(self):
         """
@@ -107,14 +104,9 @@ class Server:
         """
 
         def run_server():
-            # Add prometheus wsgi middleware to serve /metrics
-            self.app.wsgi_app = DispatcherMiddleware(
-                self.app.wsgi_app, {"/metrics": make_wsgi_app()}
-            )
-
-            self.app.run(
-                host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True
-            )
+            config = Config()
+            config.bind = [f"{self.host}:{self.port}"]
+            asyncio.run(serve(self.app, config))
 
         self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()
@@ -123,4 +115,3 @@ class Server:
         import time
 
         time.sleep(1)
-

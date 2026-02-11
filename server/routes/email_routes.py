@@ -3,7 +3,7 @@
 import threading
 import time
 
-from flask import jsonify, request
+from quart import jsonify, request
 
 from module.logger import get_logger
 from module.metrics import http_request_duration_seconds, webhook_requests_total
@@ -18,23 +18,24 @@ def register_email_routes(app):
     """
 
     @app.route("/email/webhook", methods=["POST"])
-    def email_webhook():
+    async def email_webhook():
         """Handle incoming emails from Mailgun webhook."""
         start_time = time.time()
         logger = get_logger(__name__, log_file="server.log")
 
         # Extract webhook data
-        sender_email = request.form.get("sender")
-        subject = request.form.get("subject", "")
-        message_body = request.form.get("stripped-text") or request.form.get("body-plain", "")
-        timestamp = request.form.get("timestamp")
-        token = request.form.get("token")
-        signature = request.form.get("signature")
+        form = await request.form
+        sender_email = form.get("sender")
+        subject = form.get("subject", "")
+        message_body = form.get("stripped-text") or form.get("body-plain", "")
+        timestamp = form.get("timestamp")
+        token = form.get("token")
+        signature = form.get("signature")
 
         # Extract email threading headers
-        in_reply_to = request.form.get("In-Reply-To")
-        references = request.form.get("References")
-        _ = request.form.get("Message-Id")  # Extracted but not currently used
+        in_reply_to = form.get("In-Reply-To")
+        references = form.get("References")
+        _ = form.get("Message-Id")  # Extracted but not currently used
 
         # Validate required fields
         if not all([sender_email, timestamp, token, signature]):

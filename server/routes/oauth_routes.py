@@ -3,7 +3,7 @@
 import os
 import threading
 
-from flask import request
+from quart import request
 
 from module.logger import get_logger
 
@@ -18,7 +18,7 @@ def register_oauth_routes(app):
     """
 
     @app.route("/callback")
-    def callback():
+    async def callback():
         """Handle OAuth callback from Yahoo.
 
         The callback is fully self-contained: it exchanges the auth code for

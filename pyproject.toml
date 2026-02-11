@@ -8,7 +8,8 @@ dependencies = [
     "agentevals>=0.0.9",
     "alembic>=1.14.0",
     "dotenv>=0.9.9",
-    "flask>=3.1.2",
+    "quart>=0.20.0",
+    "hypercorn>=0.17.0",
     "langchain>=1.1.2",
     "langchain-openai>=1.1.0",
     "langgraph-checkpoint-postgres>=2.0.0",
@@ -21,13 +22,12 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "yfpy>=17.0.0",
     "prometheus-client>=0.20.0",
-    "prometheus-flask-exporter>=0.23.0",
     "python-json-logger>=2.0.7",
     "psutil>=3.4.2",
     "apscheduler>=3.10.4",
     "pytest-cov>=7.0.0",
     "logfire>=3.0.0",
-    "opentelemetry-instrumentation-flask>=0.45b0",
+    "opentelemetry-instrumentation-asgi>=0.45b0",
 ]
 
 [tool.ruff]
