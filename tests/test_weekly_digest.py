@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from data.schemas import (
+from data.pydantic_models import (
     CurrentMatchup,
     DigestData,
     EnrichedFreeAgent,
@@ -619,7 +619,7 @@ class TestPydanticModels:
 
     def test_matchup_opponent_record_property(self):
         """MatchupOpponent.record returns formatted string."""
-        from data.schemas import MatchupOpponent
+        from data.pydantic_models import MatchupOpponent
 
         opponent = MatchupOpponent(name="Test", team_key="nhl.t.1", wins=10, losses=5, ties=2)
         assert opponent.record == "10-5-2"

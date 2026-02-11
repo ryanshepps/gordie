@@ -6,9 +6,8 @@ For aggregate/season statistics, use the MoneyPuck client instead:
 
 from typing import Any
 
-import duckdb
+from sqlalchemy.orm import Session
 
-from client.duck_db_client import get_nhl_stats_db_connection
 from data.repository import Repository
 
 
@@ -22,15 +21,13 @@ class NHLPlayerStatsRepository(Repository):
     MoneyPuck client instead which fetches data directly from MoneyPuck.com.
     """
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(self, session: Session | None = None):
         """Initialize NHL player stats repository.
 
         Args:
-            conn: Optional database connection. If not provided, creates new NHL stats connection.
+            session: Optional database session. If not provided, creates a new one.
         """
-        self._owns_conn = conn is None
-        self.conn = conn or get_nhl_stats_db_connection()
-        super().__init__(self.conn, "nhl_player_game_stats")
+        super().__init__("nhl_player_game_stats", session)
 
     def add_stats(
         self,
@@ -78,8 +75,3 @@ class NHLPlayerStatsRepository(Repository):
             List of stats records
         """
         return self.get_all(nhl_api_player_id=nhl_api_player_id)
-
-    def close(self) -> None:
-        """Close the database connection if owned by this repository."""
-        if self._owns_conn and self.conn:
-            self.conn.close()

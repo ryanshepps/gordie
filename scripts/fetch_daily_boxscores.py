@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Fetch NHL box scores for a given date and insert into DuckDB.
+Fetch NHL box scores for a given date and insert into PostgreSQL.
 
 This script fetches all games for a specified date, retrieves box score data
-for all players, and efficiently inserts it into the player_stats table using
-DuckDB's DataFrame ingestion capabilities.
+for all players, and efficiently inserts it using SQLAlchemy bulk operations.
 """
 
 import argparse
@@ -12,12 +11,12 @@ import logging
 import sys
 from datetime import datetime
 
-import duckdb
 import pandas as pd
 from nhlpy import NHLClient
+from sqlalchemy.dialects.postgresql import insert
 
-from client.duck_db_client import get_nhl_stats_db_connection
-from data.schemas import create_nhl_player_game_stats_table
+from data.database import get_session
+from data.models import NhlPlayerGameStats
 from module.logger import get_logger
 
 logger = get_logger(__name__, level=logging.INFO)
@@ -267,66 +266,42 @@ def extract_player_stats(
 
 
 def insert_player_stats(
-    conn: duckdb.DuckDBPyConnection,
     player_stats: list[dict[str, int | str | float | None]],
 ) -> None:
     """
-    Insert player stats into DuckDB using efficient DataFrame ingestion.
-
-    Uses DuckDB's ability to directly query DataFrames for optimal performance.
-    See: https://duckdb.org/docs/stable/clients/python/data_ingestion
+    Insert player stats into PostgreSQL using bulk upsert.
 
     Args:
-        conn: DuckDB connection
         player_stats: List of player stat dictionaries
     """
     if not player_stats:
         logger.warning("No player stats to insert")
         return
 
-    # Convert to DataFrame for efficient batch insertion
-    df = pd.DataFrame(player_stats)
+    logger.info(f"Inserting {len(player_stats)} player records")
 
-    logger.info(f"Inserting {len(df)} player records")
-
-    # DuckDB can directly query the DataFrame variable
-    # Using INSERT OR REPLACE to handle PRIMARY KEY conflicts
-    conn.execute("""
-        INSERT OR REPLACE INTO nhl_player_game_stats
-        SELECT
-            nhl_api_player_id,
-            nhl_api_game_id,
-            game_date,
-            full_name,
-            first_name,
-            last_name,
-            goals,
-            assists,
-            points,
-            plus_minus,
-            pim,
-            hits,
-            power_play_goals,
-            sog,
-            faceoff_winning_pctg,
-            toi,
-            blocked_shots,
-            shifts,
-            giveaways,
-            takeaways,
-            corsi_for,
-            fenwick_for,
-            missed_shots
-        FROM df
-    """)
-
-    logger.info(f"Successfully inserted {len(df)} player records")
+    session = get_session()
+    try:
+        stmt = insert(NhlPlayerGameStats).values(player_stats)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["nhl_api_player_id", "nhl_api_game_id"],
+            set_={
+                col.name: stmt.excluded[col.name]
+                for col in NhlPlayerGameStats.__table__.columns
+                if col.name not in ("nhl_api_player_id", "nhl_api_game_id")
+            },
+        )
+        session.execute(stmt)
+        session.commit()
+        logger.info(f"Successfully inserted {len(player_stats)} player records")
+    finally:
+        session.close()
 
 
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
-        description="Fetch NHL box scores for a date and insert into DuckDB"
+        description="Fetch NHL box scores for a date and insert into database"
     )
     _ = parser.add_argument("date", type=str, help="Date in YYYY-MM-DD format (e.g., 2025-12-06)")
     _ = parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
@@ -343,25 +318,18 @@ def main():
         logger.error(f"Invalid date format: {args.date}. Use YYYY-MM-DD")
         sys.exit(1)
 
-    # Connect to database and ensure table exists
-    conn = get_nhl_stats_db_connection()
-    create_nhl_player_game_stats_table(conn)
-
     try:
         # Fetch box score data
         player_stats = fetch_boxscore_data(args.date)
 
         # Insert into database
-        insert_player_stats(conn, player_stats)
+        insert_player_stats(player_stats)
 
         logger.info("Box score data ingestion complete")
 
     except Exception as e:
         logger.error(f"Error during execution: {e}")
         sys.exit(1)
-
-    finally:
-        conn.close()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: gordie-postgres
+    environment:
+      POSTGRES_DB: gordie
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - gordie_pgdata:/var/lib/postgresql/data
+
+volumes:
+  gordie_pgdata:

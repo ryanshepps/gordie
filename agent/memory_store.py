@@ -10,8 +10,9 @@ from typing import Any
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.store.memory import InMemoryStore
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
-from client.duck_db_client import get_platform_db_connection
+from data.database import get_session
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -69,46 +70,49 @@ class ConversationSummary(BaseModel):
     )
 
 
-def _persist_summary_to_duckdb(
+def _persist_summary(
     thread_id: str,
     user_email: str,
     summary: ConversationSummary,
 ) -> None:
-    """Persist a conversation summary to DuckDB for durable storage."""
+    """Persist a conversation summary to the database for durable storage."""
     try:
-        conn = get_platform_db_connection()
+        session = get_session()
         now = datetime.now().isoformat()
-        conn.execute(
-            """
-            INSERT INTO conversation_summaries
-                (thread_id, user_email, summary, key_topics, players_mentioned, decisions_made, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (thread_id) DO UPDATE SET
-                summary = excluded.summary,
-                key_topics = excluded.key_topics,
-                players_mentioned = excluded.players_mentioned,
-                decisions_made = excluded.decisions_made,
-                updated_at = excluded.updated_at
-            """,
-            [
-                thread_id,
-                user_email,
-                summary.summary,
-                json.dumps(summary.key_topics),
-                json.dumps(summary.players_mentioned),
-                json.dumps(summary.decisions_made),
-                now,
-                now,
-            ],
+        session.execute(
+            text(
+                """
+                INSERT INTO conversation_summaries
+                    (thread_id, user_email, summary, key_topics, players_mentioned, decisions_made, created_at, updated_at)
+                VALUES (:thread_id, :user_email, :summary, :key_topics, :players_mentioned, :decisions_made, :created_at, :updated_at)
+                ON CONFLICT (thread_id) DO UPDATE SET
+                    summary = EXCLUDED.summary,
+                    key_topics = EXCLUDED.key_topics,
+                    players_mentioned = EXCLUDED.players_mentioned,
+                    decisions_made = EXCLUDED.decisions_made,
+                    updated_at = EXCLUDED.updated_at
+                """
+            ),
+            {
+                "thread_id": thread_id,
+                "user_email": user_email,
+                "summary": summary.summary,
+                "key_topics": json.dumps(summary.key_topics),
+                "players_mentioned": json.dumps(summary.players_mentioned),
+                "decisions_made": json.dumps(summary.decisions_made),
+                "created_at": now,
+                "updated_at": now,
+            },
         )
-        conn.close()
-        logger.info(f"Persisted conversation summary to DuckDB for thread {thread_id}")
+        session.commit()
+        session.close()
+        logger.info(f"Persisted conversation summary for thread {thread_id}")
     except Exception as e:
-        logger.error(f"Failed to persist summary to DuckDB: {e}")
+        logger.error(f"Failed to persist summary: {e}")
 
 
 def get_conversation_summaries_by_email(user_email: str) -> list[dict[str, Any]]:
-    """Fetch all conversation summaries for a user from DuckDB.
+    """Fetch all conversation summaries for a user.
 
     Args:
         user_email: The user's email address
@@ -116,18 +120,20 @@ def get_conversation_summaries_by_email(user_email: str) -> list[dict[str, Any]]
     Returns:
         List of summary dicts with parsed JSON fields
     """
-    conn = get_platform_db_connection()
-    rows = conn.execute(
-        """
-        SELECT thread_id, user_email, summary, key_topics, players_mentioned,
-               decisions_made, created_at, updated_at
-        FROM conversation_summaries
-        WHERE user_email = ?
-        ORDER BY created_at DESC
-        """,
-        [user_email],
+    session = get_session()
+    rows = session.execute(
+        text(
+            """
+            SELECT thread_id, user_email, summary, key_topics, players_mentioned,
+                   decisions_made, created_at, updated_at
+            FROM conversation_summaries
+            WHERE user_email = :user_email
+            ORDER BY created_at DESC
+            """
+        ),
+        {"user_email": user_email},
     ).fetchall()
-    conn.close()
+    session.close()
 
     return [
         {
@@ -151,7 +157,7 @@ def summarize_and_store_conversation(
     store: InMemoryStore,
 ) -> bool:
     """
-    Summarize a conversation and store it in the memory store and DuckDB.
+    Summarize a conversation and store it in the memory store and database.
 
     Args:
         messages: List of conversation messages
@@ -226,8 +232,8 @@ Generate a summary that captures:
             },
         )
 
-        # Persist to DuckDB (durable storage, survives restarts)
-        _persist_summary_to_duckdb(thread_id, user_email, result)
+        # Persist to database (durable storage, survives restarts)
+        _persist_summary(thread_id, user_email, result)
 
         logger.info(f"Stored conversation memory for thread {thread_id}")
         logger.debug(f"Summary: {result.summary}")

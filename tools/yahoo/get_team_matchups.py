@@ -1,7 +1,7 @@
 """Tool to fetch team matchup data from Yahoo Fantasy."""
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
-from data.schemas import CurrentMatchup, Matchup, MatchupOpponent, MatchupResponse
+from data.pydantic_models import CurrentMatchup, Matchup, MatchupOpponent, MatchupResponse
 from module.logger import get_logger
 
 logger = get_logger(__name__)

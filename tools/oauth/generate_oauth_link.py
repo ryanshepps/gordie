@@ -6,8 +6,9 @@ from urllib.parse import urlencode
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
-from client.duck_db_client import get_platform_db_connection
+from data.database import get_session
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -70,31 +71,25 @@ def generate_oauth_link(user_email: str, thread_id: str) -> str:
 
 def _store_oauth_nonce(user_email: str, nonce: str, thread_id: str) -> None:
     """Store OAuth nonce and thread_id in database for later retrieval."""
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        # Create table if it doesn't exist (with thread_id column)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS oauth_nonces (
-                user_email TEXT PRIMARY KEY,
-                nonce TEXT NOT NULL,
-                thread_id TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # Store or update nonce and thread_id
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO oauth_nonces (user_email, nonce, thread_id, created_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        """,
-            (user_email, nonce, thread_id),
+        session.execute(
+            text(
+                """
+                INSERT INTO oauth_nonces (user_email, nonce, thread_id, created_at)
+                VALUES (:user_email, :nonce, :thread_id, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_email) DO UPDATE SET
+                    nonce = EXCLUDED.nonce,
+                    thread_id = EXCLUDED.thread_id,
+                    created_at = CURRENT_TIMESTAMP
+                """
+            ),
+            {"user_email": user_email, "nonce": nonce, "thread_id": thread_id},
         )
-
-        conn.commit()
+        session.commit()
     except Exception as e:
-        conn.rollback()
+        session.rollback()
         logger.error(f"Failed to store OAuth nonce: {e}")
         raise
     finally:
-        conn.close()
+        session.close()

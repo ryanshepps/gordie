@@ -1,6 +1,8 @@
 """OAuth nonce management utilities."""
 
-from client.duck_db_client import get_platform_db_connection
+from sqlalchemy import text
+
+from data.database import get_session
 
 
 def get_oauth_nonce(user_email: str) -> str | None:
@@ -13,18 +15,16 @@ def get_oauth_nonce(user_email: str) -> str | None:
     Returns:
         The nonce string if found, None otherwise
     """
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        result = conn.execute(
-            """
-            SELECT nonce FROM oauth_nonces WHERE user_email = ?
-        """,
-            (user_email,),
+        result = session.execute(
+            text("SELECT nonce FROM oauth_nonces WHERE user_email = :user_email"),
+            {"user_email": user_email},
         ).fetchone()
 
         return result[0] if result else None
     finally:
-        conn.close()
+        session.close()
 
 
 def get_oauth_nonce_and_thread(user_email: str) -> tuple[str, str] | None:
@@ -37,18 +37,18 @@ def get_oauth_nonce_and_thread(user_email: str) -> tuple[str, str] | None:
     Returns:
         Tuple of (nonce, thread_id) if found, None otherwise
     """
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        result = conn.execute(
-            """
-            SELECT nonce, thread_id FROM oauth_nonces WHERE user_email = ?
-        """,
-            (user_email,),
+        result = session.execute(
+            text(
+                "SELECT nonce, thread_id FROM oauth_nonces WHERE user_email = :user_email"
+            ),
+            {"user_email": user_email},
         ).fetchone()
 
         return (result[0], result[1]) if result else None
     finally:
-        conn.close()
+        session.close()
 
 
 def delete_oauth_nonce(user_email: str) -> None:
@@ -58,17 +58,15 @@ def delete_oauth_nonce(user_email: str) -> None:
     Args:
         user_email: Email address of the user
     """
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        _ = conn.execute(
-            """
-            DELETE FROM oauth_nonces WHERE user_email = ?
-        """,
-            (user_email,),
+        session.execute(
+            text("DELETE FROM oauth_nonces WHERE user_email = :user_email"),
+            {"user_email": user_email},
         )
-        _ = conn.commit()
+        session.commit()
     except Exception:
-        conn.rollback()
+        session.rollback()
         raise
     finally:
-        conn.close()
+        session.close()

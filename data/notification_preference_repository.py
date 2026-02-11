@@ -2,24 +2,22 @@
 
 from datetime import datetime
 
-import duckdb
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from client.duck_db_client import get_platform_db_connection
 from data.repository import Repository
 
 
 class NotificationPreferenceRepository(Repository):
     """Repository for managing user notification preferences."""
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(self, session: Session | None = None):
         """Initialize notification preference repository.
 
         Args:
-            conn: Optional database connection. If not provided, creates new platform connection.
+            session: Optional database session. If not provided, creates a new one.
         """
-        self._owns_conn = conn is None
-        self.conn = conn or get_platform_db_connection()
-        super().__init__(self.conn, "notification_preferences")
+        super().__init__("notification_preferences", session)
 
     def is_enabled(self, user_email: str, league_id: str, notification_type: str) -> bool:
         """Check if a notification is enabled for a user+league.
@@ -46,9 +44,9 @@ class NotificationPreferenceRepository(Repository):
             return bool(pref[3])
 
         # Fall back to notification type default
-        result = self.conn.execute(
-            "SELECT default_enabled FROM notification_types WHERE type_key = ?",
-            [notification_type],
+        result = self.session.execute(
+            text("SELECT default_enabled FROM notification_types WHERE type_key = :type_key"),
+            {"type_key": notification_type},
         ).fetchone()
 
         if result is not None:
@@ -88,34 +86,31 @@ class NotificationPreferenceRepository(Repository):
         Returns:
             List of (user_email, league_id) tuples
         """
-        result = self.conn.execute(
-            """
-            -- Users with explicit enabled=TRUE
-            SELECT user_email, league_id FROM notification_preferences
-            WHERE notification_type = ? AND enabled = TRUE
+        result = self.session.execute(
+            text(
+                """
+                -- Users with explicit enabled=TRUE
+                SELECT user_email, league_id FROM notification_preferences
+                WHERE notification_type = :type1 AND enabled = TRUE
 
-            UNION
+                UNION
 
-            -- Users with no preference, where type default is TRUE
-            SELECT DISTINCT ut.user_email, ut.league_id
-            FROM yahoo_user_teams ut
-            WHERE NOT EXISTS (
-                SELECT 1 FROM notification_preferences np
-                WHERE np.user_email = ut.user_email
-                AND np.league_id = ut.league_id
-                AND np.notification_type = ?
-            )
-            AND EXISTS (
-                SELECT 1 FROM notification_types nt
-                WHERE nt.type_key = ? AND nt.default_enabled = TRUE
-            )
-            """,
-            [notification_type, notification_type, notification_type],
+                -- Users with no preference, where type default is TRUE
+                SELECT DISTINCT ut.user_email, ut.league_id
+                FROM yahoo_user_teams ut
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM notification_preferences np
+                    WHERE np.user_email = ut.user_email
+                    AND np.league_id = ut.league_id
+                    AND np.notification_type = :type2
+                )
+                AND EXISTS (
+                    SELECT 1 FROM notification_types nt
+                    WHERE nt.type_key = :type3 AND nt.default_enabled = TRUE
+                )
+                """
+            ),
+            {"type1": notification_type, "type2": notification_type, "type3": notification_type},
         ).fetchall()
 
         return [(str(row[0]), str(row[1])) for row in result]
-
-    def close(self) -> None:
-        """Close the database connection if owned by this repository."""
-        if self._owns_conn and self.conn:
-            self.conn.close()

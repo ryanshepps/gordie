@@ -1,17 +1,16 @@
 """Supervisor agent that coordinates sub-agents via tool calls."""
 
 import os
-import sqlite3
 from typing import Any, Literal, cast
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from agent.agent_state import AgentState
+from agent.checkpointer import checkpointer
 from agent.context_validator import validate_and_build_system_message
 from agent.subagents.available import available_players
 from agent.subagents.trade import trade
@@ -59,12 +58,6 @@ simply follow them. Present OAuth links or team lists exactly as specified. When
 a team, call onboard_user_team with the correct parameters from the system message.
 4. Use search_past_conversations proactively when it would help provide better context-aware advice.
 """
-
-# Database setup for checkpointer
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "agent_conversations.db")
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-checkpointer = SqliteSaver(conn)
 
 
 def create_supervisor_agent():

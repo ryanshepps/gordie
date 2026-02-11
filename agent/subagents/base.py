@@ -1,37 +1,25 @@
 """Base utilities for sub-agents to reduce code duplication."""
 
-import os
-import sqlite3
 from typing import Any, cast
 
 from langchain.agents import create_agent
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.sqlite import SqliteSaver
 from pydantic import BaseModel
 
 from agent.agent_state import AgentState
+from agent.checkpointer import checkpointer
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
 
 logger = get_logger(__name__)
 
-_DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "data",
-    "agent_conversations.db",
-)
-os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
 
-_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-_checkpointer = SqliteSaver(_conn)
-
-
-def get_checkpointer() -> SqliteSaver:
-    """Return the shared SQLite checkpointer for conversation persistence."""
-    return _checkpointer
+def get_checkpointer():
+    """Return the shared PostgreSQL checkpointer for conversation persistence."""
+    return checkpointer
 
 
 def create_subagent(
@@ -48,7 +36,7 @@ def create_subagent(
         "tools": tools,
         "middleware": [StateLoggingMiddleware(name), handle_tool_errors],
         "system_prompt": SystemMessage(content=system_prompt),
-        "checkpointer": _checkpointer,
+        "checkpointer": checkpointer,
         "state_schema": AgentState,
     }
 

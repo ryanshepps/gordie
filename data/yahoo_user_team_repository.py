@@ -2,24 +2,22 @@
 
 from typing import Any
 
-import duckdb
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from client.duck_db_client import get_platform_db_connection
 from data.repository import Repository
 
 
 class YahooUserTeamRepository(Repository):
     """Repository for managing Yahoo user team records."""
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(self, session: Session | None = None):
         """Initialize Yahoo user team repository.
 
         Args:
-            conn: Optional database connection. If not provided, creates new platform connection.
+            session: Optional database session. If not provided, creates a new one.
         """
-        self._owns_conn = conn is None
-        self.conn = conn or get_platform_db_connection()
-        super().__init__(self.conn, "yahoo_user_teams")
+        super().__init__("yahoo_user_teams", session)
 
     def add_team(self, league_id: str, team_id: str, user_email: str, team_name: str) -> None:
         """Add a user's Yahoo Fantasy team.
@@ -61,19 +59,21 @@ class YahooUserTeamRepository(Repository):
 
         Used by: context_validator.validate_and_build_system_message
         """
-        result = self.conn.execute(
-            """
-            SELECT
-                yut.league_id,
-                yut.team_id,
-                yut.team_name,
-                yl.game_key,
-                yl.league_name
-            FROM yahoo_user_teams yut
-            JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
-            WHERE yut.user_email = ?
-            """,
-            [user_email],
+        result = self.session.execute(
+            text(
+                """
+                SELECT
+                    yut.league_id,
+                    yut.team_id,
+                    yut.team_name,
+                    yl.game_key,
+                    yl.league_name
+                FROM yahoo_user_teams yut
+                JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
+                WHERE yut.user_email = :user_email
+                """
+            ),
+            {"user_email": user_email},
         ).fetchall()
 
         return [
@@ -98,8 +98,3 @@ class YahooUserTeamRepository(Repository):
             Team record or None if not found
         """
         return self.get_by(league_id=league_id, team_id=team_id)
-
-    def close(self) -> None:
-        """Close the database connection if owned by this repository."""
-        if self._owns_conn and self.conn:
-            self.conn.close()

@@ -2,24 +2,23 @@
 
 from typing import Any
 
-import duckdb
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from client.duck_db_client import get_platform_db_connection
+from data.database import get_session
 from data.repository import Repository
 
 
 class YahooTokenRepository(Repository):
     """Repository for managing Yahoo OAuth token records."""
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(self, session: Session | None = None):
         """Initialize Yahoo token repository.
 
         Args:
-            conn: Optional database connection. If not provided, creates new platform connection.
+            session: Optional database session. If not provided, creates a new one.
         """
-        self._owns_conn = conn is None
-        self.conn = conn or get_platform_db_connection()
-        super().__init__(self.conn, "yahoo_tokens")
+        super().__init__("yahoo_tokens", session)
 
     def save_token(
         self,
@@ -61,11 +60,6 @@ class YahooTokenRepository(Repository):
         """
         return self.get_by(user_email=user_email)
 
-    def close(self) -> None:
-        """Close the database connection if owned by this repository."""
-        if self._owns_conn and self.conn:
-            self.conn.close()
-
 
 def load_tokens_from_db(user_email: str) -> dict[str, Any] | None:
     """
@@ -101,18 +95,20 @@ def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, Any]) -
         token_data: Dictionary containing access_token, refresh_token, token_time, token_type
     """
     # Ensure user exists first
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        _ = conn.execute(
-            """
-            INSERT INTO users (email) VALUES (?)
-            ON CONFLICT (email) DO NOTHING
-        """,
-            (user_email,),
+        session.execute(
+            text(
+                """
+                INSERT INTO users (email) VALUES (:email)
+                ON CONFLICT (email) DO NOTHING
+                """
+            ),
+            {"email": user_email},
         )
-        conn.commit()
+        session.commit()
     finally:
-        conn.close()
+        session.close()
 
     # Save tokens using repository
     repo = YahooTokenRepository()

@@ -9,13 +9,13 @@ from client.authenticated_yahoo_client import AuthenticatedYahooClient
 
 
 @pytest.fixture
-def mock_db_connection():
-    """Mock database connection."""
-    conn = MagicMock()
-    conn.execute.return_value = MagicMock()
-    conn.commit.return_value = None
-    conn.close.return_value = None
-    return conn
+def mock_db_session():
+    """Mock database session."""
+    session = MagicMock()
+    session.execute.return_value = MagicMock()
+    session.commit.return_value = None
+    session.close.return_value = None
+    return session
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def mock_user_tokens():
     }
 
 
-def test_token_refresh_saves_to_database(mock_db_connection, mock_user_tokens, monkeypatch):
+def test_token_refresh_saves_to_database(mock_db_session, mock_user_tokens, monkeypatch):
     """Test that token refresh triggers database save."""
     user_email = "test@example.com"
 
@@ -38,11 +38,11 @@ def test_token_refresh_saves_to_database(mock_db_connection, mock_user_tokens, m
     monkeypatch.setenv("YAHOO_CLIENT_SECRET", "test_client_secret")
 
     with (
-        patch("client.authenticated_yahoo_client.get_platform_db_connection") as mock_get_conn,
+        patch("client.authenticated_yahoo_client.get_session") as mock_get_session,
         patch("client.authenticated_yahoo_client.YahooFantasySportsQuery") as mock_query_class,
     ):
         # Setup mocks
-        mock_get_conn.return_value = mock_db_connection
+        mock_get_session.return_value = mock_db_session
 
         # Mock the query instance with oauth
         mock_query = MagicMock()
@@ -54,7 +54,7 @@ def test_token_refresh_saves_to_database(mock_db_connection, mock_user_tokens, m
         mock_query_class.return_value = mock_query
 
         # Setup database to return tokens on first call
-        mock_db_connection.execute.return_value.fetchone.return_value = (
+        mock_db_session.execute.return_value.fetchone.return_value = (
             mock_user_tokens["access_token"],
             mock_user_tokens["refresh_token"],
             mock_user_tokens["token_time"],
@@ -74,20 +74,22 @@ def test_token_refresh_saves_to_database(mock_db_connection, mock_user_tokens, m
 
         # Verify database UPDATE was called with new tokens
         update_calls = [
-            call for call in mock_db_connection.execute.call_args_list if "UPDATE" in str(call)
+            c
+            for c in mock_db_session.execute.call_args_list
+            if c.args and hasattr(c.args[0], "text") and "UPDATE" in str(c.args[0].text)
         ]
         assert len(update_calls) > 0, "Database UPDATE should be called after token refresh"
 
         # Verify commit was called
-        assert mock_db_connection.commit.called
+        assert mock_db_session.commit.called
 
 
-def test_save_tokens_to_db_handles_missing_oauth(mock_db_connection):
+def test_save_tokens_to_db_handles_missing_oauth(mock_db_session):
     """Test that _save_tokens_to_db handles queries without oauth gracefully."""
     user_email = "test@example.com"
 
-    with patch("client.authenticated_yahoo_client.get_platform_db_connection") as mock_get_conn:
-        mock_get_conn.return_value = mock_db_connection
+    with patch("client.authenticated_yahoo_client.get_session") as mock_get_session:
+        mock_get_session.return_value = mock_db_session
 
         client = AuthenticatedYahooClient.__new__(AuthenticatedYahooClient)
         client.user_email = user_email
@@ -100,4 +102,4 @@ def test_save_tokens_to_db_handles_missing_oauth(mock_db_connection):
         client._save_tokens_to_db(mock_query)
 
         # Should not call database update
-        assert not mock_db_connection.execute.called
+        assert not mock_db_session.execute.called

@@ -7,7 +7,7 @@ from typing import Any
 
 from agent.email_enrichment import enrich_email_with_player_stats
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
-from data.schemas import (
+from data.pydantic_models import (
     DigestData,
     EnrichedFreeAgent,
     PlayerPerformance,

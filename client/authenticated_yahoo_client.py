@@ -13,9 +13,10 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
+from sqlalchemy import text
 from yfpy.query import YahooFantasySportsQuery
 
-from client.duck_db_client import get_platform_db_connection
+from data.database import get_session
 from module.logger import get_logger
 
 load_dotenv()
@@ -76,15 +77,17 @@ class AuthenticatedYahooClient:
         Raises:
             ValueError: If no auth token found for the user
         """
-        conn = get_platform_db_connection()
+        session = get_session()
         try:
-            result = conn.execute(
-                """
-                SELECT access_token, refresh_token, token_time, token_type
-                FROM yahoo_tokens
-                WHERE user_email = ?
-            """,
-                [user_email],
+            result = session.execute(
+                text(
+                    """
+                    SELECT access_token, refresh_token, token_time, token_type
+                    FROM yahoo_tokens
+                    WHERE user_email = :user_email
+                    """
+                ),
+                {"user_email": user_email},
             ).fetchone()
 
             if not result:
@@ -111,7 +114,7 @@ class AuthenticatedYahooClient:
             return json.dumps(token_data)
 
         finally:
-            conn.close()
+            session.close()
 
     @property
     def query(self) -> YahooFantasySportsQuery:
@@ -204,28 +207,30 @@ class AuthenticatedYahooClient:
             if oauth and hasattr(oauth, "access_token"):
                 token_time = datetime.now()
 
-                conn = get_platform_db_connection()
+                session = get_session()
                 try:
-                    conn.execute(
-                        """
-                        UPDATE yahoo_tokens
-                        SET access_token = ?,
-                            refresh_token = ?,
-                            token_time = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE user_email = ?
-                        """,
-                        (
-                            oauth.access_token,
-                            oauth.refresh_token,
-                            token_time,
-                            self.user_email,
+                    session.execute(
+                        text(
+                            """
+                            UPDATE yahoo_tokens
+                            SET access_token = :access_token,
+                                refresh_token = :refresh_token,
+                                token_time = :token_time,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE user_email = :user_email
+                            """
                         ),
+                        {
+                            "access_token": oauth.access_token,
+                            "refresh_token": oauth.refresh_token,
+                            "token_time": token_time,
+                            "user_email": self.user_email,
+                        },
                     )
-                    conn.commit()
+                    session.commit()
                     logger.info(f"Updated refreshed tokens in database for user: {self.user_email}")
                 finally:
-                    conn.close()
+                    session.close()
         except Exception as e:
             logger.error(f"Failed to save refreshed tokens to database: {e}")
             # Don't raise - token refresh succeeded, DB update is secondary

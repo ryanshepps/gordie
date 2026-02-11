@@ -5,13 +5,10 @@ rather than separate graph nodes. This provides deterministic routing
 through explicit tool calls.
 """
 
-import os
-import sqlite3
-
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
 
 from agent.agent_state import AgentState
+from agent.checkpointer import checkpointer
 from agent.email_node import email_node
 from agent.SupervisorAgent import supervisor_node
 
@@ -32,14 +29,6 @@ def build_agent_graph():
     workflow.add_node("email", email_node)
 
     workflow.set_entry_point("supervisor")
-
-    # Setup persistent checkpointer
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "data", "agent_conversations.db"
-    )
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
 
     return workflow.compile(checkpointer=checkpointer)
 

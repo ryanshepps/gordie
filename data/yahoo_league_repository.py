@@ -2,24 +2,21 @@
 
 from typing import Any
 
-import duckdb
+from sqlalchemy.orm import Session
 
-from client.duck_db_client import get_platform_db_connection
 from data.repository import Repository
 
 
 class YahooLeagueRepository(Repository):
     """Repository for managing Yahoo league records."""
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(self, session: Session | None = None):
         """Initialize Yahoo league repository.
 
         Args:
-            conn: Optional database connection. If not provided, creates new platform connection.
+            session: Optional database session. If not provided, creates a new one.
         """
-        self._owns_conn = conn is None
-        self.conn = conn or get_platform_db_connection()
-        super().__init__(self.conn, "yahoo_leagues")
+        super().__init__("yahoo_leagues", session)
 
     def add_league(
         self,
@@ -57,8 +54,3 @@ class YahooLeagueRepository(Repository):
             League record or None if not found
         """
         return self.get_by(league_id=league_id)
-
-    def close(self) -> None:
-        """Close the database connection if owned by this repository."""
-        if self._owns_conn and self.conn:
-            self.conn.close()

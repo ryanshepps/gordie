@@ -17,31 +17,31 @@ class TestNotificationPreferenceRepository:
     """Test notification preference repository logic."""
 
     @pytest.fixture
-    def mock_conn(self):
-        """Create a mock database connection."""
+    def mock_session(self):
+        """Create a mock database session."""
         return MagicMock()
 
     @pytest.fixture
-    def repo(self, mock_conn):
-        """Create repository with mock connection."""
+    def repo(self, mock_session):
+        """Create repository with mock session."""
         with patch(
-            "data.notification_preference_repository.get_platform_db_connection",
-            return_value=mock_conn,
+            "data.database.get_session",
+            return_value=mock_session,
         ):
             from data.notification_preference_repository import (
                 NotificationPreferenceRepository,
             )
 
-            return NotificationPreferenceRepository(conn=mock_conn)
+            return NotificationPreferenceRepository(session=mock_session)
 
-    def test_new_user_receives_digest_by_default(self, repo, mock_conn):
+    def test_new_user_receives_digest_by_default(self, repo, mock_session):
         """A user with a team but no explicit preference is included in digest recipients.
 
         When no explicit preference exists, the system falls back to the notification_type
         default (which is TRUE for weekly_digest).
         """
         # No explicit preference exists
-        mock_conn.execute.return_value.fetchone.side_effect = [
+        mock_session.execute.return_value.fetchone.side_effect = [
             None,  # First call: get_by returns no preference
             (True,),  # Second call: notification_types default_enabled
         ]
@@ -50,10 +50,10 @@ class TestNotificationPreferenceRepository:
 
         assert result is True
 
-    def test_opted_out_user_excluded_from_digest(self, repo, mock_conn):
+    def test_opted_out_user_excluded_from_digest(self, repo, mock_session):
         """After opting out, user is NOT in digest recipients."""
         # Explicit preference exists with enabled=False
-        mock_conn.execute.return_value.fetchone.return_value = (
+        mock_session.execute.return_value.fetchone.return_value = (
             "user@test.com",
             "12345",
             "weekly_digest",
@@ -66,10 +66,10 @@ class TestNotificationPreferenceRepository:
 
         assert result is False
 
-    def test_opted_back_in_user_receives_digest(self, repo, mock_conn):
+    def test_opted_back_in_user_receives_digest(self, repo, mock_session):
         """After re-enabling, user IS in digest recipients."""
         # Explicit preference exists with enabled=True
-        mock_conn.execute.return_value.fetchone.return_value = (
+        mock_session.execute.return_value.fetchone.return_value = (
             "user@test.com",
             "12345",
             "weekly_digest",
@@ -82,7 +82,7 @@ class TestNotificationPreferenceRepository:
 
         assert result is True
 
-    def test_preference_is_per_league(self, repo, mock_conn):
+    def test_preference_is_per_league(self, repo, mock_session):
         """Opting out of one league doesn't affect another."""
         # Simulate checking preference for two different leagues
         def mock_get_preference(query):
@@ -122,7 +122,7 @@ class TestNotificationPreferenceRepository:
         # We test this by verifying is_enabled returns the stored value for each league
 
         # Test league 12345 (opted in)
-        mock_conn.execute.return_value.fetchone.return_value = (
+        mock_session.execute.return_value.fetchone.return_value = (
             "user@test.com",
             "12345",
             "weekly_digest",
@@ -133,7 +133,7 @@ class TestNotificationPreferenceRepository:
         result_12345 = repo.is_enabled("user@test.com", "12345", "weekly_digest")
 
         # Test league 67890 (opted out)
-        mock_conn.execute.return_value.fetchone.return_value = (
+        mock_session.execute.return_value.fetchone.return_value = (
             "user@test.com",
             "67890",
             "weekly_digest",
@@ -148,10 +148,10 @@ class TestNotificationPreferenceRepository:
         assert result_67890 is False, "League 67890 should be opted out"
 
     def test_is_enabled_returns_false_for_unknown_notification_type(
-        self, repo, mock_conn
+        self, repo, mock_session
     ):
         """Unknown notification types should default to False."""
-        mock_conn.execute.return_value.fetchone.side_effect = [
+        mock_session.execute.return_value.fetchone.side_effect = [
             None,  # No preference
             None,  # No notification type found
         ]
@@ -160,9 +160,9 @@ class TestNotificationPreferenceRepository:
 
         assert result is False
 
-    def test_get_all_enabled_returns_opted_in_users(self, repo, mock_conn):
+    def test_get_all_enabled_returns_opted_in_users(self, repo, mock_session):
         """get_all_enabled_for_type returns list of (email, league_id) for opted-in users."""
-        mock_conn.execute.return_value.fetchall.return_value = [
+        mock_session.execute.return_value.fetchall.return_value = [
             ("user1@test.com", "12345"),
             ("user2@test.com", "67890"),
         ]

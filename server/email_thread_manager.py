@@ -8,7 +8,9 @@ thread_ids, enabling proper email threading when users reply to emails.
 import uuid
 from dataclasses import dataclass
 
-from client.duck_db_client import get_platform_db_connection
+from sqlalchemy import text
+
+from data.database import get_session
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,21 +35,18 @@ def lookup_thread_by_message_id(message_id: str) -> str | None:
     Returns:
         The thread_id if found, None otherwise
     """
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        result = conn.execute(
-            """
-            SELECT thread_id FROM email_threads
-            WHERE message_id = ?
-            """,
-            [message_id],
+        result = session.execute(
+            text("SELECT thread_id FROM email_threads WHERE message_id = :message_id"),
+            {"message_id": message_id},
         ).fetchone()
 
         if result:
             return str(result[0])
         return None
     finally:
-        conn.close()
+        session.close()
 
 
 def get_thread_subject(thread_id: str) -> str | None:
@@ -60,23 +59,25 @@ def get_thread_subject(thread_id: str) -> str | None:
     Returns:
         The original subject if found, None otherwise
     """
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
-        result = conn.execute(
-            """
-            SELECT subject FROM email_threads
-            WHERE thread_id = ?
-            ORDER BY created_at ASC
-            LIMIT 1
-            """,
-            [thread_id],
+        result = session.execute(
+            text(
+                """
+                SELECT subject FROM email_threads
+                WHERE thread_id = :thread_id
+                ORDER BY created_at ASC
+                LIMIT 1
+                """
+            ),
+            {"thread_id": thread_id},
         ).fetchone()
 
         if result:
             return str(result[0]) if result[0] else None
         return None
     finally:
-        conn.close()
+        session.close()
 
 
 def save_message_id_mapping(
@@ -94,33 +95,42 @@ def save_message_id_mapping(
         user_email: The user's email address
         subject: The email subject line
     """
-    conn = get_platform_db_connection()
+    session = get_session()
     try:
         # Ensure user exists first
-        conn.execute(
-            """
-            INSERT INTO users (email) VALUES (?)
-            ON CONFLICT (email) DO NOTHING
-            """,
-            [user_email],
+        session.execute(
+            text(
+                """
+                INSERT INTO users (email) VALUES (:email)
+                ON CONFLICT (email) DO NOTHING
+                """
+            ),
+            {"email": user_email},
         )
 
-        conn.execute(
-            """
-            INSERT INTO email_threads (message_id, thread_id, user_email, subject)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT (message_id) DO NOTHING
-            """,
-            [message_id, thread_id, user_email, subject],
+        session.execute(
+            text(
+                """
+                INSERT INTO email_threads (message_id, thread_id, user_email, subject)
+                VALUES (:message_id, :thread_id, :user_email, :subject)
+                ON CONFLICT (message_id) DO NOTHING
+                """
+            ),
+            {
+                "message_id": message_id,
+                "thread_id": thread_id,
+                "user_email": user_email,
+                "subject": subject,
+            },
         )
-        conn.commit()
+        session.commit()
         logger.debug(f"Saved message_id mapping: {message_id} -> {thread_id}")
     except Exception as e:
-        conn.rollback()
+        session.rollback()
         logger.error(f"Failed to save message_id mapping: {e}")
         raise
     finally:
-        conn.close()
+        session.close()
 
 
 def resolve_thread(

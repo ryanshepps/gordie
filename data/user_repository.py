@@ -2,24 +2,21 @@
 
 from typing import Any
 
-import duckdb
+from sqlalchemy.orm import Session
 
-from client.duck_db_client import get_platform_db_connection
 from data.repository import Repository
 
 
 class UserRepository(Repository):
     """Repository for managing user records."""
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(self, session: Session | None = None):
         """Initialize user repository.
 
         Args:
-            conn: Optional database connection. If not provided, creates new platform connection.
+            session: Optional database session. If not provided, creates a new one.
         """
-        self._owns_conn = conn is None
-        self.conn = conn or get_platform_db_connection()
-        super().__init__(self.conn, "users")
+        super().__init__("users", session)
 
     def add_user(self, email: str) -> None:
         """Add a new user.
@@ -39,8 +36,3 @@ class UserRepository(Repository):
             User record or None if not found
         """
         return self.get_by(email=email)
-
-    def close(self) -> None:
-        """Close the database connection if owned by this repository."""
-        if self._owns_conn and self.conn:
-            self.conn.close()

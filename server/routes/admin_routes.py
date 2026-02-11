@@ -1,23 +1,19 @@
 """Admin API routes for observability dashboard."""
 
 import os
-import sqlite3
 from functools import wraps
 from typing import Any
 
 from flask import Flask, jsonify, request
+from sqlalchemy import text
 
 from agent.memory_store import get_conversation_summaries_by_email
+from data.database import get_session
 from module.logger import get_logger
 
 logger = get_logger(__name__)
 
 _ADMIN_KEY = os.environ.get("ADMIN_API_KEY", "")
-_CHECKPOINT_DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "data",
-    "agent_conversations.db",
-)
 
 
 def _require_admin_key(f):
@@ -42,21 +38,20 @@ def _extract_messages_from_checkpoint(thread_id: str) -> list[dict[str, Any]]:
     Returns:
         List of message dicts with role, content, and timestamp
     """
-    if not os.path.exists(_CHECKPOINT_DB_PATH):
-        return []
-
-    conn = sqlite3.connect(_CHECKPOINT_DB_PATH, check_same_thread=False)
+    session = get_session()
     try:
-        # LangGraph SqliteSaver stores (type, blob) pairs via JsonPlusSerializer
-        rows = conn.execute(
-            """
-            SELECT type, checkpoint
-            FROM checkpoints
-            WHERE thread_id = ?
-            ORDER BY checkpoint_id DESC
-            LIMIT 1
-            """,
-            (thread_id,),
+        # langgraph-checkpoint-postgres stores checkpoints in a 'checkpoints' table
+        rows = session.execute(
+            text(
+                """
+                SELECT type, checkpoint
+                FROM checkpoints
+                WHERE thread_id = :thread_id
+                ORDER BY checkpoint_id DESC
+                LIMIT 1
+                """
+            ),
+            {"thread_id": thread_id},
         ).fetchall()
 
         if not rows:
@@ -110,7 +105,7 @@ def _extract_messages_from_checkpoint(thread_id: str) -> list[dict[str, Any]]:
         logger.error(f"Failed to extract messages from checkpoint: {e}")
         return []
     finally:
-        conn.close()
+        session.close()
 
 
 def register_admin_routes(app: Flask) -> None:
