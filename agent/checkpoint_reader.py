@@ -2,10 +2,9 @@
 
 from typing import Any
 
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from sqlalchemy import text
+from langchain_core.runnables.config import RunnableConfig
 
-from data.database import get_session
+from agent.checkpointer import checkpointer
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -20,35 +19,20 @@ def get_messages_from_checkpoint(thread_id: str) -> list[dict[str, Any]]:
     Returns:
         List of message dicts with role, content, and timestamp
     """
-    session = get_session()
     try:
-        rows = session.execute(
-            text(
-                """
-                SELECT type, checkpoint
-                FROM checkpoints
-                WHERE thread_id = :thread_id
-                ORDER BY checkpoint_id DESC
-                LIMIT 1
-                """
-            ),
-            {"thread_id": thread_id},
-        ).fetchall()
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+        state = checkpointer.get_tuple(config)
 
-        if not rows:
+        if not state:
             return []
 
-        serde = JsonPlusSerializer()
-        checkpoint_data: dict[str, Any] = serde.loads_typed((rows[0][0], rows[0][1]))
-
-        channel_values = checkpoint_data.get("channel_values", {})
+        channel_values = state.checkpoint.get("channel_values", {})
         messages_raw: list[Any] = channel_values.get("messages", [])
 
         messages: list[dict[str, Any]] = []
         for msg in messages_raw:
             role: str | None = None
             content = ""
-            timestamp = ""
 
             if hasattr(msg, "type"):
                 if msg.type == "human":
@@ -64,24 +48,13 @@ def get_messages_from_checkpoint(thread_id: str) -> list[dict[str, Any]]:
                     role = "ai"
                 content = msg.get("content", "")
 
-            if not role or not content:
+            if not role or not content or isinstance(content, list):
                 continue
 
-            if isinstance(content, list):
-                continue
-
-            additional_kwargs: dict[str, Any] = getattr(msg, "additional_kwargs", {})
-            response_metadata: dict[str, Any] = getattr(msg, "response_metadata", {})
-            timestamp = additional_kwargs.get("timestamp", "") or response_metadata.get(
-                "timestamp", ""
-            )
-
-            messages.append({"role": role, "content": content, "timestamp": timestamp})
+            messages.append({"role": role, "content": content})
 
         return messages
 
     except Exception as e:
         logger.error(f"Failed to extract messages from checkpoint: {e}")
         return []
-    finally:
-        session.close()
