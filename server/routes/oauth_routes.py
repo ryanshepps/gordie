@@ -88,6 +88,34 @@ def register_oauth_routes(app):
                 logger.error(f"Could not retrieve Yahoo email for state={state}")
                 return _error_html("Authentication Error", "Could not retrieve your Yahoo email."), 500
 
+            # Account linking for SMS cold-start: phone_number set, user_email is None
+            if phone_number and not user_email:
+                from data.pending_user_repository import PendingUserRepository
+                from data.user_repository import UserRepository
+
+                user_repo = UserRepository()
+                try:
+                    existing_user = user_repo.get_user(yahoo_email)
+                    if existing_user:
+                        user_repo.add_phone_to_user(yahoo_email, phone_number)
+                        logger.info(f"Linked phone {phone_number} to existing user {yahoo_email}")
+                    else:
+                        user_repo.add_user_with_phone(yahoo_email, phone_number)
+                        logger.info(f"Created new user {yahoo_email} with phone {phone_number}")
+                finally:
+                    user_repo.close()
+
+                pending_user_repo = PendingUserRepository()
+                try:
+                    pending = pending_user_repo.get_pending_user_by_phone(phone_number)
+                    if pending:
+                        pending_user_repo.delete_pending_user(str(pending[0]))
+                        logger.info(f"Deleted pending_user for phone {phone_number}")
+                finally:
+                    pending_user_repo.close()
+
+                user_email = yahoo_email
+
             # Determine user identifier for saving tokens
             identifier = user_email or phone_number
             if not identifier:

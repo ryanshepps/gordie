@@ -21,6 +21,30 @@ def cleanup_expired_pending_oauth() -> None:
         repo.close()
 
 
+def cleanup_pending_users() -> None:
+    """Delete pending_users records older than 7 days."""
+    from data.pending_user_repository import PendingUserRepository
+
+    repo = PendingUserRepository()
+    try:
+        from sqlalchemy import text
+
+        repo.session.execute(
+            text(
+                "DELETE FROM pending_users "
+                "WHERE created_at < NOW() - MAKE_INTERVAL(days => :days)"
+            ),
+            {"days": 7},
+        )
+        repo.session.commit()
+        logger.info("Cleaned up stale pending_users records")
+    except Exception as e:
+        repo.session.rollback()
+        logger.error(f"Failed to clean up pending_users records: {e}")
+    finally:
+        repo.close()
+
+
 def cleanup_processed_messages() -> None:
     """Delete processed_sms and processed_emails records older than 24 hours."""
     from sqlalchemy import text
@@ -85,6 +109,17 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         replace_existing=True,
     )
     logger.info("Registered scheduled job: cleanup_pending_oauth (hourly)")
+
+    scheduler.add_job(
+        func=cleanup_pending_users,
+        trigger="cron",
+        hour=3,
+        minute=0,
+        id="cleanup_pending_users",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    logger.info("Registered scheduled job: cleanup_pending_users (daily at 3:00 AM)")
 
     scheduler.add_job(
         func=cleanup_processed_messages,

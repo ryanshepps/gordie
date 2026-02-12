@@ -15,15 +15,23 @@ from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from quart import Quart, jsonify
+from quart import Quart, jsonify, request
 
 from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
 from server.routes.admin_routes import register_admin_routes
+from server.routes.chat_routes import register_chat_routes
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
 from server.routes.sms_routes import register_sms_routes
+
+# Allowed CORS origins for web chat frontend
+_CORS_ORIGINS = {
+    "https://askgordie.com",
+    "https://www.askgordie.com",
+    "http://localhost:5173",
+}
 
 # Suppress Hypercorn's default access logging
 logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
@@ -31,6 +39,13 @@ logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
 # Global singleton server instance
 _server_instance: "Server | None" = None
 _server_lock = threading.Lock()
+
+
+async def _shutdown_async_agent() -> None:
+    """Shut down the async agent connection if it was initialized."""
+    from agent.async_graph_builder import close_async_agent
+
+    await close_async_agent()
 
 
 class Server:
@@ -70,8 +85,9 @@ class Server:
         # Register scheduled notification jobs
         register_scheduled_jobs(self.scheduler)
 
-        # Shut down the scheduler when exiting
+        # Shut down the scheduler and async agent when exiting
         atexit.register(lambda: self.scheduler.shutdown())
+        atexit.register(lambda: asyncio.run(_shutdown_async_agent()))
 
         # Set up routes
         self._setup_routes()
@@ -84,12 +100,23 @@ class Server:
         register_signup_routes(self.app)
         register_admin_routes(self.app)
         register_sms_routes(self.app)
+        register_chat_routes(self.app)
 
         # Health check stays inline since it's trivial
         @self.app.route("/health")
         async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
+
+        # CORS handler for web chat frontend
+        @self.app.after_request
+        async def add_cors_headers(response):
+            origin = request.headers.get("Origin", "")
+            if origin in _CORS_ORIGINS:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            return response
 
         # Prometheus metrics endpoint
         @self.app.route("/metrics")

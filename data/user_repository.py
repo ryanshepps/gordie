@@ -27,6 +27,15 @@ class UserRepository(Repository):
         """
         self.insert(email=email)
 
+    def add_user_with_phone(self, email: str, phone_number: str) -> None:
+        """Add a new user with both email and phone number.
+
+        Args:
+            email: User's email address
+            phone_number: User's phone number (E.164 format)
+        """
+        self.insert(email=email, phone_number=phone_number)
+
     def get_user(self, email: str) -> tuple[Any, ...] | None:
         """Get a user by email.
 
