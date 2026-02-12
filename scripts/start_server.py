@@ -29,16 +29,8 @@ def main():
     server = Server(host=host, port=port)
 
     try:
-        server.start()
         logger.info(f"Server running at http://{host}:{port}")
-        logger.info("Press Ctrl+C to stop the server")
-
-        # Block until interrupted — the server thread is a daemon,
-        # so it will exit when the main thread does.
-        import threading
-
-        threading.Event().wait()
-
+        server.run()
     except KeyboardInterrupt:
         logger.info("Shutting down server...")
         sys.exit(0)

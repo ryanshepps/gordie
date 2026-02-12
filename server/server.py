@@ -17,6 +17,9 @@ from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from quart import Quart, jsonify, request
 
+from agent.checkpointer import (
+    checkpointer,  # noqa: F401 — ensures checkpoint tables exist at startup
+)
 from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
 from server.routes.admin_routes import register_admin_routes
@@ -28,8 +31,7 @@ from server.routes.sms_routes import register_sms_routes
 
 # Allowed CORS origins for web chat frontend
 _CORS_ORIGINS = {
-    "https://askgordie.com",
-    "https://www.askgordie.com",
+    "https://gordie-website.pages.dev",
     "http://localhost:5173",
 }
 
@@ -69,7 +71,6 @@ class Server:
         self.host = host
         self.port = port
         self.app = Quart(__name__)
-        self.server_thread: threading.Thread | None = None
 
         # Instrument with OpenTelemetry via ASGI middleware.
         # Type ignore: OpenTelemetry types ASGI params as MutableMapping[str, Any] while
@@ -124,23 +125,12 @@ class Server:
             """Prometheus metrics endpoint."""
             return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
-    def start(self):
+    def run(self):
         """
-        Start the server in a background thread.
+        Run the server on the main thread (blocking).
 
-        The server runs in daemon mode so it won't prevent the
-        main program from exiting.
+        Hypercorn requires the main thread for signal handling.
         """
-
-        def run_server():
-            config = Config()
-            config.bind = [f"{self.host}:{self.port}"]
-            asyncio.run(serve(self.app, config))
-
-        self.server_thread = threading.Thread(target=run_server, daemon=True)
-        self.server_thread.start()
-
-        # Give the server a moment to start
-        import time
-
-        time.sleep(1)
+        config = Config()
+        config.bind = [f"{self.host}:{self.port}"]
+        asyncio.run(serve(self.app, config))

@@ -29,8 +29,8 @@ def sms_env(monkeypatch):
 
 
 def _make_signature(body: bytes, secret: str = "test-webhook-secret") -> str:
-    """Generate HMAC-SHA256 signature for test payloads."""
-    return hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    """Generate HMAC-SHA1 signature for test payloads (matches Sinch spec)."""
+    return hmac.new(secret.encode(), body, hashlib.sha1).hexdigest()
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ class TestSmsWebhook:
                 data=body,
                 headers={
                     "Content-Type": "application/json",
-                    "x-sinch-webhook-signature": sig,
+                    "X-Sinch-Signature": sig,
                 },
             )
 
@@ -112,7 +112,7 @@ class TestSmsWebhook:
             data=body,
             headers={
                 "Content-Type": "application/json",
-                "x-sinch-webhook-signature": "invalid-signature",
+                "X-Sinch-Signature": "invalid-signature",
             },
         )
 
@@ -134,7 +134,7 @@ class TestSmsWebhook:
                 data=body,
                 headers={
                     "Content-Type": "application/json",
-                    "x-sinch-webhook-signature": sig,
+                    "X-Sinch-Signature": sig,
                 },
             )
 
@@ -168,7 +168,7 @@ class TestSmsWebhook:
                 data=body,
                 headers={
                     "Content-Type": "application/json",
-                    "x-sinch-webhook-signature": sig,
+                    "X-Sinch-Signature": sig,
                 },
             )
 
@@ -198,7 +198,7 @@ class TestSmsWebhook:
                 data=body,
                 headers={
                     "Content-Type": "application/json",
-                    "x-sinch-webhook-signature": sig,
+                    "X-Sinch-Signature": sig,
                 },
             )
 
@@ -243,7 +243,7 @@ class TestSmsWebhook:
                 data=body,
                 headers={
                     "Content-Type": "application/json",
-                    "x-sinch-webhook-signature": sig,
+                    "X-Sinch-Signature": sig,
                 },
             )
 

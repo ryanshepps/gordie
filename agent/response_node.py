@@ -10,6 +10,7 @@ from langgraph.types import Command
 from agent.agent_state import AgentState
 from agent.channels.email_channel import send_email_response
 from agent.channels.sms_channel import send_sms_response
+from agent.channels.web_channel import send_web_response
 from agent.memory_store import get_memory_store, summarize_and_store_conversation
 from module.logger import get_logger
 
@@ -67,7 +68,7 @@ def response_node(state: AgentState) -> Command[Literal["__end__"]]:
     elif channel == "sms":
         send_sms_response(state, message_content)
     elif channel == "web":
-        raise NotImplementedError("Web channel dispatch not yet implemented")
+        send_web_response(state, message_content)
     else:
         logger.error(f"Unknown channel: {channel}")
 

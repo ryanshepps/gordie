@@ -119,17 +119,19 @@ def register_sms_routes(app):
             logger.error("Empty or invalid JSON body")
             return jsonify({"error": "Invalid request"}), 400
 
-        phone_number = data.get("from")
+        raw_phone = data.get("from", "")
+        # Sinch sends phone numbers without '+' prefix; normalize to E.164
+        phone_number = raw_phone if raw_phone.startswith("+") else f"+{raw_phone}"
         message_body = data.get("body", "")
         sinch_message_id = data.get("id")
 
-        if not phone_number or not sinch_message_id:
+        if not raw_phone or not sinch_message_id:
             sms_webhook_requests_total.labels(status="invalid").inc()
             logger.error("Missing required SMS webhook fields")
             return jsonify({"error": "Missing required fields"}), 400
 
         # Verify HMAC signature
-        signature = request.headers.get("x-sinch-webhook-signature", "")
+        signature = request.headers.get("X-Sinch-Signature", "")
         if not verify_sinch_webhook(raw_body, signature):
             duration = time.time() - start_time
             sms_webhook_requests_total.labels(status="invalid_signature").inc()
