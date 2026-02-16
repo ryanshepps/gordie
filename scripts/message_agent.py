@@ -10,6 +10,7 @@ from langchain_core.runnables import RunnableConfig  # noqa: E402
 
 from agent.agent_state import AgentState  # noqa: E402
 from agent.graph_builder import agent  # noqa: E402
+from data.conversation_repository import ConversationRepository  # noqa: E402
 from module.logger import get_logger  # noqa: E402
 from module.tracing import create_span  # noqa: E402
 
@@ -126,6 +127,20 @@ def message_agent(
                 "has_rich_content": False,
             }
 
+            # Persist user message before invoking graph
+            repo = ConversationRepository()
+            try:
+                repo.add_message(
+                    thread_id=thread_id,
+                    checkpoint_id="pending",
+                    role="human",
+                    content=message,
+                    message_type="standard",
+                )
+                repo.commit()
+            finally:
+                repo.close()
+
             # Send message to agent graph
             response = agent.invoke(initial_state, config=config)
 
@@ -150,6 +165,21 @@ def message_agent(
                         response_parts.append(msg.content)
                         logger.info(msg.content)
                 response_text = "\n".join(response_parts)
+
+            # Persist AI response after graph completes
+            if response_text.strip():
+                repo = ConversationRepository()
+                try:
+                    repo.add_message(
+                        thread_id=thread_id,
+                        checkpoint_id="complete",
+                        role="ai",
+                        content=response_text.strip(),
+                        message_type="standard",
+                    )
+                    repo.commit()
+                finally:
+                    repo.close()
 
             return response_text.strip()
 

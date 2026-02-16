@@ -14,11 +14,13 @@ from agent.checkpointer import checkpointer
 from agent.context_validator import validate_and_build_system_message
 from agent.subagents.available import available_players
 from agent.subagents.trade import trade
+from middleware.auto_ack import AutoAckMiddleware
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.notifications.manage_notifications import manage_notifications
+from tools.send_message import send_message
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 # Use literal string for END to satisfy type checker
@@ -57,6 +59,10 @@ URL in your response to the user. Never paraphrase or omit URLs.
 simply follow them. Present OAuth links or team lists exactly as specified. When the user selects \
 a team, call onboard_user_team with the correct parameters from the system message.
 4. Use search_past_conversations proactively when it would help provide better context-aware advice.
+5. **USE send_message FOR PROACTIVE UPDATES**: You have a send_message tool. Use it proactively \
+for quick updates like "Got it!", "Analyzing...", or casual insights to feel like texting a buddy. \
+Keep messages under 160 characters for SMS compatibility. Pass the correct thread_id from context \
+and set channel_type based on the user's channel ("sms" or "web_chat"). Do not use for email.
 """
 
 
@@ -80,6 +86,7 @@ def create_supervisor_agent():
             onboard_user_team,
             search_past_conversations,
             manage_notifications,
+            send_message,
         ],
         middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
         system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
@@ -153,8 +160,14 @@ def _invoke_supervisor(
         config = {"configurable": {"thread_id": thread_id}}
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
-        result = create_supervisor_agent().invoke(
-            cast(Any, input_state), cast(RunnableConfig, cast(object, config))
+
+        # Wrap agent invocation with auto-ack middleware for sync calls
+        ack_middleware = AutoAckMiddleware(timeout_ms=1000)
+        agent = create_supervisor_agent()
+        result = ack_middleware.wrap_sync_agent_call(
+            lambda s, c: agent.invoke(cast(Any, s), cast(RunnableConfig, cast(object, c))),
+            input_state,
+            config,
         )
 
         # Extract the response

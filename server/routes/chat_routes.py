@@ -11,6 +11,7 @@ from quart import Quart, Response, jsonify, request
 from agent.agent_state import AgentState
 from agent.async_graph_builder import get_async_agent
 from agent.checkpoint_reader import get_messages_from_checkpoint
+from data.conversation_repository import ConversationRepository
 from data.web_thread_repository import WebThreadRepository
 from module.logger import get_logger
 from module.metrics import web_chat_requests_total
@@ -94,6 +95,20 @@ def register_chat_routes(app: Quart) -> None:
 
         async def generate():
             try:
+                # Persist user message before invoking graph
+                repo = ConversationRepository()
+                try:
+                    repo.add_message(
+                        thread_id=thread_id,
+                        checkpoint_id="pending",
+                        role="human",
+                        content=message,
+                        message_type="standard",
+                    )
+                    repo.commit()
+                finally:
+                    repo.close()
+
                 agent = await get_async_agent()
                 config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
@@ -116,14 +131,33 @@ def register_chat_routes(app: Quart) -> None:
                     "has_rich_content": False,
                 }
 
+                full_response = []
+
                 async for event in agent.astream(
                     initial_state, config=config, stream_mode="messages"
                 ):
                     # astream with stream_mode="messages" yields (message, metadata) tuples
                     msg, _metadata = event
                     if isinstance(msg, AIMessageChunk) and msg.content:
+                        full_response.append(msg.content)
                         payload = json.dumps({"token": msg.content})
                         yield f"event: token\ndata: {payload}\n\n"
+
+                # Persist AI response after streaming completes
+                if full_response:
+                    response_text = "".join(full_response)
+                    repo = ConversationRepository()
+                    try:
+                        repo.add_message(
+                            thread_id=thread_id,
+                            checkpoint_id="streaming",
+                            role="ai",
+                            content=response_text,
+                            message_type="standard",
+                        )
+                        repo.commit()
+                    finally:
+                        repo.close()
 
                 yield "event: done\ndata: {}\n\n"
                 web_chat_requests_total.labels(status="success").inc()

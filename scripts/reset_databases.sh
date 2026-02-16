@@ -16,6 +16,11 @@ fi
 
 cd "$PROJECT_ROOT"
 
+echo "Terminating existing connections..."
+docker exec gordie-postgres psql -U postgres -d gordie -c \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'gordie' AND pid <> pg_backend_pid();" \
+  > /dev/null 2>&1
+
 echo "Dropping all tables..."
 docker exec gordie-postgres psql -U postgres -d gordie -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" || {
     echo "Failed to drop schema. Is the gordie-postgres container running?"
