@@ -132,13 +132,6 @@ class AutoAckMiddleware:
                 else:
                     logger.error(f"Could not extract phone number from thread_id: {thread_id}")
 
-            elif channel == "web" or channel == "web_chat":
-                # For web chat, we rely on the streaming mechanism
-                # The ack is logged and would need special handling in the stream
-                logger.info(f"Web chat auto-ack: {ack_message}")
-                # Note: Web chat streaming ack would require additional infrastructure
-                # to emit SSE events from outside the normal stream flow
-
         except Exception as e:
             # Don't let ack errors interrupt the main flow
             logger.error(f"Error sending auto-ack: {e}")

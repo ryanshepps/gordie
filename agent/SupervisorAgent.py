@@ -62,7 +62,7 @@ a team, call onboard_user_team with the correct parameters from the system messa
 5. **USE send_message FOR PROACTIVE UPDATES**: You have a send_message tool. Use it proactively \
 for quick updates like "Got it!", "Analyzing...", or casual insights to feel like texting a buddy. \
 Keep messages under 160 characters for SMS compatibility. Pass the correct thread_id from context \
-and set channel_type based on the user's channel ("sms" or "web_chat"). Do not use for email.
+and set channel_type to "sms". Only use for the SMS channel, not email.
 """
 
 

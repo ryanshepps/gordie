@@ -54,7 +54,6 @@ class TestSendSmsResponse:
         state: AgentState = {
             "messages": [],
             "thread_id": "sms:+15551234567:abc123",
-            "has_rich_content": False,
         }
 
         mock_result = MagicMock(success=True, batch_id="batch-1")
@@ -73,12 +72,11 @@ class TestSendSmsResponse:
         assert call_args[0][0] == "+15551234567"
         assert call_args[0][1] == "Hello from Gordie!"
 
-    def test_truncates_long_message_with_web_url(self):
-        """Long messages are truncated and a web URL is appended."""
+    def test_sends_long_message_as_is(self):
+        """Long messages are sent without truncation (no web URL fallback)."""
         state: AgentState = {
             "messages": [],
             "thread_id": "sms:+15551234567:abc123",
-            "has_rich_content": False,
         }
 
         long_message = "A " * 200  # 400 chars
@@ -87,46 +85,14 @@ class TestSendSmsResponse:
         mock_service = MagicMock()
         mock_service.send_sms.return_value = mock_result
 
-        mock_web_thread = ("web-uuid-123", "sms:+15551234567:abc123")
-
         with (
             patch("server.sms_service.SmsService", return_value=mock_service),
             patch("data.sms_thread_repository.SmsThreadRepository") as mock_repo,
-            patch("data.web_thread_repository.WebThreadRepository") as mock_web_repo,
         ):
             mock_repo.return_value.update_sms_thread_activity = MagicMock()
-            mock_web_repo.return_value.get_web_thread_by_thread_id.return_value = mock_web_thread
             send_sms_response(state, long_message)
 
-        sent_text = mock_service.send_sms.call_args[0][1]
-        assert "Full response:" in sent_text
-        assert "/r/web-uuid-123" in sent_text
-
-    def test_rich_content_appends_web_url(self):
-        """Messages with has_rich_content get web URL even if short."""
-        state: AgentState = {
-            "messages": [],
-            "thread_id": "sms:+15551234567:abc123",
-            "has_rich_content": True,
-        }
-
-        mock_result = MagicMock(success=True, batch_id="batch-3")
-        mock_service = MagicMock()
-        mock_service.send_sms.return_value = mock_result
-
-        mock_web_thread = ("web-uuid-456", "sms:+15551234567:abc123")
-
-        with (
-            patch("server.sms_service.SmsService", return_value=mock_service),
-            patch("data.sms_thread_repository.SmsThreadRepository") as mock_repo,
-            patch("data.web_thread_repository.WebThreadRepository") as mock_web_repo,
-        ):
-            mock_repo.return_value.update_sms_thread_activity = MagicMock()
-            mock_web_repo.return_value.get_web_thread_by_thread_id.return_value = mock_web_thread
-            send_sms_response(state, "Short but rich")
-
-        sent_text = mock_service.send_sms.call_args[0][1]
-        assert "Full response:" in sent_text
+        mock_service.send_sms.assert_called_once()
 
     def test_no_send_without_thread_id(self):
         """No SMS is sent if thread_id is missing."""

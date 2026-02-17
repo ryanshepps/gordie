@@ -1,9 +1,8 @@
 """
 Thread management for tracking conversation threads across channels.
 
-Handles email threading (Message-ID mapping), SMS thread resolution
-(tiered: time-based + LLM classification), and web thread creation.
-Every new thread also gets a corresponding web_threads row.
+Handles email threading (Message-ID mapping) and SMS thread resolution
+(tiered: time-based + LLM classification).
 """
 
 import uuid
@@ -14,7 +13,6 @@ from sqlalchemy import text
 
 from data.database import get_session
 from data.sms_thread_repository import SmsThreadRepository
-from data.web_thread_repository import WebThreadRepository
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,27 +32,7 @@ class ThreadInfo:
 
 
 # ---------------------------------------------------------------------------
-# Web thread helpers (used by all channels)
-# ---------------------------------------------------------------------------
-
-
-def _ensure_web_thread(thread_id: str) -> str:
-    """Create a web_threads row for a thread if one doesn't already exist.
-
-    Returns the web thread UUID (for use in /r/{id} URLs).
-    """
-    repo = WebThreadRepository()
-    try:
-        existing = repo.get_web_thread_by_thread_id(thread_id)
-        if existing:
-            return str(existing[0])
-        return repo.create_web_thread(thread_id)
-    finally:
-        repo.close()
-
-
-# ---------------------------------------------------------------------------
-# Email thread resolution (unchanged logic, moved from email_thread_manager)
+# Email thread resolution
 # ---------------------------------------------------------------------------
 
 
@@ -147,10 +125,7 @@ def resolve_thread(
     references: str | None = None,
     subject: str | None = None,
 ) -> ThreadInfo:
-    """Resolve the thread_id for an incoming email.
-
-    Creates a web_threads row for any new thread.
-    """
+    """Resolve the thread_id for an incoming email."""
     # Try In-Reply-To header
     if in_reply_to:
         clean_id = in_reply_to.strip().strip("<>")
@@ -190,8 +165,6 @@ def resolve_thread(
         while clean_subject.lower().startswith("re:"):
             clean_subject = clean_subject[3:].strip()
 
-    _ensure_web_thread(new_thread_id)
-
     return ThreadInfo(
         thread_id=new_thread_id,
         subject=clean_subject,
@@ -214,7 +187,7 @@ def resolve_sms_thread(phone_number: str, incoming_message: str) -> ThreadInfo:
     4. Between 5min and 24h → LLM classification
 
     Creates an sms_threads row for new threads, updates last_message_at for
-    existing threads, and creates a web_threads row for new threads.
+    existing threads.
     """
     repo = SmsThreadRepository()
     try:
@@ -260,9 +233,8 @@ def resolve_sms_thread(phone_number: str, incoming_message: str) -> ThreadInfo:
 
 
 def _create_new_sms_thread(phone_number: str, repo: SmsThreadRepository) -> ThreadInfo:
-    """Create a new SMS thread and corresponding web thread."""
+    """Create a new SMS thread."""
     new_thread_id = f"sms:{phone_number}:{uuid.uuid4().hex[:12]}"
     repo.create_sms_thread(new_thread_id, phone_number)
-    _ensure_web_thread(new_thread_id)
     logger.info(f"Created new SMS thread: {new_thread_id}")
     return ThreadInfo(thread_id=new_thread_id, subject=None, is_new_thread=True)

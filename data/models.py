@@ -146,14 +146,6 @@ class PendingUser(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-class WebThread(Base):
-    __tablename__ = "web_threads"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    thread_id: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
 class SmsThread(Base):
     __tablename__ = "sms_threads"
 

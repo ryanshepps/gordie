@@ -1,6 +1,5 @@
 """SMS channel dispatch for the response node."""
 
-import os
 import re
 
 from agent.agent_state import AgentState
@@ -45,22 +44,6 @@ def _extract_phone_from_thread_id(thread_id: str) -> str | None:
     return None
 
 
-def _get_web_thread_url(thread_id: str) -> str | None:
-    """Look up the web thread URL for a given thread_id."""
-    from data.web_thread_repository import WebThreadRepository
-
-    repo = WebThreadRepository()
-    try:
-        web_thread = repo.get_web_thread_by_thread_id(thread_id)
-        if web_thread:
-            web_thread_id = str(web_thread[0])
-            base_url = os.getenv("OAUTH_BASE_URL", "http://localhost:8000")
-            return f"{base_url}/r/{web_thread_id}"
-    finally:
-        repo.close()
-    return None
-
-
 def send_sms_response(state: AgentState, message_content: str) -> None:
     """Send the agent response as an SMS.
 
@@ -69,7 +52,6 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
         message_content: The AI message content to send
     """
     thread_id = state.get("thread_id")
-    has_rich_content = state.get("has_rich_content", False)
 
     if not thread_id:
         logger.error("No thread_id in state, cannot send SMS")
@@ -81,15 +63,6 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
         return
 
     plain_text = _strip_markdown(message_content)
-
-    # If content is long or rich, truncate and append web link
-    if has_rich_content or len(plain_text) > 300:
-        web_url = _get_web_thread_url(thread_id)
-        if web_url:
-            # Truncate to leave room for the URL suffix
-            max_body = 250
-            truncated = plain_text[:max_body].rsplit(" ", 1)[0] + "..."
-            plain_text = f"{truncated}\n\nFull response: {web_url}"
 
     from module.metrics import sms_sent_total
     from server.sms_service import SmsService

@@ -15,7 +15,7 @@ from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from quart import Quart, jsonify, request
+from quart import Quart, jsonify
 
 from agent.checkpointer import (
     checkpointer,  # noqa: F401 — ensures checkpoint tables exist at startup
@@ -23,17 +23,10 @@ from agent.checkpointer import (
 from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
 from server.routes.admin_routes import register_admin_routes
-from server.routes.chat_routes import register_chat_routes
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
 from server.routes.sms_routes import register_sms_routes
-
-# Allowed CORS origins for web chat frontend
-_CORS_ORIGINS = {
-    "https://gordie-website.pages.dev",
-    "http://localhost:5173",
-}
 
 # Suppress Hypercorn's default access logging
 logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
@@ -101,23 +94,12 @@ class Server:
         register_signup_routes(self.app)
         register_admin_routes(self.app)
         register_sms_routes(self.app)
-        register_chat_routes(self.app)
 
         # Health check stays inline since it's trivial
         @self.app.route("/health")
         async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
-
-        # CORS handler for web chat frontend
-        @self.app.after_request
-        async def add_cors_headers(response):
-            origin = request.headers.get("Origin", "")
-            if origin in _CORS_ORIGINS:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-            return response
 
         # Prometheus metrics endpoint
         @self.app.route("/metrics")

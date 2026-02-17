@@ -104,12 +104,6 @@ sms_rate_limited_total = Counter(
     ["phone_number"],
 )
 
-web_chat_requests_total = Counter(
-    "fantasy_agent_web_chat_requests_total",
-    "Total web chat requests",
-    ["status"],
-)
-
 trades_analyzed_total = Counter(
     "fantasy_agent_trades_analyzed_total", "Total trades analyzed", ["user_email"]
 )

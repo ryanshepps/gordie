@@ -100,9 +100,6 @@ def available_players(
     """
     logger.info(f"Available players sub-agent invoked with request: {request}")
 
-    if state is not None:
-        state["has_rich_content"] = True
-
     result = invoke_subagent(
         agent=agent,
         request=request,

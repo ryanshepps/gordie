@@ -26,10 +26,10 @@ def _resolve_user_email(
     """Resolve user email based on channel and available identifiers.
 
     Args:
-        channel: Channel type ("email", "sms", or "web")
+        channel: Channel type ("email" or "sms")
         user_email: Provided user email (if any)
         phone_number: Provided phone number (if any)
-        thread_id: Thread ID (for web channel lookups)
+        thread_id: Thread ID
 
     Returns:
         Resolved email address or None if not resolvable
@@ -48,20 +48,6 @@ def _resolve_user_email(
         finally:
             repo.close()
         return None
-
-    if channel == "web":
-        from data.web_thread_repository import WebThreadRepository
-
-        repo = WebThreadRepository()
-        try:
-            web_thread = repo.get_web_thread_by_thread_id(thread_id)
-            if web_thread:
-                # thread_id format is "email:uuid", extract email
-                parts = thread_id.split(":")
-                if len(parts) >= 2:
-                    return parts[0]
-        finally:
-            repo.close()
 
     return None
 
@@ -82,7 +68,7 @@ def message_agent(
     Args:
         message: Message content to send to the agent
         thread_id: Conversation thread ID
-        channel: Channel type ("email", "sms", or "web")
+        channel: Channel type ("email" or "sms")
         user_email: User's email address (required for email channel)
         phone_number: User's phone number (required for sms channel)
         team_context: Optional team context in format app:game_key:league_id:team_id
@@ -124,7 +110,6 @@ def message_agent(
                 "flow_reasoning": None,
                 "original_subject": original_subject,
                 "original_message": original_message or message,
-                "has_rich_content": False,
             }
 
             # Persist user message before invoking graph

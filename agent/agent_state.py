@@ -41,8 +41,7 @@ class AgentState(_AgentStateRequired, total=False):
     team_id: str | None
     thread_id: str
     user_teams: list[dict[str, str]]  # List of all user's teams
-    channel: str  # "email", "sms", or "web"
-    has_rich_content: bool  # Set by tools that produce tabular/complex data
+    channel: str  # "email" or "sms"
     response: str | None
     route_to: str | None  # Target agent for routing (e.g., "onboarding")
     # Flow tracking fields
