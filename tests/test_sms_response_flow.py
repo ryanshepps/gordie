@@ -99,26 +99,21 @@ class TestSendMessageCharacterLimit:
 
     def test_rejects_over_limit(self):
         """Messages over 320 chars should be rejected, not truncated."""
-        from tools.send_message import _send_message_impl
+        from tools.send_message import send_message
 
-        result = _send_message_impl(
-            message="A" * 321,
-            channel_type="sms",
-            state={"thread_id": "sms:+15551234567:abc123"},
-        )
+        result = send_message.invoke({"message": "A" * 321, "channel_type": "sms"})
 
         assert "error" in result.lower()
         assert "320" in result
 
     def test_accepts_at_limit(self):
         """Messages at exactly 320 chars should be sent."""
-        from tools.send_message import _send_message_impl
+        from tools.send_message import send_message
 
-        with patch("tools.send_message._send_sms", return_value=True):
-            result = _send_message_impl(
-                message="A" * 320,
-                channel_type="sms",
-                state={"thread_id": "sms:+15551234567:abc123"},
-            )
+        with (
+            patch("tools.send_message._extract_phone_from_thread_id", return_value="+15551234567"),
+            patch("tools.send_message._send_sms", return_value=True),
+        ):
+            result = send_message.invoke({"message": "A" * 320, "channel_type": "sms"})
 
         assert "error" not in result.lower()

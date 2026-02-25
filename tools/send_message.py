@@ -53,13 +53,27 @@ def _send_sms(phone_number: str, message: str) -> bool:
         return False
 
 
-def _send_message_impl(
+@tool(args_schema=SendMessageInput)
+def send_message(
     message: str,
     channel_type: Literal["sms"],
     context: str = "",
-    state: dict[str, Any] | None = None,
+    state: Annotated[dict[str, Any], InjectedState] | None = None,
 ) -> str:
-    """Core logic for send_message, callable without the @tool wrapper."""
+    """
+    Send an SMS message to the user. This is the PRIMARY way to communicate with SMS users.
+
+    Use this tool to send your full response to the user over SMS. Messages must be
+    under 320 characters. If your message is too long, shorten it and try again.
+
+    Args:
+        message: The message to send to the user (max 320 characters)
+        channel_type: The channel to send through ("sms")
+        context: Optional context about what you're doing
+
+    Returns:
+        Confirmation that the message was sent or an error message
+    """
     if len(message) > 320:
         return (
             f"Error: Message is {len(message)} characters, which exceeds the 320 character SMS limit. "
@@ -90,27 +104,3 @@ def _send_message_impl(
     except Exception as e:
         logger.error(f"Error in send_message tool: {e}", exc_info=True)
         return f"Error sending message: {e!s}"
-
-
-@tool(args_schema=SendMessageInput)
-def send_message(
-    message: str,
-    channel_type: Literal["sms"],
-    context: str = "",
-    state: Annotated[dict[str, Any], InjectedState] | None = None,
-) -> str:
-    """
-    Send an SMS message to the user. This is the PRIMARY way to communicate with SMS users.
-
-    Use this tool to send your full response to the user over SMS. Messages must be
-    under 320 characters. If your message is too long, shorten it and try again.
-
-    Args:
-        message: The message to send to the user (max 320 characters)
-        channel_type: The channel to send through ("sms")
-        context: Optional context about what you're doing
-
-    Returns:
-        Confirmation that the message was sent or an error message
-    """
-    return _send_message_impl(message, channel_type, context, state)
