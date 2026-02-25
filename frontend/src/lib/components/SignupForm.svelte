@@ -8,21 +8,35 @@
 
 	const { id = 'signup' }: Props = $props();
 
-	let mode = $state<'email' | 'phone'>('email');
-	let email = $state('');
-	let phoneNumber = $state('');
+	let contactInfo = $state('');
 	let status = $state<'idle' | 'submitting' | 'success' | 'error'>('idle');
 	let successMode = $state<'email' | 'phone'>('email');
 	let errorMessage = $state('');
+
+	function isPhone(value: string): boolean {
+		const trimmed = value.trim();
+		if (trimmed.startsWith('+')) return true;
+		const digitsOnly = trimmed.replace(/\D/g, '');
+		return digitsOnly.length >= 7;
+	}
+
+	function normalizePhone(value: string): string {
+		const trimmed = value.trim();
+		if (trimmed.startsWith('+')) {
+			return '+' + trimmed.slice(1).replace(/\D/g, '');
+		}
+		return '+1' + trimmed.replace(/\D/g, '');
+	}
+
+	let detectedMode = $derived<'email' | 'phone'>(isPhone(contactInfo) ? 'phone' : 'email');
 
 	function handleSubmit() {
 		status = 'submitting';
 		return async ({ result }: { result: { type: string; data?: { error?: string; mode?: string } } }) => {
 			if (result.type === 'success') {
-				successMode = (result.data?.mode as 'email' | 'phone') ?? mode;
+				successMode = (result.data?.mode as 'email' | 'phone') ?? detectedMode;
 				status = 'success';
-				email = '';
-				phoneNumber = '';
+				contactInfo = '';
 			} else if (result.type === 'failure') {
 				status = 'error';
 				errorMessage = result.data?.error ?? 'Something went wrong. Please try again.';
@@ -31,12 +45,6 @@
 				errorMessage = 'Something went wrong. Please try again.';
 			}
 		};
-	}
-
-	function switchMode(newMode: 'email' | 'phone') {
-		mode = newMode;
-		status = 'idle';
-		errorMessage = '';
 	}
 </script>
 
@@ -53,45 +61,22 @@
 		</div>
 	{:else}
 		<div out:fade={{ duration: 250 }}>
-			<div class="mode-toggle">
-				<button
-					type="button"
-					class="toggle-btn"
-					class:active={mode === 'email'}
-					onclick={() => switchMode('email')}
-				>Email</button>
-				<button
-					type="button"
-					class="toggle-btn"
-					class:active={mode === 'phone'}
-					onclick={() => switchMode('phone')}
-				>Phone Number</button>
-			</div>
 			<form method="POST" action="/signup" use:enhance={handleSubmit} class="signup-form">
+				{#if detectedMode === 'phone'}
+					<input type="hidden" name="phone_number" value={normalizePhone(contactInfo)} />
+				{:else}
+					<input type="hidden" name="email" value={contactInfo.trim().toLowerCase()} />
+				{/if}
 				<div class="input-group">
-					{#if mode === 'email'}
-						<label for="signup-email" class="sr-only">Email address</label>
-						<input
-							id="signup-email"
-							type="email"
-							name="email"
-							bind:value={email}
-							placeholder="Enter your email"
-							required
-							disabled={status === 'submitting'}
-						/>
-					{:else}
-						<label for="signup-phone" class="sr-only">Phone number</label>
-						<input
-							id="signup-phone"
-							type="tel"
-							name="phone_number"
-							bind:value={phoneNumber}
-							placeholder="+1 (555) 123-4567"
-							required
-							disabled={status === 'submitting'}
-						/>
-					{/if}
+					<label for="signup-contact" class="sr-only">Email or phone number</label>
+					<input
+						id="signup-contact"
+						type="text"
+						bind:value={contactInfo}
+						placeholder="Email or phone number"
+						required
+						disabled={status === 'submitting'}
+					/>
 					<button type="submit" class="btn btn-primary" disabled={status === 'submitting'}>
 						{status === 'submitting' ? 'Signing up...' : 'Get Started Free'}
 					</button>
@@ -110,39 +95,6 @@
 		max-width: 480px;
 	}
 
-	.mode-toggle {
-		display: flex;
-		gap: 0.25rem;
-		margin-bottom: 0.75rem;
-		background: var(--color-bg-secondary);
-		border: 1px solid var(--color-border);
-		border-radius: 0.375rem;
-		padding: 0.2rem;
-	}
-
-	.toggle-btn {
-		flex: 1;
-		padding: 0.45rem 0.75rem;
-		border: none;
-		border-radius: 0.25rem;
-		background: transparent;
-		color: var(--color-text-muted);
-		font-size: 0.85rem;
-		font-weight: 600;
-		letter-spacing: 0.02em;
-		cursor: pointer;
-		transition: background 0.15s ease-out, color 0.15s ease-out;
-	}
-
-	.toggle-btn:hover {
-		color: var(--color-text);
-	}
-
-	.toggle-btn.active {
-		background: var(--color-border);
-		color: var(--color-text);
-	}
-
 	.signup-form {
 		display: flex;
 		flex-direction: column;
@@ -154,8 +106,7 @@
 		gap: 0.5rem;
 	}
 
-	input[type='email'],
-	input[type='tel'] {
+	input[type='text'] {
 		flex: 1;
 		padding: 0.75rem 1rem;
 		border-radius: 0.375rem;
@@ -167,14 +118,12 @@
 		transition: border-color 0.2s, box-shadow 0.2s;
 	}
 
-	input[type='email']:focus,
-	input[type='tel']:focus {
+	input[type='text']:focus {
 		border-color: var(--color-primary);
 		box-shadow: 0 0 0 3px rgba(255, 184, 0, 0.15);
 	}
 
-	input[type='email']::placeholder,
-	input[type='tel']::placeholder {
+	input[type='text']::placeholder {
 		color: var(--color-text-muted);
 	}
 
