@@ -20,6 +20,7 @@ from quart import Quart, jsonify
 from agent.checkpointer import (
     checkpointer,  # noqa: F401 — ensures checkpoint tables exist at startup
 )
+from module.logger import get_logger
 from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
 from server.routes.admin_routes import register_admin_routes
@@ -113,6 +114,9 @@ class Server:
 
         Hypercorn requires the main thread for signal handling.
         """
+        logger = get_logger(__name__, log_file="server.log")
+
         config = Config()
         config.bind = [f"{self.host}:{self.port}"]
+        config.errorlog = logger
         asyncio.run(serve(self.app, config))
