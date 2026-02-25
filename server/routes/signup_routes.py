@@ -84,7 +84,7 @@ def register_signup_routes(app):
             finally:
                 pending_repo.close()
 
-            thread_info = resolve_sms_thread(phone_number, "Website Signup")
+            thread_info = resolve_sms_thread(phone_number)
 
             try:
                 from server.routes.sms_routes import _generate_cold_start_oauth_link

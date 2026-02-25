@@ -2,12 +2,11 @@
 Thread management for tracking conversation threads across channels.
 
 Handles email threading (Message-ID mapping) and SMS thread resolution
-(tiered: time-based + LLM classification).
+(one permanent thread per phone number).
 """
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
@@ -16,10 +15,6 @@ from data.sms_thread_repository import SmsThreadRepository
 from module.logger import get_logger
 
 logger = get_logger(__name__)
-
-# SMS thread resolution thresholds
-SMS_RAPID_WINDOW_MINUTES = 5
-SMS_HARD_CUTOFF_HOURS = 24
 
 
 @dataclass
@@ -173,21 +168,15 @@ def resolve_thread(
 
 
 # ---------------------------------------------------------------------------
-# SMS thread resolution (tiered: time-based + LLM classification)
+# SMS thread resolution
 # ---------------------------------------------------------------------------
 
 
-def resolve_sms_thread(phone_number: str, incoming_message: str) -> ThreadInfo:
+def resolve_sms_thread(phone_number: str) -> ThreadInfo:
     """Resolve the thread_id for an incoming SMS.
 
-    Tiered resolution to minimize LLM calls:
-    1. No existing thread → new thread
-    2. Last message >24h ago → new thread (hard cutoff)
-    3. Last message <5min ago → same thread (rapid back-and-forth)
-    4. Between 5min and 24h → LLM classification
-
-    Creates an sms_threads row for new threads, updates last_message_at for
-    existing threads.
+    Each phone number maps to exactly one permanent thread. Returns the
+    existing thread (updating activity) or creates a new one.
     """
     repo = SmsThreadRepository()
     try:
@@ -197,37 +186,8 @@ def resolve_sms_thread(phone_number: str, incoming_message: str) -> ThreadInfo:
             return _create_new_sms_thread(phone_number, repo)
 
         thread_id = str(latest[0])
-        last_message_at = latest[2]
-        now = datetime.now(UTC)
-
-        # Ensure last_message_at is timezone-aware
-        if last_message_at.tzinfo is None:
-            last_message_at = last_message_at.replace(tzinfo=UTC)
-
-        elapsed = now - last_message_at
-
-        # Hard cutoff: over 24 hours → new thread
-        if elapsed > timedelta(hours=SMS_HARD_CUTOFF_HOURS):
-            logger.info(f"SMS thread expired (>{SMS_HARD_CUTOFF_HOURS}h), creating new thread")
-            return _create_new_sms_thread(phone_number, repo)
-
-        # Rapid window: under 5 minutes → same thread
-        if elapsed < timedelta(minutes=SMS_RAPID_WINDOW_MINUTES):
-            logger.info(f"SMS rapid back-and-forth (<{SMS_RAPID_WINDOW_MINUTES}min), continuing thread")
-            repo.update_sms_thread_activity(thread_id)
-            return ThreadInfo(thread_id=thread_id, subject=None, is_new_thread=False)
-
-        # Middle zone: use LLM classification
-        from server.sms_intent_classifier import is_same_conversation
-
-        if is_same_conversation(thread_id, incoming_message):
-            logger.info("LLM classified SMS as same conversation, continuing thread")
-            repo.update_sms_thread_activity(thread_id)
-            return ThreadInfo(thread_id=thread_id, subject=None, is_new_thread=False)
-
-        logger.info("LLM classified SMS as new conversation, creating new thread")
-        return _create_new_sms_thread(phone_number, repo)
-
+        repo.update_sms_thread_activity(thread_id)
+        return ThreadInfo(thread_id=thread_id, subject=None, is_new_thread=False)
     finally:
         repo.close()
 

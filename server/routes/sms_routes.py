@@ -240,7 +240,7 @@ def register_sms_routes(app):
             finally:
                 pending_repo.close()
 
-            thread_info = resolve_sms_thread(phone_number, message_body)
+            thread_info = resolve_sms_thread(phone_number)
 
             try:
                 oauth_url = _generate_cold_start_oauth_link(phone_number, thread_info.thread_id)
@@ -265,7 +265,7 @@ def register_sms_routes(app):
         logger.info(f"Received SMS from {phone_number}: {message_body[:50]}")
 
         # Resolve thread
-        thread_info = resolve_sms_thread(phone_number, message_body)
+        thread_info = resolve_sms_thread(phone_number)
 
         logger.info(
             f"SMS thread resolved: {thread_info.thread_id} (new={thread_info.is_new_thread})"
