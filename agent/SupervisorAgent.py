@@ -14,13 +14,12 @@ from agent.checkpointer import checkpointer
 from agent.context_validator import validate_and_build_system_message
 from agent.subagents.available import available_players
 from agent.subagents.trade import trade
-from middleware.auto_ack import AutoAckMiddleware
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.notifications.manage_notifications import manage_notifications
-from tools.send_message import send_message
+from tools.send_acknowledgement import send_acknowledgement
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 # Use literal string for END to satisfy type checker
@@ -59,15 +58,20 @@ URL in your response to the user. Never paraphrase or omit URLs.
 simply follow them. Present OAuth links or team lists exactly as specified. When the user selects \
 a team, call onboard_user_team with the correct parameters from the system message.
 4. Use search_past_conversations proactively when it would help provide better context-aware advice.
-5. **USE send_message FOR PROACTIVE UPDATES**: You have a send_message tool. Use it proactively \
-for quick updates like "Got it!", "Analyzing...", or casual insights to feel like texting a buddy. \
-Keep messages under 160 characters for SMS compatibility. Pass the correct thread_id from context \
-and set channel_type to "sms". Only use for the SMS channel, not email.
+5. **SMS: ACK THEN RESPOND**: On the SMS channel, use send_acknowledgement ONCE at the start to \
+let the user know you're working on it. Then write your full answer as your final response — the \
+system will deliver it as SMS automatically. See channel guidelines for detailed examples.
 """
 
 
-def create_supervisor_agent():
-    """Create a new supervisor agent instance."""
+def create_supervisor_agent(channel: str = "email"):
+    """Create a new supervisor agent instance.
+
+    Args:
+        channel: The communication channel ("sms" or "email").
+            SMS includes send_acknowledgement for ack before heavy work.
+            Email excludes send_acknowledgement since responses go via email.
+    """
     if not os.environ.get("OPENAI_API_KEY"):
         logger.error("OPENAI_API_KEY environment variable not set")
         raise ValueError("OPENAI_API_KEY environment variable not set")
@@ -78,16 +82,22 @@ def create_supervisor_agent():
     # Create the search tool with access to the memory store
     search_past_conversations = create_search_past_conversations_tool(get_memory_store())
 
+    # Base tools available to all channels
+    tools = [
+        trade,
+        available_players,
+        onboard_user_team,
+        search_past_conversations,
+        manage_notifications,
+    ]
+
+    # SMS channel gets send_acknowledgement for quick ack before heavy work
+    if channel == "sms":
+        tools.append(send_acknowledgement)
+
     return create_agent(
         model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-        tools=[
-            trade,
-            available_players,
-            onboard_user_team,
-            search_past_conversations,
-            manage_notifications,
-            send_message,
-        ],
+        tools=tools,
         middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
         system_prompt=SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT),
         checkpointer=checkpointer,
@@ -161,19 +171,25 @@ def _invoke_supervisor(
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
 
-        # Wrap agent invocation with auto-ack middleware for sync calls
-        ack_middleware = AutoAckMiddleware(timeout_ms=1000)
-        agent = create_supervisor_agent()
-        result = ack_middleware.wrap_sync_agent_call(
-            lambda s, c: agent.invoke(cast(Any, s), cast(RunnableConfig, cast(object, c))),
-            input_state,
-            config,
-        )
+        channel = state.get("channel", "email")
+        agent = create_supervisor_agent(channel=channel)
+        result = agent.invoke(cast(Any, input_state), cast(RunnableConfig, cast(object, config)))
 
         # Extract the response
         if isinstance(result, dict) and "messages" in result:
             result_messages = result["messages"]
             if result_messages:
+                # Track whether an ack was sent via send_acknowledgement
+                ack_count = sum(
+                    1
+                    for msg in result_messages
+                    if isinstance(msg, AIMessage)
+                    for tc in getattr(msg, "tool_calls", [])
+                    if tc.get("name") == "send_acknowledgement"
+                )
+                if ack_count > 0:
+                    state["sms_ack_sent"] = True
+
                 last_msg = result_messages[-1]
                 if isinstance(last_msg, AIMessage):
                     response_content = str(last_msg.content)

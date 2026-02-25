@@ -1,4 +1,7 @@
-"""Tool for sending SMS messages to the user during agent execution.
+"""Tool for sending SMS acknowledgements to the user during agent execution.
+
+Used to send a short ack ("On it!", "Checking that now...") so the user
+knows their message was received before the agent does heavier work.
 
 The LLM controls ONLY the message content. All routing (phone number,
 channel) is derived from the injected agent state, making it impossible
@@ -40,11 +43,11 @@ def _send_sms(phone_number: str, message: str) -> None:
     if not result.success:
         raise RuntimeError(f"SMS delivery failed: {result.error}")
 
-    logger.info(f"SMS sent to {phone_number}")
+    logger.info(f"SMS ack sent to {phone_number}")
 
 
-def _send_message_impl(message: str, state: dict[str, Any]) -> str:
-    """Core implementation for send_message, callable from tests."""
+def _send_acknowledgement_impl(message: str, state: dict[str, Any]) -> str:
+    """Core implementation for send_acknowledgement, callable from tests."""
     if len(message) > 320:
         return (
             f"Error: Message is {len(message)} characters, which exceeds the 320 character SMS limit. "
@@ -56,9 +59,9 @@ def _send_message_impl(message: str, state: dict[str, Any]) -> str:
     try:
         phone_number = _extract_phone_from_thread_id(thread_id)
         _send_sms(phone_number, message)
-        return "[Message delivered to user]"
+        return "[Acknowledgement delivered to user]"
     except (ValueError, RuntimeError) as e:
-        logger.error(f"send_message failed: {e}")
+        logger.error(f"send_acknowledgement failed: {e}")
         return (
             "[SMS delivery failed. "
             "Do NOT retry — the message cannot be delivered right now. "
@@ -67,13 +70,13 @@ def _send_message_impl(message: str, state: dict[str, Any]) -> str:
 
 
 @tool
-def send_message(
+def send_acknowledgement(
     message: str,
     state: Annotated[dict[str, Any], InjectedState],
 ) -> str:
-    """Send a text message to the user. Messages must be under 320 characters.
+    """Send a short acknowledgement to the user so they know you're working on their request. Use this ONCE at the start before doing any research. Keep it under 50 characters.
 
     Args:
-        message: The message to send to the user (max 320 characters).
+        message: A short ack like "On it!", "Checking that now...", "Good question — let me look" (max 320 characters).
     """
-    return _send_message_impl(message, state)
+    return _send_acknowledgement_impl(message, state)

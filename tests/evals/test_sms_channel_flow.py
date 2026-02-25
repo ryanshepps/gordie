@@ -1,8 +1,8 @@
 """Agent evals for SMS channel flow.
 
 Black-box evals that verify observable SMS behavior:
-- Agent uses send_message as primary output (ack first, then answer)
-- Messages are short, plain text, conversational
+- Agent sends ack via send_acknowledgement before doing heavy work
+- Final response is short, plain text, conversational
 - Same core recommendation as email, different delivery
 """
 
@@ -63,13 +63,13 @@ def email_user_state():
     }
 
 
-def _get_send_message_texts(messages: list[Any]) -> list[str]:
-    """Extract the message text from each send_message tool call."""
+def _get_send_acknowledgement_texts(messages: list[Any]) -> list[str]:
+    """Extract the message text from each send_acknowledgement tool call."""
     texts = []
     for msg in messages:
         if isinstance(msg, AIMessage) and msg.tool_calls:
             for tc in msg.tool_calls:
-                if tc.get("name") == "send_message":
+                if tc.get("name") == "send_acknowledgement":
                     texts.append(tc.get("args", {}).get("message", ""))
     return texts
 
@@ -85,13 +85,13 @@ def _get_ordered_tool_names(messages: list[Any]) -> list[str]:
 
 
 class TestSmsAckThenAnswer:
-    """The agent should ack before doing heavy work, then send its answer via send_message."""
+    """The agent should ack before doing heavy work, then send its answer via send_acknowledgement."""
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_ack_before_data_tools(
         self, sms_user_state, mock_yahoo_tools
     ):
-        """First tool call should be send_message (ack), before any data-fetching tools."""
+        """First tool call should be send_acknowledgement (ack), before any data-fetching tools."""
         sms_user_state["messages"] = [
             HumanMessage(content="Who should I grab off waivers?")
         ]
@@ -110,25 +110,25 @@ class TestSmsAckThenAnswer:
             None,
         )
         first_send_idx = next(
-            (i for i, name in enumerate(tool_names) if name == "send_message"),
+            (i for i, name in enumerate(tool_names) if name == "send_acknowledgement"),
             None,
         )
 
         assert first_send_idx is not None, (
-            f"Agent should use send_message on SMS. Tool order: {tool_names}"
+            f"Agent should use send_acknowledgement on SMS. Tool order: {tool_names}"
         )
 
         if first_data_tool_idx is not None:
             assert first_send_idx < first_data_tool_idx, (
-                f"Agent should ack via send_message before calling data tools. "
+                f"Agent should ack via send_acknowledgement before calling data tools. "
                 f"Tool order: {tool_names}"
             )
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
-    def test_email_does_not_use_send_message(
+    def test_email_does_not_use_send_acknowledgement(
         self, email_user_state, mock_yahoo_tools
     ):
-        """Email channel should not use send_message at all."""
+        """Email channel should not use send_acknowledgement at all."""
         email_user_state["messages"] = [
             HumanMessage(content="Who should I grab off waivers?")
         ]
@@ -136,26 +136,26 @@ class TestSmsAckThenAnswer:
 
         update = result.update or {}
         result_messages = cast(dict[str, Any], update).get("messages", [])
-        sms_texts = _get_send_message_texts(result_messages)
+        sms_texts = _get_send_acknowledgement_texts(result_messages)
 
-        assert len(sms_texts) == 0, "Email agent should NOT use send_message tool"
+        assert len(sms_texts) == 0, "Email agent should NOT use send_acknowledgement tool"
 
 
 class TestSmsMessageQuality:
-    """SMS messages should be short, plain text, and sound like a real person texting."""
+    """SMS final response should be short, plain text, and sound like a real person texting."""
 
     @pytest.fixture
     def sms_quality_evaluator(self):
         return create_trajectory_llm_as_judge(
-            prompt="""You are evaluating SMS text messages from a fantasy hockey assistant named Gordie.
+            prompt="""You are evaluating an SMS text message from a fantasy hockey assistant named Gordie.
 
-            These messages are individual SMS texts sent to the user's phone. Evaluate ALL of these criteria:
+            This is the final response sent to the user's phone. Evaluate ALL of these criteria:
 
-            1. CONVERSATIONAL TONE: Messages sound like a real person texting — casual, uses contractions,
+            1. CONVERSATIONAL TONE: Message sounds like a real person texting — casual, uses contractions,
                punchy sentences. NOT formal, NOT robotic, NOT like a report or email.
             2. PLAIN TEXT: No markdown formatting (no **, ##, tables, code blocks, bullet lists).
                Stats should be inline: "12 goals in his last 10" not "| Goals | 12 |"
-            3. CONCISE: Each message should be brief. No walls of text. Key info only.
+            3. CONCISE: Message should be brief. No walls of text. Key info only.
             4. SPORTS-KNOWLEDGEABLE: Includes specific, relevant stats or reasoning — not vague.
 
             <trajectory>
@@ -188,14 +188,12 @@ class TestSmsMessageQuality:
         result = supervisor_node(sms_user_state)
 
         update = result.update or {}
-        result_messages = cast(dict[str, Any], update).get("messages", [])
-        sms_texts = _get_send_message_texts(result_messages)
+        response = cast(dict[str, Any], update).get("response", "")
 
-        if not sms_texts:
-            pytest.skip("No send_message calls to evaluate")
+        if not response:
+            pytest.skip("No final response to evaluate")
 
-        combined = "\n---\n".join(sms_texts)
-        output_messages = [{"role": "assistant", "content": combined}]
+        output_messages = [{"role": "assistant", "content": response}]
 
         eval_result = sms_quality_evaluator(
             outputs=output_messages,
@@ -205,7 +203,7 @@ class TestSmsMessageQuality:
         eval_dict = cast(dict[str, Any], cast(object, eval_result))
         assert eval_dict["score"] >= 0.8, (
             f"SMS should read like texting a friend: {eval_dict.get('comment')}\n"
-            f"Messages: {combined[:500]}"
+            f"Response: {response[:500]}"
         )
 
 
@@ -249,11 +247,9 @@ class TestSmsVsEmailConsistency:
         sms_user_state["messages"] = [HumanMessage(content=question)]
         sms_result = supervisor_node(sms_user_state)
         sms_update = sms_result.update or {}
-        sms_messages = cast(dict[str, Any], sms_update).get("messages", [])
-        sms_texts = _get_send_message_texts(sms_messages)
-        sms_combined = "\n".join(sms_texts)
+        sms_response = cast(dict[str, Any], sms_update).get("response", "")
 
-        if not sms_combined:
+        if not sms_response:
             pytest.skip("SMS agent produced no output")
 
         # Email
@@ -266,7 +262,7 @@ class TestSmsVsEmailConsistency:
             pytest.skip("Email agent produced no output")
 
         combined = (
-            f"SMS response:\n{sms_combined}\n\n"
+            f"SMS response:\n{sms_response}\n\n"
             f"Email response:\n{email_response}"
         )
         output_messages = [{"role": "assistant", "content": combined}]
@@ -279,6 +275,6 @@ class TestSmsVsEmailConsistency:
         eval_dict = cast(dict[str, Any], cast(object, eval_result))
         assert eval_dict["score"] >= 0.8, (
             f"SMS and email should give same core answer: {eval_dict.get('comment')}\n"
-            f"SMS: {sms_combined[:300]}\n"
+            f"SMS: {sms_response[:300]}\n"
             f"Email: {email_response[:300]}"
         )

@@ -55,3 +55,5 @@ class AgentState(_AgentStateRequired, total=False):
     # Acknowledgment fields
     ack_sent: bool  # Whether auto-acknowledgment has been sent (prevents duplicates)
     processing_start_time: float  # Timestamp when processing started (for middleware tracking)
+    # SMS: whether an ack was sent via send_acknowledgement tool
+    sms_ack_sent: bool

@@ -9,9 +9,9 @@ from langgraph.types import Command
 
 from agent.agent_state import AgentState
 from agent.channels.email_channel import send_email_response
-from agent.channels.sms_channel import send_sms_response
 from agent.memory_store import get_memory_store, summarize_and_store_conversation
 from module.logger import get_logger
+from tools.send_acknowledgement import _extract_phone_from_thread_id, _send_sms
 
 logger = get_logger(__name__)
 
@@ -56,6 +56,23 @@ def response_node(state: AgentState) -> Command[Literal["__end__"]]:
     messages = state.get("messages", [])
     channel = state.get("channel", "email")
 
+    # SMS: the ack was sent inline via send_acknowledgement. The final
+    # response is delivered here as a single SMS to guarantee ordering.
+    if channel == "sms":
+        message_content, _ = _get_last_ai_message(messages)
+        if message_content:
+            thread_id = state.get("thread_id", "")
+            try:
+                phone_number = _extract_phone_from_thread_id(thread_id)
+                _send_sms(phone_number, message_content)
+                logger.info("SMS response sent via response_node")
+            except (ValueError, RuntimeError) as e:
+                logger.error(f"Failed to send SMS response: {e}")
+        else:
+            logger.warning("No AI message found to send via SMS")
+        _store_conversation_memory(state, messages)
+        return Command(goto=END_NODE, update=state)
+
     message_content, _ = _get_last_ai_message(messages)
 
     if not message_content:
@@ -64,8 +81,6 @@ def response_node(state: AgentState) -> Command[Literal["__end__"]]:
 
     if channel == "email":
         send_email_response(state, message_content)
-    elif channel == "sms":
-        send_sms_response(state, message_content)
     else:
         logger.error(f"Unknown channel: {channel}")
 
