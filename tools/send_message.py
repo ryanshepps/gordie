@@ -1,8 +1,8 @@
 """Tool for sending proactive status messages during agent execution."""
 
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
@@ -14,13 +14,10 @@ class SendMessageInput(BaseModel):
     """Input schema for send_message tool."""
 
     message: str = Field(
-        description="The message to send to the user. Keep under 160 characters for SMS."
+        description="The message to send to the user. Must be under 320 characters for SMS."
     )
     channel_type: Literal["sms"] = Field(
         description="The channel to send the message through"
-    )
-    thread_id: str = Field(
-        description="The conversation thread ID (e.g., 'sms:+1234567890:uuid' or email format)"
     )
     context: str = Field(
         default="",
@@ -56,47 +53,64 @@ def _send_sms(phone_number: str, message: str) -> bool:
         return False
 
 
-@tool(args_schema=SendMessageInput)
-def send_message(
-    message: str, channel_type: Literal["sms"], thread_id: str, context: str = ""
+def _send_message_impl(
+    message: str,
+    channel_type: Literal["sms"],
+    context: str = "",
+    state: dict[str, Any] | None = None,
 ) -> str:
-    """
-    Send a quick status update to the user mid-processing.
+    """Core logic for send_message, callable without the @tool wrapper."""
+    if len(message) > 320:
+        return (
+            f"Error: Message is {len(message)} characters, which exceeds the 320 character SMS limit. "
+            "Shorten your message and try again."
+        )
 
-    Use this tool proactively for conversational updates like:
-    - "Got it!" when you understand the request
-    - "Checking stats..." before running analysis
-    - "Analyzing that trade..." for trade requests
-    - Casual insights like "Matthews is on fire this week!"
-
-    Keep messages short (under 160 characters for SMS compatibility).
-    Only use for the SMS channel - do not use for email.
-
-    Args:
-        message: The message to send to the user
-        channel_type: The channel to send through ("sms")
-        thread_id: The conversation thread ID
-        context: Optional context about what you're doing
-
-    Returns:
-        Confirmation that the message was sent or an error message
-    """
-    # Truncate message for SMS (160 chars is standard SMS limit)
-    if len(message) > 160:
-        message = message[:157] + "..."
+    thread_id = (state or {}).get("thread_id", "")
 
     try:
         phone_number = _extract_phone_from_thread_id(thread_id)
         if not phone_number:
             logger.error(f"Could not extract phone number from thread_id: {thread_id}")
-            return "Error: Could not determine phone number for SMS"
+            return (
+                "[FATAL: SMS delivery is not possible — no valid phone number in session. "
+                "Do NOT retry. End the conversation here.]"
+            )
 
         success = _send_sms(phone_number, message)
         if success:
-            return "[Status update sent to user]"
+            return "[Message delivered to user]"
         else:
-            return "[Status update failed to send, continuing with main response]"
+            return (
+                "[SMS delivery failed due to a service outage. "
+                "Do NOT retry — the message cannot be delivered right now. "
+                "End the conversation here.]"
+            )
 
     except Exception as e:
         logger.error(f"Error in send_message tool: {e}", exc_info=True)
         return f"Error sending message: {e!s}"
+
+
+@tool(args_schema=SendMessageInput)
+def send_message(
+    message: str,
+    channel_type: Literal["sms"],
+    context: str = "",
+    state: Annotated[dict[str, Any], InjectedState] | None = None,
+) -> str:
+    """
+    Send an SMS message to the user. This is the PRIMARY way to communicate with SMS users.
+
+    Use this tool to send your full response to the user over SMS. Messages must be
+    under 320 characters. If your message is too long, shorten it and try again.
+
+    Args:
+        message: The message to send to the user (max 320 characters)
+        channel_type: The channel to send through ("sms")
+        context: Optional context about what you're doing
+
+    Returns:
+        Confirmation that the message was sent or an error message
+    """
+    return _send_message_impl(message, channel_type, context, state)
