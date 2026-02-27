@@ -6,24 +6,17 @@ import time
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+from langchain_openai import ChatOpenAI
+
+from agent.agent_state import AgentState
 from agent.checkpointer import checkpointer
+from agent.prompts.persona import PERSONA
 from module.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Contextual messages based on request keywords
-CONTEXTUAL_MESSAGES = {
-    "trade": "Analyzing that trade...",
-    "waiver": "Checking waiver wire...",
-    "available": "Checking waiver wire...",
-    "pickup": "Checking waiver wire...",
-    "roster": "Looking at your roster...",
-    "lineup": "Looking at your roster...",
-    "stats": "Crunching the numbers...",
-    "compare": "Crunching the numbers...",
-}
-
-DEFAULT_ACK_MESSAGE = "On it! One sec..."
+FALLBACK_ACK_MESSAGE = "Hang tight, looking into it..."
 
 
 def _extract_phone_from_thread_id(thread_id: str) -> str | None:
@@ -34,13 +27,25 @@ def _extract_phone_from_thread_id(thread_id: str) -> str | None:
     return None
 
 
-def _get_contextual_message(user_message: str) -> str:
-    """Get contextual acknowledgment message based on user request."""
-    message_lower = user_message.lower()
-    for keyword, ack_message in CONTEXTUAL_MESSAGES.items():
-        if keyword in message_lower:
-            return ack_message
-    return DEFAULT_ACK_MESSAGE
+def _generate_ack_message(user_message: str) -> str:
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+        response = llm.invoke([
+            {
+                "role": "system",
+                "content": (
+                    f"{PERSONA}\n\n"
+                    "Write a brief (1 sentence max) acknowledgment letting the user know "
+                    "you're working on their request. No emojis. Don't mention any tools "
+                    "or technical details. Vary the phrasing each time."
+                ),
+            },
+            {"role": "user", "content": user_message},
+        ])
+        return str(response.content).strip()
+    except Exception:
+        logger.exception("Failed to generate ack message")
+        return FALLBACK_ACK_MESSAGE
 
 
 def _send_sms_ack(phone_number: str, message: str) -> bool:
@@ -83,7 +88,7 @@ class AutoAckMiddleware:
         """
         self.timeout_ms = timeout_ms
 
-    def _should_skip_ack(self, state: dict[str, Any]) -> bool:
+    def _should_skip_ack(self, state: AgentState) -> bool:
         """Check if we should skip sending auto-ack for this request."""
         channel = state.get("channel", "")
 
@@ -94,7 +99,7 @@ class AutoAckMiddleware:
         # Skip if ack already sent
         return bool(state.get("ack_sent", False))
 
-    def _send_ack(self, state: dict[str, Any]) -> None:
+    def _send_ack(self, state: AgentState) -> None:
         """Send the appropriate acknowledgment based on channel."""
         channel = state.get("channel", "")
         thread_id = state.get("thread_id", "")
@@ -109,7 +114,7 @@ class AutoAckMiddleware:
             elif hasattr(last_msg, "content"):
                 user_message = str(last_msg.content)
 
-        ack_message = _get_contextual_message(user_message)
+        ack_message = _generate_ack_message(user_message)
 
         try:
             if channel == "sms":
@@ -139,8 +144,8 @@ class AutoAckMiddleware:
     async def wrap_agent_call(
         self,
         agent_fn: Callable[..., Coroutine[Any, Any, Any]],
-        state: dict[str, Any],
-        config: dict[str, Any],
+        state: AgentState,
+        config: RunnableConfig,
     ) -> Any:
         """
         Wrap an async agent call with auto-acknowledgment logic.
@@ -183,8 +188,8 @@ class AutoAckMiddleware:
     def wrap_sync_agent_call(
         self,
         agent_fn: Callable[..., Any],
-        state: dict[str, Any],
-        config: dict[str, Any],
+        state: AgentState,
+        config: RunnableConfig,
     ) -> Any:
         """
         Wrap a synchronous agent call with auto-acknowledgment logic.
