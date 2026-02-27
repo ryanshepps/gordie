@@ -52,6 +52,7 @@ def init() -> None:
         service_name=SERVICE_NAME,
         service_version=SERVICE_VERSION,
         send_to_logfire=False,
+        console=False,
         environment=environment,
     )
 
