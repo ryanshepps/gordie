@@ -20,7 +20,6 @@ from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.notifications.manage_notifications import manage_notifications
-from tools.send_acknowledgement import send_acknowledgement
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 END_NODE: Literal["__end__"] = "__end__"
@@ -28,14 +27,11 @@ END_NODE: Literal["__end__"] = "__end__"
 logger = get_logger(__name__)
 
 
-def create_supervisor_agent(system_prompt: str, channel: str = "email"):
+def create_supervisor_agent(system_prompt: str):
     """Create a new supervisor agent instance.
 
     Args:
         system_prompt: The fully assembled system prompt string.
-        channel: The communication channel ("sms" or "email").
-            SMS includes send_acknowledgement for ack before heavy work.
-            Email excludes send_acknowledgement since responses go via email.
     """
     if not os.environ.get("OPENAI_API_KEY"):
         logger.error("OPENAI_API_KEY environment variable not set")
@@ -52,9 +48,6 @@ def create_supervisor_agent(system_prompt: str, channel: str = "email"):
         search_past_conversations,
         manage_notifications,
     ]
-
-    if channel == "sms":
-        tools.append(send_acknowledgement)
 
     return create_agent(
         model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
@@ -104,22 +97,12 @@ def _invoke_supervisor(
 
         logger.info("Invoking supervisor agent with sub-agent tools...")
 
-        agent = create_supervisor_agent(system_prompt, channel=channel)
+        agent = create_supervisor_agent(system_prompt)
         result = agent.invoke(cast(Any, input_state), cast(RunnableConfig, cast(object, config)))
 
         if isinstance(result, dict) and "messages" in result:
             result_messages = result["messages"]
             if result_messages:
-                ack_count = sum(
-                    1
-                    for msg in result_messages
-                    if isinstance(msg, AIMessage)
-                    for tc in getattr(msg, "tool_calls", [])
-                    if tc.get("name") == "send_acknowledgement"
-                )
-                if ack_count > 0:
-                    state["sms_ack_sent"] = True
-
                 last_msg = result_messages[-1]
                 if isinstance(last_msg, AIMessage):
                     response_content = str(last_msg.content)

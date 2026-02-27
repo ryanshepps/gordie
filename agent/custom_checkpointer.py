@@ -61,7 +61,6 @@ class CustomCheckpointer(BaseCheckpointSaver[str]):
 
     This provides:
     - Direct access to message history for web view
-    - Ability to add out-of-band messages (auto-acks)
     - Clean separation of conversation data from LangGraph internals
     """
 
@@ -362,51 +361,6 @@ class CustomCheckpointer(BaseCheckpointSaver[str]):
         repo = self._get_repo()
         repo.delete_thread(thread_id)
         repo.commit()
-
-    def add_message(
-        self,
-        thread_id: str,
-        content: str,
-        role: str = "ai",
-        message_type: str = "auto_ack",
-        metadata: dict[str, Any] | None = None,
-    ) -> int:
-        """
-        Add a message to the conversation outside of normal checkpoint flow.
-
-        This is the key feature for auto-acknowledgments - it allows adding
-        messages mid-processing that will appear in the web view.
-
-        Args:
-            thread_id: The conversation thread ID
-            content: Message content
-            role: Message role ('human', 'ai', or 'system')
-            message_type: Type of message ('standard', 'auto_ack', 'status')
-            metadata: Optional metadata
-
-        Returns:
-            The ID of the inserted message
-        """
-        # Get the latest checkpoint ID for this thread
-        repo = self._get_repo()
-        latest = repo.get_latest_checkpoint(thread_id)
-        checkpoint_id = latest["checkpoint_id"] if latest else "out-of-band"
-
-        # Add the message
-        message_id = repo.add_message(
-            thread_id=thread_id,
-            checkpoint_id=checkpoint_id,
-            role=role,
-            content=content,
-            message_type=message_type,
-            metadata=metadata,
-        )
-
-        # Commit the transaction
-        repo.commit()
-
-        logger.info(f"Added {message_type} message to thread {thread_id}: {content[:50]}...")
-        return message_id
 
     def get_next_version(
         self,

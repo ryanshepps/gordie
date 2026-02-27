@@ -162,39 +162,6 @@ class AsyncCustomCheckpointer(BaseCheckpointSaver[str]):
         """
         await asyncio.to_thread(self._get_sync_checkpointer().delete_thread, thread_id)
 
-    async def add_message(
-        self,
-        thread_id: str,
-        content: str,
-        role: str = "ai",
-        message_type: str = "auto_ack",
-        metadata: dict[str, Any] | None = None,
-    ) -> int:
-        """
-        Add a message to the conversation outside of normal checkpoint flow.
-
-        This is the key feature for auto-acknowledgments - it allows adding
-        messages mid-processing that will appear in the web view.
-
-        Args:
-            thread_id: The conversation thread ID
-            content: Message content
-            role: Message role ('human', 'ai', or 'system')
-            message_type: Type of message ('standard', 'auto_ack', 'status')
-            metadata: Optional metadata
-
-        Returns:
-            The ID of the inserted message
-        """
-        return await asyncio.to_thread(
-            self._get_sync_checkpointer().add_message,
-            thread_id,
-            content,
-            role,
-            message_type,
-            metadata,
-        )
-
     # Sync methods (required by BaseCheckpointSaver interface)
     # These delegate to the sync checkpointer
 

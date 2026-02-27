@@ -2,7 +2,6 @@
 
 Verifies observable behavior:
 - response_node sends SMS response via SmsService for SMS channel
-- send_acknowledgement tool rejects messages over 320 chars
 - Email dispatch is unaffected
 """
 
@@ -86,25 +85,3 @@ class TestResponseNodeSmsDispatch:
         assert result.goto == "__end__"
 
 
-class TestSendAcknowledgementCharacterLimit:
-    """Verify send_acknowledgement enforces the 320 character limit via rejection."""
-
-    def test_rejects_over_limit(self):
-        """Messages over 320 chars should be rejected, not truncated."""
-        from tools.send_acknowledgement import _send_acknowledgement_impl
-
-        state = {"thread_id": "sms:+15551234567:abc123"}
-        result = _send_acknowledgement_impl(message="A" * 321, state=state)
-
-        assert "error" in result.lower()
-        assert "320" in result
-
-    def test_accepts_at_limit(self):
-        """Messages at exactly 320 chars should be sent."""
-        from tools.send_acknowledgement import _send_acknowledgement_impl
-
-        state = {"thread_id": "sms:+15551234567:abc123"}
-        with patch("tools.send_acknowledgement._send_sms"):
-            result = _send_acknowledgement_impl(message="A" * 320, state=state)
-
-        assert "error" not in result.lower()

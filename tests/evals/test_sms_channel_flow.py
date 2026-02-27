@@ -1,7 +1,6 @@
 """Agent evals for SMS channel flow.
 
 Black-box evals that verify observable SMS behavior:
-- Agent sends ack via send_acknowledgement before doing heavy work
 - Final response is short, plain text, conversational
 - Same core recommendation as email, different delivery
 """
@@ -11,7 +10,7 @@ from typing import Any, cast
 
 import pytest
 from agentevals.trajectory.llm import create_trajectory_llm_as_judge
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from agent.SupervisorAgent import supervisor_node
 from tests.evals.conftest import retry_on_rate_limit
@@ -61,84 +60,6 @@ def email_user_state():
             }
         ],
     }
-
-
-def _get_send_acknowledgement_texts(messages: list[Any]) -> list[str]:
-    """Extract the message text from each send_acknowledgement tool call."""
-    texts = []
-    for msg in messages:
-        if isinstance(msg, AIMessage) and msg.tool_calls:
-            for tc in msg.tool_calls:
-                if tc.get("name") == "send_acknowledgement":
-                    texts.append(tc.get("args", {}).get("message", ""))
-    return texts
-
-
-def _get_ordered_tool_names(messages: list[Any]) -> list[str]:
-    """Get tool call names in the order they were invoked."""
-    names = []
-    for msg in messages:
-        if isinstance(msg, AIMessage) and msg.tool_calls:
-            for tc in msg.tool_calls:
-                names.append(tc.get("name", ""))
-    return names
-
-
-class TestSmsAckThenAnswer:
-    """The agent should ack before doing heavy work, then send its answer via send_acknowledgement."""
-
-    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
-    def test_ack_before_data_tools(
-        self, sms_user_state, mock_yahoo_tools
-    ):
-        """First tool call should be send_acknowledgement (ack), before any data-fetching tools."""
-        sms_user_state["messages"] = [
-            HumanMessage(content="Who should I grab off waivers?")
-        ]
-        result = supervisor_node(sms_user_state)
-
-        update = result.update or {}
-        result_messages = cast(dict[str, Any], update).get("messages", [])
-        tool_names = _get_ordered_tool_names(result_messages)
-
-        if not tool_names:
-            pytest.skip("Agent made no tool calls")
-
-        data_tools = {"trade", "available_players", "search_past_conversations"}
-        first_data_tool_idx = next(
-            (i for i, name in enumerate(tool_names) if name in data_tools),
-            None,
-        )
-        first_send_idx = next(
-            (i for i, name in enumerate(tool_names) if name == "send_acknowledgement"),
-            None,
-        )
-
-        assert first_send_idx is not None, (
-            f"Agent should use send_acknowledgement on SMS. Tool order: {tool_names}"
-        )
-
-        if first_data_tool_idx is not None:
-            assert first_send_idx < first_data_tool_idx, (
-                f"Agent should ack via send_acknowledgement before calling data tools. "
-                f"Tool order: {tool_names}"
-            )
-
-    @retry_on_rate_limit(max_retries=3, base_delay=2.0)
-    def test_email_does_not_use_send_acknowledgement(
-        self, email_user_state, mock_yahoo_tools
-    ):
-        """Email channel should not use send_acknowledgement at all."""
-        email_user_state["messages"] = [
-            HumanMessage(content="Who should I grab off waivers?")
-        ]
-        result = supervisor_node(email_user_state)
-
-        update = result.update or {}
-        result_messages = cast(dict[str, Any], update).get("messages", [])
-        sms_texts = _get_send_acknowledgement_texts(result_messages)
-
-        assert len(sms_texts) == 0, "Email agent should NOT use send_acknowledgement tool"
 
 
 class TestSmsMessageQuality:

@@ -126,8 +126,7 @@ def message_agent(
             finally:
                 repo.close()
 
-            # Send message to agent graph
-            response = agent.invoke(initial_state, config=config)
+            response = agent.invoke(initial_state, config)
 
             logger.info("\nGordie's Response:\n")
 

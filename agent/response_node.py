@@ -11,11 +11,28 @@ from agent.agent_state import AgentState
 from agent.channels.email_channel import send_email_response
 from agent.memory_store import get_memory_store, summarize_and_store_conversation
 from module.logger import get_logger
-from tools.send_acknowledgement import _extract_phone_from_thread_id, _send_sms
 
 logger = get_logger(__name__)
 
 END_NODE: Literal["__end__"] = "__end__"
+
+
+def _extract_phone_from_thread_id(thread_id: str) -> str:
+    """Extract phone number from SMS thread_id format 'sms:{phone}:{uuid}'."""
+    parts = thread_id.split(":")
+    if len(parts) >= 3 and parts[0] == "sms":
+        return parts[1]
+    raise ValueError(f"Invalid SMS thread_id format: {thread_id!r}")
+
+
+def _send_sms(phone_number: str, message: str) -> None:
+    """Send an SMS via the SmsService."""
+    from server.sms_service import SmsService
+
+    sms_service = SmsService()
+    result = sms_service.send_sms(phone_number, message)
+    if not result.success:
+        raise RuntimeError(f"SMS delivery failed: {result.error}")
 
 
 def _get_last_ai_message(messages: list[object]) -> tuple[str | None, object | None]:
@@ -56,8 +73,6 @@ def response_node(state: AgentState) -> Command[Literal["__end__"]]:
     messages = state.get("messages", [])
     channel = state.get("channel", "email")
 
-    # SMS: the ack was sent inline via send_acknowledgement. The final
-    # response is delivered here as a single SMS to guarantee ordering.
     if channel == "sms":
         message_content, _ = _get_last_ai_message(messages)
         if message_content:

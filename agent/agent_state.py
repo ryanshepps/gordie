@@ -52,8 +52,3 @@ class AgentState(_AgentStateRequired, total=False):
     # Email threading fields
     original_subject: str | None  # Original email subject for reply threading
     original_message: str | None  # Original user message for quoting in replies
-    # Acknowledgment fields
-    ack_sent: bool  # Whether auto-acknowledgment has been sent (prevents duplicates)
-    processing_start_time: float  # Timestamp when processing started (for middleware tracking)
-    # SMS: whether an ack was sent via send_acknowledgement tool
-    sms_ack_sent: bool

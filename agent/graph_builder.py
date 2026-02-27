@@ -14,15 +14,6 @@ from agent.SupervisorAgent import supervisor_node
 
 
 def build_agent_graph():
-    """Build and return the simplified agent graph.
-
-    The graph has 2 nodes:
-    - supervisor: Handles requests via sub-agent tools
-    - response: Dispatches the response to the appropriate channel (email, SMS, web)
-
-    Sub-agents (onboarding, player_comparison) are invoked as tools
-    by the supervisor rather than being separate graph nodes.
-    """
     workflow = StateGraph(AgentState)
 
     workflow.add_node("supervisor", supervisor_node)

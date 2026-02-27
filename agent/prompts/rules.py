@@ -22,7 +22,4 @@ When the system message provides team selection instructions, follow them exactl
 
 ## 4. Proactive Memory Search
 Use search_past_conversations proactively when it would help provide better context-aware advice. If the user references something you have no context for, search before saying you don't know.
-
-## 5. SMS: Ack First
-On the SMS channel, use send_acknowledgement ONCE at the start to let the user know you're working on it. Then write your full answer as your final response — the system delivers it as SMS automatically.
 """
