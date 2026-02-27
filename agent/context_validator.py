@@ -280,68 +280,6 @@ Do NOT proceed with their request until you know which team."""
     return ValidationResult(system_message=system_message)
 
 
-CHANNEL_GUIDELINES = {
-    "sms": """CHANNEL: SMS (Text Message)
-
-ACK-FIRST RULE:
-Your FIRST action on every SMS request MUST be calling send_acknowledgement with a short acknowledgment before doing ANY tool calls.
-Examples: "On it!", "Checking that now...", "Good question — let me look", "Ooh let me pull that up"
-
-RESPONSE DELIVERY:
-After the ack, do NOT use send_acknowledgement for your answer. Write your final response as a normal message — the system will deliver it as SMS automatically. Only use send_acknowledgement for the initial ack.
-
-DELIVERY FORMAT:
-- No markdown, no tables, no lists, no headers. Plain conversational text only.
-- Inline stats naturally: "Matthews has 12 goals and 8 assists in his last 10 — he's been unreal"
-- Sound like you're texting a friend about fantasy hockey. Casual, punchy, use contractions. Say "he's been on fire" not "he has been performing well."
-- Keep your response concise. Lead with the answer, back it up with key numbers, then end with a follow-up question.
-
-SAME ANALYSIS, DIFFERENT PACKAGING:
-You should do the same depth of research and analysis as email. Call the same tools, pull the same stats, think just as hard. The difference is delivery — give the key takeaway and most important numbers, not every stat line. Lead with the answer, then back it up with the one or two numbers that matter most.
-
-FOLLOW-UP QUESTIONS:
-End your response with a natural follow-up like "Want me to check waiver options too?" or "Should I look at his playoff schedule?" This keeps the conversation going and helps the user get more value.
-
-CONTEXT SEARCH:
-If the user references a topic you have no context for, proactively use search_past_conversations to check other threads before saying you don't know.
-
-EXAMPLE EXCHANGES:
-
-1) Quick start/sit question:
-   User: "should I start matthews or mcdavid tonight?"
-   You: [send_acknowledgement] "Checking tonight's matchups..."
-   [call tools, do analysis]
-   Final response: "Go Matthews tonight. He's got Detroit and he's been on fire — 5 points in his last 3. McDavid has Dallas which has been locking everyone down lately. Want me to check your other lineup spots too?"
-
-2) Trade evaluation:
-   User: "someone offered me draisaitl for my rantanen straight up"
-   You: [send_acknowledgement] "Ooh let me look at that..."
-   [call tools, do analysis]
-   Final response: "I'd take Draisaitl. He's got more games left and his PPG is slightly higher. Rantanen's been cooling off the last couple weeks too. Want me to check if there's anything else you should ask for on top?"
-
-3) Waiver wire:
-   User: "who should I grab off waivers?"
-   You: [send_acknowledgement] "Let me check what's out there..."
-   [call tools, do analysis]
-   Final response: "Grab Reinhart if he's still available — 8 goals in his last 10 and he's got a great schedule coming up. Way better than what you've got at C right now. There's also Duchene sitting out there. Want me to compare him to your weakest forward?"
-""",
-    "email": """CHANNEL: Email
-- Send one comprehensive response with full stats tables, detailed analysis, and formatting.
-- Use markdown for structure (headers, bold, tables).
-- If the user references a topic you have no context for, proactively use search_past_conversations to check other threads before saying you don't know.""",
-    "web": """CHANNEL: Web Chat
-- Be conversational like SMS but with rich formatting like email.
-- Send an immediate acknowledgment when working on something (e.g., "On it — checking waivers now").
-- Use markdown for formatting (headers, bold, tables).
-- If the user references a topic you have no context for, proactively use search_past_conversations to check other threads before saying you don't know.""",
-}
-
-
-def _get_channel_guidelines(channel: str) -> str:
-    """Get channel-specific behavior guidelines for the system prompt."""
-    return CHANNEL_GUIDELINES.get(channel, CHANNEL_GUIDELINES["email"])
-
-
 def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
     """Handle case where all validation checks have passed."""
     return ValidationResult(
@@ -351,9 +289,7 @@ def _handle_validated_context(league_id: str, team_id: str) -> ValidationResult:
     )
 
 
-def validate_and_build_system_message(
-    state: AgentState, memory_store: BaseStore
-) -> ValidationResult:
+def validate_context(state: AgentState, memory_store: BaseStore) -> ValidationResult:
     """
     Validate user context through a series of checks.
 
@@ -364,30 +300,18 @@ def validate_and_build_system_message(
     4. Team resolution
     5. Final validation
 
-    Channel-specific behavior guidelines are appended to every result.
-
     Returns:
         ValidationResult containing system_message, league_id, and team_id
     """
-    channel = state.get("channel", "email")
-    channel_guidelines = _get_channel_guidelines(channel)
     user_email, thread_id = _extract_user_info(state)
     if not user_email:
         return _handle_missing_email()
 
     has_oauth = _check_oauth_status(user_email)
 
-    # Only check first-time status if user doesn't have OAuth tokens.
-    # If they have OAuth, they've already authenticated and shouldn't be
-    # treated as first-time users (even if no memories exist yet).
     if not has_oauth:
         is_first_time = _is_first_time_user(user_email, memory_store)
-        result = _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
-        return ValidationResult(
-            system_message=f"{result.system_message}\n\n{channel_guidelines}",
-            league_id=result.league_id,
-            team_id=result.team_id,
-        )
+        return _handle_first_time_or_no_oauth(user_email, thread_id, is_first_time, has_oauth)
 
     repo = YahooUserTeamRepository()
     try:
@@ -395,25 +319,10 @@ def validate_and_build_system_message(
     finally:
         repo.close()
     if not user_teams:
-        result = _handle_no_teams_in_db(user_email)
-        return ValidationResult(
-            system_message=f"{result.system_message}\n\n{channel_guidelines}",
-            league_id=result.league_id,
-            team_id=result.team_id,
-        )
+        return _handle_no_teams_in_db(user_email)
 
     league_id, team_id = _resolve_team_context(state, user_teams)
     if not league_id or not team_id:
-        result = _handle_ambiguous_team_selection(user_teams)
-        return ValidationResult(
-            system_message=f"{result.system_message}\n\n{channel_guidelines}",
-            league_id=result.league_id,
-            team_id=result.team_id,
-        )
+        return _handle_ambiguous_team_selection(user_teams)
 
-    result = _handle_validated_context(league_id, team_id)
-    return ValidationResult(
-        system_message=f"{result.system_message}\n\n{channel_guidelines}",
-        league_id=result.league_id,
-        team_id=result.team_id,
-    )
+    return _handle_validated_context(league_id, team_id)

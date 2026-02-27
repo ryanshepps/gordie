@@ -57,7 +57,7 @@ class YahooUserTeamRepository(Repository):
         Returns:
             List of team dicts with keys: league_id, team_id, team_name, game_key, league_name
 
-        Used by: context_validator.validate_and_build_system_message
+        Used by: context_validator.validate_context
         """
         result = self.session.execute(
             text(

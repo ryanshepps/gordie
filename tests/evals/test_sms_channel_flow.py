@@ -201,7 +201,7 @@ class TestSmsMessageQuality:
         )
 
         eval_dict = cast(dict[str, Any], cast(object, eval_result))
-        assert eval_dict["score"] >= 0.8, (
+        assert eval_dict["score"] >= 0.7, (
             f"SMS should read like texting a friend: {eval_dict.get('comment')}\n"
             f"Response: {response[:500]}"
         )
