@@ -49,10 +49,8 @@ The supervisor (`agent/SupervisorAgent.py`) is an LLM agent (GPT-4o-mini) with t
 
 1. Runs **context validation** — determines the user's teams, league context, and onboarding status. Builds a system message with this context.
 2. Prepends **persona** and **context** system messages to the conversation
-3. Invokes the LLM, which can call tools: `trade`, `available_players`, `onboard_user_team`, `search_past_conversations`, `manage_notifications`, and (SMS-only) `send_acknowledgement`
+3. Invokes the LLM, which can call tools: `trade`, `available_players`, `onboard_user_team`, `search_past_conversations`, `manage_notifications`
 4. Extracts the final AI response and routes to the **response** node
-
-> **SMS acknowledgement**: On the SMS channel, the supervisor has access to `send_acknowledgement`, which sends a short "working on it" SMS before executing longer tool calls. This prevents the user from waiting in silence.
 
 ### Response Node
 
