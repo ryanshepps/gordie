@@ -24,6 +24,7 @@ from agent.agent_state import AgentState
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from tools.oauth.generate_oauth_link import generate_oauth_link
 from tools.yahoo.get_user_leagues import get_user_leagues
+from tools.yahoo.onboard_user_team import onboard_user_team
 
 logger = logging.getLogger(__name__)
 
@@ -214,11 +215,45 @@ Your response MUST:
 Do NOT ask them for technical IDs - just ask which team/league name, then YOU extract the IDs from the list above."""
 
 
+def _auto_onboard_team(user_email: str, team: dict[str, str]) -> ValidationResult:
+    """Auto-onboard a single active team and return validated context."""
+    logger.info(f"Auto-onboarding single active team '{team['team_name']}' for {user_email}")
+
+    onboard_user_team.invoke(
+        {
+            "user_email": user_email,
+            "game_key": team["game_key"],
+            "league_id": int(team["league_id"]),
+            "team_name": team["team_name"],
+            "team_id": int(team["team_id"]),
+        }
+    )
+
+    system_message = f"""TEAM AUTO-ONBOARDED
+
+The user had one active Fantasy Hockey team, which has been automatically set up:
+- Team: {team["team_name"]}
+
+Your response MUST:
+1. Confirm their team "{team["team_name"]}" has been connected
+2. Ask what they need help with (trades, waivers, lineup advice, etc.)
+3. Be enthusiastic and ready to help
+
+Proceed with their original request if they had one."""
+
+    return ValidationResult(
+        system_message=system_message,
+        league_id=team["league_id"],
+        team_id=team["team_id"],
+    )
+
+
 def _handle_no_teams_in_db(user_email: str) -> ValidationResult:
     """
     Handle case where user is authenticated but has no teams in database.
 
-    Fetches available teams from Yahoo and prompts user to select one.
+    If there is exactly one active team, auto-onboards it.
+    Otherwise fetches available teams from Yahoo and prompts user to select one.
     """
     logger.info(
         f"User {user_email} is authenticated but has no teams. Fetching available teams from Yahoo."
@@ -239,6 +274,10 @@ Your response MUST:
 
 Do NOT proceed with their request."""
             return ValidationResult(system_message=system_message)
+
+        active_teams = [t for t in hockey_teams if t.get("is_active", False)]
+        if len(active_teams) == 1:
+            return _auto_onboard_team(user_email, active_teams[0])
 
         formatted_teams = _format_teams_for_display(hockey_teams)
         system_message = _build_team_selection_message(formatted_teams, user_email)
