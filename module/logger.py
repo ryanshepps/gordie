@@ -76,6 +76,10 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
             log_data["exception"] = self.formatException(record.exc_info)
 
 
+def _is_test_environment() -> bool:
+    return "pytest" in sys.modules
+
+
 def get_logger(
     name: str | None = None, level: int = logging.INFO, log_file: str | None = "server.log"
 ) -> logging.Logger:
@@ -97,6 +101,9 @@ def get_logger(
 
         logger = get_logger(__name__, log_file=None)  # Console logging for debugging
     """
+    if _is_test_environment():
+        log_file = None
+
     logger = logging.getLogger(name or __name__)
 
     # Avoid adding handlers multiple times
