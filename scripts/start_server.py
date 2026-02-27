@@ -20,7 +20,8 @@ logger = get_logger(__name__)
 
 def main():
     """Start the server."""
-    redirect_stderr_to_logger(logger)
+    tracing_logger = get_logger("tracing", log_file="tracing.log")
+    redirect_stderr_to_logger(tracing_logger)
 
     host = "localhost"
     port = 8000
