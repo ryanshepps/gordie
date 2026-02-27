@@ -62,8 +62,9 @@ class TestPersona:
         update = result.update or {}
         response_text = cast(dict[str, Any], update).get("response", "")
 
-        if "error" in response_text.lower() or "couldn't process" in response_text.lower():
-            pytest.skip("Agent returned error response")
+        assert "error" not in response_text.lower() and "couldn't process" not in response_text.lower(), (
+            f"Agent returned error response in {scenario} scenario: {response_text[:500]}"
+        )
 
         output_messages = [{"role": "assistant", "content": response_text}]
 

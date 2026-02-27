@@ -1,16 +1,10 @@
-"""LLM-as-Judge evals for notification management.
+"""Evals for notification management.
 
-These evals verify that the agent's responses appropriately confirm
+Verify that the agent's responses appropriately confirm
 notification preference changes to users.
-
-Uses agentevals trajectory evaluation with GPT-4o-mini as judge.
 """
 
-import uuid
-from typing import Any, cast
-
 import pytest
-from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
 from pytest_mock import MockerFixture
 
@@ -18,35 +12,37 @@ from agent.agent_state import AgentState
 from agent.SupervisorAgent import supervisor_node
 from tests.evals.conftest import retry_on_rate_limit
 
+OPT_OUT_KEYWORDS = (
+    "disabled",
+    "turned off",
+    "stopped",
+    "unsubscribed",
+    "won't receive",
+    "no longer",
+    "opted out",
+    "off the table",
+    "won't be sending",
+    "won't send",
+)
 
-@pytest.fixture
-def mock_user_state() -> AgentState:
-    """Base user state for evals."""
-    return AgentState(
-        messages=[],
-        user_email="test@example.com",
-        league_id="12345",
-        team_id="1",
-        thread_id=str(uuid.uuid4()),
-        user_teams=[
-            {
-                "league_id": "12345",
-                "team_id": "1",
-                "team_name": "Test Team",
-                "game_key": "nhl.l.12345",
-                "league_name": "Test League",
-            }
-        ],
-    )
+OPT_IN_KEYWORDS = (
+    "enabled",
+    "turned on",
+    "will receive",
+    "reactivated",
+    "resumed",
+    "turned back on",
+    "opted in",
+    "back on",
+    "signed up",
+)
 
 
 @pytest.fixture
 def mock_yahoo_and_notifications(mocker: MockerFixture) -> None:
-    """Mock Yahoo tools and notification repository."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
-    # Mock get_user_teams_with_league_info
     mocker.patch(
         "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
         return_value=[
@@ -60,25 +56,21 @@ def mock_yahoo_and_notifications(mocker: MockerFixture) -> None:
         ],
     )
 
-    # Mock OAuth tokens
     mocker.patch(
         "data.yahoo_token_repository.load_tokens_from_db",
         return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
     )
 
-    # Mock memory store
     mock_memory_store = MagicMock()
     mock_memory_store.search.return_value = [{"content": "past conversation"}]
     mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
-    # Mock notification preference repository
     mock_notification_repo = MagicMock()
     mocker.patch(
         "tools.notifications.manage_notifications.NotificationPreferenceRepository",
         return_value=mock_notification_repo,
     )
 
-    # Mock Yahoo client
     mock_players = [
         SimpleNamespace(
             name=SimpleNamespace(full="Test Player"),
@@ -117,90 +109,32 @@ def mock_yahoo_and_notifications(mocker: MockerFixture) -> None:
         )
 
 
+def _extract_response(result) -> str:
+    update = result.update or {}
+    response_text = update.get("response", "")
+    assert response_text, "Agent produced no response"
+    assert "error" not in response_text.lower() or "couldn't process" not in response_text.lower(), (
+        f"Agent returned error response: {response_text[:500]}"
+    )
+    return response_text.lower()
+
+
 class TestNotificationEvals:
-    """LLM-as-judge evaluations for notification management responses."""
-
-    @pytest.fixture
-    def opt_out_evaluator(self):
-        """Evaluator for opt-out confirmation responses."""
-        return create_trajectory_llm_as_judge(
-            prompt="""Evaluate if this response confirms that a notification/digest has been disabled or turned off.
-
-            <trajectory>
-            {outputs}
-            </trajectory>
-
-            The response should clearly communicate that:
-            1. The weekly digest or notification has been disabled/turned off/stopped
-            2. The user understands their preference has been saved
-
-            Score 1.0 if the response clearly confirms the digest is disabled,
-            0.5 if partially confirms but unclear,
-            0.0 if does not confirm or is confusing.
-
-            Be concise - provide only a brief 1-sentence reasoning.
-            """,
-            continuous=True,
-            model="openai:gpt-4o-mini",
-        )
-
-    @pytest.fixture
-    def opt_in_evaluator(self):
-        """Evaluator for opt-in confirmation responses."""
-        return create_trajectory_llm_as_judge(
-            prompt="""Evaluate if this response confirms that a notification/digest has been enabled or turned back on.
-
-            <trajectory>
-            {outputs}
-            </trajectory>
-
-            The response should clearly communicate that:
-            1. The weekly digest or notification has been enabled/turned on/resumed
-            2. The user understands they will start receiving it again
-
-            Score 1.0 if the response clearly confirms the digest is enabled,
-            0.5 if partially confirms but unclear,
-            0.0 if does not confirm or is confusing.
-
-            Be concise - provide only a brief 1-sentence reasoning.
-            """,
-            continuous=True,
-            model="openai:gpt-4o-mini",
-        )
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_opt_out_confirms_action(
         self,
         mock_user_state: AgentState,
         mock_yahoo_and_notifications: None,
-        opt_out_evaluator,
     ):
-        """Agent response confirms digest was disabled."""
         mock_user_state["messages"] = [
             HumanMessage(content="Stop sending me the weekly digest emails")
         ]
         result = supervisor_node(mock_user_state)
+        response = _extract_response(result)
 
-        update = result.update or {}
-        response_text = cast(dict[str, Any], update).get("response", "")
-
-        if not response_text:
-            pytest.skip("No response generated")
-
-        if "error" in response_text.lower() or "couldn't process" in response_text.lower():
-            pytest.skip("Agent returned error response")
-
-        output_messages = [{"role": "assistant", "content": response_text}]
-
-        eval_result = opt_out_evaluator(
-            outputs=output_messages,
-            reference_outputs=[],
-        )
-
-        eval_dict = cast(dict[str, Any], cast(object, eval_result))
-        assert eval_dict["score"] >= 0.5, (
-            f"Opt-out confirmation insufficient: {eval_dict.get('comment')}\n"
-            f"Response was: {response_text[:500]}"
+        assert any(kw in response for kw in OPT_OUT_KEYWORDS), (
+            f"Expected opt-out confirmation keyword in response: {response[:500]}"
         )
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
@@ -208,34 +142,15 @@ class TestNotificationEvals:
         self,
         mock_user_state: AgentState,
         mock_yahoo_and_notifications: None,
-        opt_in_evaluator,
     ):
-        """Agent response confirms digest was re-enabled."""
         mock_user_state["messages"] = [
             HumanMessage(content="Turn the weekly digest back on please")
         ]
         result = supervisor_node(mock_user_state)
+        response = _extract_response(result)
 
-        update = result.update or {}
-        response_text = cast(dict[str, Any], update).get("response", "")
-
-        if not response_text:
-            pytest.skip("No response generated")
-
-        if "error" in response_text.lower() or "couldn't process" in response_text.lower():
-            pytest.skip("Agent returned error response")
-
-        output_messages = [{"role": "assistant", "content": response_text}]
-
-        eval_result = opt_in_evaluator(
-            outputs=output_messages,
-            reference_outputs=[],
-        )
-
-        eval_dict = cast(dict[str, Any], cast(object, eval_result))
-        assert eval_dict["score"] >= 0.5, (
-            f"Opt-in confirmation insufficient: {eval_dict.get('comment')}\n"
-            f"Response was: {response_text[:500]}"
+        assert any(kw in response for kw in OPT_IN_KEYWORDS), (
+            f"Expected opt-in confirmation keyword in response: {response[:500]}"
         )
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
@@ -243,32 +158,13 @@ class TestNotificationEvals:
         self,
         mock_user_state: AgentState,
         mock_yahoo_and_notifications: None,
-        opt_out_evaluator,
     ):
-        """'Unsubscribe' request gets proper confirmation."""
         mock_user_state["messages"] = [
             HumanMessage(content="Unsubscribe me from the weekly emails")
         ]
         result = supervisor_node(mock_user_state)
+        response = _extract_response(result)
 
-        update = result.update or {}
-        response_text = cast(dict[str, Any], update).get("response", "")
-
-        if not response_text:
-            pytest.skip("No response generated")
-
-        if "error" in response_text.lower() or "couldn't process" in response_text.lower():
-            pytest.skip("Agent returned error response")
-
-        output_messages = [{"role": "assistant", "content": response_text}]
-
-        eval_result = opt_out_evaluator(
-            outputs=output_messages,
-            reference_outputs=[],
-        )
-
-        eval_dict = cast(dict[str, Any], cast(object, eval_result))
-        assert eval_dict["score"] >= 0.5, (
-            f"Unsubscribe confirmation insufficient: {eval_dict.get('comment')}\n"
-            f"Response was: {response_text[:500]}"
+        assert any(kw in response for kw in OPT_OUT_KEYWORDS), (
+            f"Expected unsubscribe confirmation keyword in response: {response[:500]}"
         )

@@ -84,43 +84,6 @@ class TestNotificationPreferenceRepository:
 
     def test_preference_is_per_league(self, repo, mock_session):
         """Opting out of one league doesn't affect another."""
-        # Simulate checking preference for two different leagues
-        def mock_get_preference(query):
-            # Return different results based on league_id in query
-            if "67890" in str(query):
-                # League 67890: user opted out
-                mock_result = MagicMock()
-                mock_result.fetchone.return_value = (
-                    "user@test.com",
-                    "67890",
-                    "weekly_digest",
-                    False,
-                    "2024-01-01",
-                    "2024-01-01",
-                )
-                return mock_result
-            elif "12345" in str(query):
-                # League 12345: user is opted in
-                mock_result = MagicMock()
-                mock_result.fetchone.return_value = (
-                    "user@test.com",
-                    "12345",
-                    "weekly_digest",
-                    True,
-                    "2024-01-01",
-                    "2024-01-01",
-                )
-                return mock_result
-            else:
-                # Default fallback
-                mock_result = MagicMock()
-                mock_result.fetchone.return_value = None
-                return mock_result
-
-        # Verify the repository respects per-league preferences by checking
-        # that different leagues can have different enabled values
-        # We test this by verifying is_enabled returns the stored value for each league
-
         # Test league 12345 (opted in)
         mock_session.execute.return_value.fetchone.return_value = (
             "user@test.com",
