@@ -6,6 +6,7 @@ import json
 import uuid
 from typing import Any
 
+from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
 from agent.email_enrichment import enrich_email_with_player_stats
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
@@ -19,9 +20,11 @@ from data.pydantic_models import (
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
+from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
 from scheduled.job_runner import run_per_user_job
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
+from server.sms_service import SmsService
 from server.thread_manager import save_message_id_mapping
 from tools.available.search_available_players import search_available_players
 from tools.player_comparison.get_comprehensive_player_stats import (
@@ -103,19 +106,27 @@ def send_digest(user_email: str, league_id: str) -> None:
         schedule_tips=_build_schedule_tips(current_roster),
     )
 
-    content = write_digest_content(digest_data, DigestType.WEEKLY)
+    channel = resolve_delivery_channel(user_email)
+    channel_key = "sms" if isinstance(channel, SmsDelivery) else "email"
+    content = write_digest_content(digest_data, DigestType.WEEKLY, channel_key)
 
-    # Enrich with player stats
+    if isinstance(channel, SmsDelivery):
+        _send_digest_sms(content, channel.phone_number, user_email, league_name)
+    else:
+        _send_digest_email(content, user_email, league_name, league_id)
+
+
+def _send_digest_email(
+    content: str, user_email: str, league_name: str, league_id: str
+) -> None:
     _, html_stats = enrich_email_with_player_stats(content, user_email, league_id)
 
-    # Format email using shared formatter
     email_content = format_email(
         content=content,
         footer_type=FooterType.UNSUBSCRIBE,
         stats_html=html_stats if html_stats else None,
     )
 
-    # Send email
     email_service = EmailService()
     result = email_service.send_email(
         to_email=user_email,
@@ -137,6 +148,20 @@ def send_digest(user_email: str, league_id: str) -> None:
     else:
         logger.error(f"Failed to send digest to {user_email}: {result.error}")
         raise RuntimeError(f"Email send failed: {result.error}")
+
+
+def _send_digest_sms(
+    content: str, phone_number: str, user_email: str, league_name: str
+) -> None:
+    plain_text = strip_markdown(content)
+    sms_service = SmsService()
+    result = sms_service.send_sms(phone_number, plain_text)
+
+    if result.success:
+        logger.info(f"Sent weekly digest SMS to {user_email} for league {league_name}")
+    else:
+        logger.error(f"Failed to send digest SMS to {user_email}: {result.error}")
+        raise RuntimeError(f"SMS send failed: {result.error}")
 
 
 def _get_player_name(player: Any) -> str:

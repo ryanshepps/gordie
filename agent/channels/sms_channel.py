@@ -1,39 +1,10 @@
 """SMS channel dispatch for the response node."""
 
-import re
-
 from agent.agent_state import AgentState
+from agent.channels.text_utils import strip_markdown
 from module.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def _strip_markdown(text: str) -> str:
-    """Convert markdown to plain text suitable for SMS.
-
-    Removes headers, bold, italic, links, code blocks, and list markers.
-    """
-    # Code blocks (fenced)
-    result = re.sub(r"```[\s\S]*?```", "", text)
-    # Inline code
-    result = re.sub(r"`([^`]+)`", r"\1", result)
-    # Headers
-    result = re.sub(r"^#{1,6}\s+", "", result, flags=re.MULTILINE)
-    # Bold
-    result = re.sub(r"\*\*(.+?)\*\*", r"\1", result)
-    # Italic
-    result = re.sub(r"\*(.+?)\*", r"\1", result)
-    # Links: [text](url) -> text
-    result = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", result)
-    # Images
-    result = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", result)
-    # Horizontal rules
-    result = re.sub(r"^[-*_]{3,}\s*$", "", result, flags=re.MULTILINE)
-    # Bullet list markers
-    result = re.sub(r"^[\s]*[-*+]\s+", "- ", result, flags=re.MULTILINE)
-    # Collapse multiple blank lines
-    result = re.sub(r"\n{3,}", "\n\n", result)
-    return result.strip()
 
 
 def _extract_phone_from_thread_id(thread_id: str) -> str | None:
@@ -62,7 +33,7 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
         logger.error(f"Could not extract phone number from thread_id: {thread_id}")
         return
 
-    plain_text = _strip_markdown(message_content)
+    plain_text = strip_markdown(message_content)
 
     from module.metrics import sms_sent_total
     from server.sms_service import SmsService

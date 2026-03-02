@@ -38,6 +38,19 @@ class TestBuildSystemPrompt:
         prompt = _build_system_prompt(DigestType.NEWS)
         assert "400 words" in prompt
 
+    def test_sms_channel_includes_sms_guidelines(self):
+        prompt = _build_system_prompt(DigestType.WEEKLY, channel="sms")
+        sms_guidelines = get_channel_guidelines("sms")
+        assert sms_guidelines in prompt
+
+    def test_weekly_sms_has_shorter_word_limit(self):
+        prompt = _build_system_prompt(DigestType.WEEKLY, channel="sms")
+        assert "200 words" in prompt
+
+    def test_news_sms_has_shorter_word_limit(self):
+        prompt = _build_system_prompt(DigestType.NEWS, channel="sms")
+        assert "150 words" in prompt
+
 
 class TestWriteDigestContent:
     @patch("agent.digest_writer.ChatOpenAI")

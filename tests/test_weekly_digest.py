@@ -27,7 +27,9 @@ from data.pydantic_models import (
     RosterPerformance,
     ScheduleTip,
 )
+from scheduled.channel_resolver import EmailDelivery, SmsDelivery
 from server.email_service import EmailResult
+from server.sms_service import SmsResult
 
 
 @pytest.fixture
@@ -297,6 +299,10 @@ def mock_digest_dependencies(
         patch(
             "scheduled.weekly_digest.save_message_id_mapping",
         ),
+        patch(
+            "scheduled.weekly_digest.resolve_delivery_channel",
+            return_value=EmailDelivery(),
+        ),
     ]
 
     for p in patches:
@@ -424,6 +430,72 @@ class TestWeeklyDigestJob:
         text = capture_email[0]["text"]
         assert "Last Week's Performance" in text
         assert "Connor McDavid" in text
+
+
+class TestWeeklyDigestSmsDelivery:
+    """Test SMS delivery path for weekly digest."""
+
+    def test_digest_sent_via_sms_when_user_has_phone(
+        self,
+        test_user,
+        mock_digest_dependencies,
+    ):
+        from scheduled.weekly_digest import send_digest
+
+        with (
+            patch(
+                "scheduled.weekly_digest.resolve_delivery_channel",
+                return_value=SmsDelivery(phone_number="+15551234567"),
+            ),
+            patch("scheduled.weekly_digest.SmsService") as mock_sms_cls,
+            patch("scheduled.weekly_digest.EmailService") as mock_email_cls,
+        ):
+            mock_sms = MagicMock()
+            mock_sms.send_sms.return_value = SmsResult(success=True, batch_id="b-1")
+            mock_sms_cls.return_value = mock_sms
+
+            send_digest(test_user["email"], test_user["league_id"])
+
+            mock_sms.send_sms.assert_called_once()
+            assert mock_sms.send_sms.call_args[0][0] == "+15551234567"
+            mock_email_cls.return_value.send_email.assert_not_called()
+
+    def test_digest_sent_via_email_when_no_phone(
+        self,
+        test_user,
+        capture_email,
+        mock_digest_dependencies,
+    ):
+        from scheduled.weekly_digest import send_digest
+
+        send_digest(test_user["email"], test_user["league_id"])
+
+        assert len(capture_email) == 1
+
+    def test_sms_digest_skips_email_enrichment(
+        self,
+        test_user,
+        mock_digest_dependencies,
+    ):
+        from scheduled.weekly_digest import send_digest
+
+        with (
+            patch(
+                "scheduled.weekly_digest.resolve_delivery_channel",
+                return_value=SmsDelivery(phone_number="+15551234567"),
+            ),
+            patch("scheduled.weekly_digest.SmsService") as mock_sms_cls,
+            patch(
+                "scheduled.weekly_digest.enrich_email_with_player_stats"
+            ) as mock_enrich,
+        ):
+            mock_sms = MagicMock()
+            mock_sms.send_sms.return_value = SmsResult(success=True, batch_id="b-1")
+            mock_sms_cls.return_value = mock_sms
+
+            send_digest(test_user["email"], test_user["league_id"])
+
+            mock_enrich.assert_not_called()
 
 
 class TestDigestContent:

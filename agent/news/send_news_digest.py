@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 
+from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
 from agent.news.news_digest import NewsDigest, RawNewsCollection
 from agent.news.news_processor import process_news_for_user
@@ -21,9 +22,11 @@ from client.news.transactions_client import fetch_trades
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
+from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
 from scheduled.job_runner import run_per_user_job
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
+from server.sms_service import SmsService
 from server.thread_manager import save_message_id_mapping
 
 logger = get_logger(__name__)
@@ -130,16 +133,24 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
         logger.debug(f"No relevant alerts for {user_email} in {league_name}")
         return False
 
-    # Build email content
-    content = write_digest_content(digest, DigestType.NEWS)
+    channel = resolve_delivery_channel(user_email)
+    channel_key = "sms" if isinstance(channel, SmsDelivery) else "email"
+    content = write_digest_content(digest, DigestType.NEWS, channel_key)
 
-    # Format email
+    if isinstance(channel, SmsDelivery):
+        _send_news_sms(content, channel.phone_number, user_email, league_name)
+    else:
+        _send_news_email(content, user_email, league_name)
+
+    return True
+
+
+def _send_news_email(content: str, user_email: str, league_name: str) -> None:
     email_content = format_email(
         content=content,
         footer_type=FooterType.UNSUBSCRIBE,
     )
 
-    # Send email
     email_service = EmailService()
     result = email_service.send_email(
         to_email=user_email,
@@ -158,10 +169,23 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
                 subject=f"Daily NHL News - {league_name}",
             )
         logger.info(f"Sent news digest to {user_email} for league {league_name}")
-        return True
     else:
         logger.error(f"Failed to send digest to {user_email}: {result.error}")
         raise RuntimeError(f"Email send failed: {result.error}")
+
+
+def _send_news_sms(
+    content: str, phone_number: str, user_email: str, league_name: str
+) -> None:
+    plain_text = strip_markdown(content)
+    sms_service = SmsService()
+    result = sms_service.send_sms(phone_number, plain_text)
+
+    if result.success:
+        logger.info(f"Sent news digest SMS to {user_email} for league {league_name}")
+    else:
+        logger.error(f"Failed to send news digest SMS to {user_email}: {result.error}")
+        raise RuntimeError(f"SMS send failed: {result.error}")
 
 
 def build_digest_content(digest: NewsDigest) -> str:
