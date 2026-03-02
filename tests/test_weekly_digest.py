@@ -244,6 +244,15 @@ def mock_digest_dependencies(
         week_end="2025-01-12",
     )
 
+    mock_digest_content = (
+        "## This Week's Matchup\n\n"
+        "You're up against Rival Team this week.\n\n"
+        "## Last Week's Performance\n\n"
+        "Connor McDavid was on fire — 25.5 pts.\n\n"
+        "My Test Team in Test League looking solid.\n\n"
+        "*- Gordie*"
+    )
+
     patches = [
         patch(
             "scheduled.job_runner.NotificationPreferenceRepository",
@@ -280,6 +289,13 @@ def mock_digest_dependencies(
         patch(
             "scheduled.weekly_digest.get_team_schedule",
             return_value=mock_schedule_response,
+        ),
+        patch(
+            "scheduled.weekly_digest.write_digest_content",
+            return_value=mock_digest_content,
+        ),
+        patch(
+            "scheduled.weekly_digest.save_message_id_mapping",
         ),
     ]
 
@@ -407,7 +423,6 @@ class TestWeeklyDigestJob:
         assert len(capture_email) == 1
         text = capture_email[0]["text"]
         assert "Last Week's Performance" in text
-        assert "Top Performers" in text
         assert "Connor McDavid" in text
 
 

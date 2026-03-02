@@ -9,6 +9,9 @@ This module orchestrates the daily news digest:
 
 from __future__ import annotations
 
+import uuid
+
+from agent.digest_writer import DigestType, write_digest_content
 from agent.news.news_digest import NewsDigest, RawNewsCollection
 from agent.news.news_processor import process_news_for_user
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
@@ -21,6 +24,7 @@ from module.logger import get_logger
 from scheduled.job_runner import run_per_user_job
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
+from server.thread_manager import save_message_id_mapping
 
 logger = get_logger(__name__)
 
@@ -127,7 +131,7 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
         return False
 
     # Build email content
-    content = build_digest_content(digest)
+    content = write_digest_content(digest, DigestType.NEWS)
 
     # Format email
     email_content = format_email(
@@ -145,6 +149,14 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
     )
 
     if result.success:
+        if result.message_id:
+            thread_id = f"{user_email}:{uuid.uuid4().hex[:12]}"
+            save_message_id_mapping(
+                message_id=result.message_id,
+                thread_id=thread_id,
+                user_email=user_email,
+                subject=f"Daily NHL News - {league_name}",
+            )
         logger.info(f"Sent news digest to {user_email} for league {league_name}")
         return True
     else:

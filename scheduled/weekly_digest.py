@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
+from agent.digest_writer import DigestType, write_digest_content
 from agent.email_enrichment import enrich_email_with_player_stats
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from data.pydantic_models import (
@@ -20,6 +22,7 @@ from module.logger import get_logger
 from scheduled.job_runner import run_per_user_job
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
+from server.thread_manager import save_message_id_mapping
 from tools.available.search_available_players import search_available_players
 from tools.player_comparison.get_comprehensive_player_stats import (
     get_comprehensive_player_stats_internal,
@@ -100,7 +103,7 @@ def send_digest(user_email: str, league_id: str) -> None:
         schedule_tips=_build_schedule_tips(current_roster),
     )
 
-    content = build_digest_content(digest_data)
+    content = write_digest_content(digest_data, DigestType.WEEKLY)
 
     # Enrich with player stats
     _, html_stats = enrich_email_with_player_stats(content, user_email, league_id)
@@ -122,6 +125,14 @@ def send_digest(user_email: str, league_id: str) -> None:
     )
 
     if result.success:
+        if result.message_id:
+            thread_id = f"{user_email}:{uuid.uuid4().hex[:12]}"
+            save_message_id_mapping(
+                message_id=result.message_id,
+                thread_id=thread_id,
+                user_email=user_email,
+                subject=f"Weekly Fantasy Hockey Digest - {league_name}",
+            )
         logger.info(f"Sent weekly digest to {user_email} for league {league_name}")
     else:
         logger.error(f"Failed to send digest to {user_email}: {result.error}")
