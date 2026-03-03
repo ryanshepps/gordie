@@ -12,10 +12,21 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from data.notification_preference_repository import NotificationPreferenceRepository
+from data.subscription_repository import SubscriptionRepository
 from module.logger import get_logger
 from module.tracing import create_span
 
 logger = get_logger(__name__)
+
+
+def _record_digest_delivery(user_email: str) -> None:
+    sub_repo = SubscriptionRepository()
+    try:
+        sub_repo.increment_digest_count(user_email)
+    except Exception as e:
+        logger.warning(f"Failed to record digest delivery for {user_email}: {e}")
+    finally:
+        sub_repo.close()
 
 
 @dataclass
@@ -76,6 +87,7 @@ def run_per_user_job(
                 sent = handler(user_email, league_id)
                 if sent:
                     result.success += 1
+                    _record_digest_delivery(user_email)
                 else:
                     result.skipped += 1
             except Exception as e:

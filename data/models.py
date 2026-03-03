@@ -212,6 +212,7 @@ class UserSubscription(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_period_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    digest_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

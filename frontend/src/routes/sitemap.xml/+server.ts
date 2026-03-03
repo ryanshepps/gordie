@@ -6,6 +6,7 @@ const siteUrl = 'https://gordie.lastingsoftware.ca';
 const staticPages = [
 	{ path: '/', priority: '1.0', changefreq: 'weekly' },
 	{ path: '/features', priority: '0.8', changefreq: 'monthly' },
+	{ path: '/pricing', priority: '0.8', changefreq: 'monthly' },
 	{ path: '/how-it-works', priority: '0.8', changefreq: 'monthly' },
 	{ path: '/blog', priority: '0.7', changefreq: 'daily' },
 	{ path: '/privacy', priority: '0.3', changefreq: 'yearly' },

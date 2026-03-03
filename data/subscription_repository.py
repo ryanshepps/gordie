@@ -80,6 +80,27 @@ class SubscriptionRepository(Repository):
         self.session.commit()
         return [row[0] for row in result]
 
+    def increment_digest_count(self, user_email: str) -> None:
+        self.session.execute(
+            text(
+                "UPDATE user_subscriptions "
+                "SET digest_count = digest_count + 1 "
+                "WHERE user_email = :user_email"
+            ),
+            {"user_email": user_email},
+        )
+        self.session.commit()
+
+    def get_digest_count(self, user_email: str) -> int:
+        result = self.session.execute(
+            text(
+                "SELECT digest_count FROM user_subscriptions "
+                "WHERE user_email = :user_email"
+            ),
+            {"user_email": user_email},
+        ).fetchone()
+        return int(result[0]) if result else 0
+
     def find_subscription_by_creem_id(
         self, creem_subscription_id: str
     ) -> tuple[Any, ...] | None:
@@ -103,6 +124,16 @@ class UsageTrackingRepository(Repository):
         if result:
             return int(result[0])
         return 0
+
+    def get_total_questions(self, user_email: str) -> int:
+        result = self.session.execute(
+            text(
+                "SELECT COALESCE(SUM(question_count), 0) FROM usage_tracking "
+                "WHERE user_email = :user_email"
+            ),
+            {"user_email": user_email},
+        ).fetchone()
+        return int(result[0]) if result else 0
 
     def increment_question_count(self, user_email: str, week_start: date) -> int:
         result = self.session.execute(
