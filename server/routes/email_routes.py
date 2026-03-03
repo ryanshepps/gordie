@@ -130,9 +130,30 @@ def register_email_routes(app):
         # Process in background thread
         def process_email():
             try:
+                from server.tier_enforcement import build_upgrade_message, check_usage_allowed
+
+                allowed, reason = check_usage_allowed(sender_email, "question")
+                if not allowed:
+                    upgrade_msg = build_upgrade_message(sender_email, reason, "email")
+
+                    from server.email_formatter import FooterType, format_email
+                    from server.email_service import EmailService
+
+                    reply_subject = f"Re: {subject}" if subject else "Gordie"
+                    email_content = format_email(
+                        content=upgrade_msg, footer_type=FooterType.UNSUBSCRIBE
+                    )
+                    EmailService().send_email(
+                        to_email=sender_email,
+                        subject=reply_subject,
+                        text_body=email_content.text_body,
+                        html_body=email_content.html_body,
+                    )
+                    logger.info(f"Rate-limited email from {sender_email}, sent upgrade message")
+                    return
+
                 from scripts.message_agent import message_agent
 
-                # Process through agent - email sending is handled by the agent graph's email_node
                 logger.info(f"Processing email from {sender_email}")
                 message_agent(
                     message=message_body,

@@ -274,6 +274,16 @@ def register_sms_routes(app):
         # Process in background thread
         def process_sms():
             try:
+                from server.tier_enforcement import build_upgrade_message, check_usage_allowed
+
+                allowed, reason = check_usage_allowed(user_email, "question")
+                if not allowed:
+                    upgrade_msg = build_upgrade_message(user_email, reason, "sms")
+                    sms_service = SmsService()
+                    sms_service.send_sms(phone_number, upgrade_msg)
+                    logger.info(f"Rate-limited SMS from {phone_number}, sent upgrade message")
+                    return
+
                 from scripts.message_agent import message_agent
 
                 message_agent(

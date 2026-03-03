@@ -59,8 +59,15 @@ def run_per_user_job(
 
     logger.info(f"Processing {job_name} for {len(user_leagues)} user+league combinations")
 
+    from server.tier_enforcement import DIGEST_ALLOWED_TIERS, get_user_tier
+
     result = JobResult()
     for user_email, league_id in user_leagues:
+        tier = get_user_tier(user_email)
+        if tier not in DIGEST_ALLOWED_TIERS:
+            result.skipped += 1
+            continue
+
         with create_span(
             f"{job_name}.user",
             {"user.email": user_email, "league.id": league_id},

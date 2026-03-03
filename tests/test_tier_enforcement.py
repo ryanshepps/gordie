@@ -1,0 +1,196 @@
+"""Tests for tier enforcement module."""
+
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+
+import pytest
+
+from server.tier_enforcement import (
+    DIGEST_ALLOWED_TIERS,
+    FREE_QUESTIONS_PER_WEEK,
+    _tier_cache,
+    build_upgrade_message,
+    check_usage_allowed,
+    get_user_tier,
+)
+
+
+@pytest.fixture(autouse=True)
+def clear_tier_cache():
+    _tier_cache.clear()
+    yield
+    _tier_cache.clear()
+
+
+def _mock_subscription(
+    tier: str = "free",
+    status: str = "expired",
+    trial_ends_at: datetime | None = None,
+    current_period_ends_at: datetime | None = None,
+) -> tuple[str, str | None, str | None, str, str, datetime | None, datetime | None, datetime]:
+    return (
+        "user@test.com",
+        None,
+        None,
+        tier,
+        status,
+        trial_ends_at,
+        current_period_ends_at,
+        datetime.now(UTC),
+    )
+
+
+class TestGetUserTier:
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_no_subscription_returns_free(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = None
+        assert get_user_tier("nobody@test.com") == "free"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_active_standard_returns_standard(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard", status="active"
+        )
+        assert get_user_tier("user@test.com") == "standard"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_active_allstar_returns_allstar(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="allstar", status="active"
+        )
+        assert get_user_tier("user@test.com") == "allstar"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_trialing_with_future_end_returns_trialing(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="trialing",
+            status="trialing",
+            trial_ends_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        assert get_user_tier("user@test.com") == "trialing"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_trialing_with_past_end_returns_free(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="trialing",
+            status="trialing",
+            trial_ends_at=datetime.now(UTC) - timedelta(days=1),
+        )
+        assert get_user_tier("user@test.com") == "free"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_expired_status_returns_free(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        assert get_user_tier("user@test.com") == "free"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_canceled_with_future_period_keeps_tier(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard",
+            status="canceled",
+            current_period_ends_at=datetime.now(UTC) + timedelta(days=15),
+        )
+        assert get_user_tier("user@test.com") == "standard"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_canceled_with_past_period_returns_free(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard",
+            status="canceled",
+            current_period_ends_at=datetime.now(UTC) - timedelta(days=1),
+        )
+        assert get_user_tier("user@test.com") == "free"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_paused_keeps_tier(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="allstar",
+            status="paused",
+            current_period_ends_at=datetime.now(UTC) + timedelta(days=10),
+        )
+        assert get_user_tier("user@test.com") == "allstar"
+
+
+
+class TestCheckUsageAllowed:
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_under_limit_allowed_and_incremented(
+        self, mock_sub_cls, mock_usage_cls
+    ):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 1
+
+        allowed, reason = check_usage_allowed("free@test.com", "question")
+
+        assert allowed is True
+        assert reason == ""
+        mock_usage_cls.return_value.increment_question_count.assert_called_once()
+
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_at_limit_rejected(self, mock_sub_cls, mock_usage_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        mock_usage_cls.return_value.get_weekly_usage.return_value = FREE_QUESTIONS_PER_WEEK
+
+        allowed, reason = check_usage_allowed("free@test.com", "question")
+
+        assert allowed is False
+        assert "free questions" in reason
+        mock_usage_cls.return_value.increment_question_count.assert_not_called()
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_digest_allowed_for_paid_tiers(self, mock_repo_cls):
+        for tier in DIGEST_ALLOWED_TIERS:
+            _tier_cache.clear()
+            mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+                tier=tier,
+                status="active" if tier != "trialing" else "trialing",
+                trial_ends_at=(
+                    datetime.now(UTC) + timedelta(days=7) if tier == "trialing" else None
+                ),
+            )
+            allowed, _reason = check_usage_allowed("user@test.com", "digest")
+            assert allowed is True, f"Digest should be allowed for {tier}"
+
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_digest_blocked_for_free_tier(self, mock_repo_cls):
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        allowed, reason = check_usage_allowed("free@test.com", "digest")
+        assert allowed is False
+        assert "subscription" in reason.lower()
+
+
+class TestBuildUpgradeMessage:
+    @patch("server.creem_client.create_checkout_session")
+    def test_email_includes_both_plan_links(self, mock_checkout):
+        mock_checkout.side_effect = [
+            "https://checkout.creem.io/standard",
+            "https://checkout.creem.io/allstar",
+        ]
+        result = build_upgrade_message("user@test.com", "Limit reached.", "email")
+
+        assert "Standard" in result
+        assert "All-Star" in result
+        assert "https://checkout.creem.io/standard" in result
+        assert "https://checkout.creem.io/allstar" in result
+
+    @patch("server.creem_client.create_checkout_session")
+    def test_sms_includes_single_link(self, mock_checkout):
+        mock_checkout.return_value = "https://checkout.creem.io/standard"
+        result = build_upgrade_message("user@test.com", "Limit reached.", "sms")
+
+        assert "https://checkout.creem.io/standard" in result
+
+    @patch("server.creem_client.create_checkout_session", side_effect=Exception("API error"))
+    def test_fallback_to_reason_on_api_failure(self, mock_checkout):
+        result = build_upgrade_message("user@test.com", "Limit reached.", "email")
+        assert result == "Limit reached."
