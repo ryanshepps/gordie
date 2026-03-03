@@ -1,10 +1,11 @@
 """SQLAlchemy declarative models for all database tables."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -197,3 +198,28 @@ class NhlPlayerGameStats(Base):
     corsi_for: Mapped[int | None] = mapped_column(Integer)
     fenwick_for: Mapped[int | None] = mapped_column(Integer)
     missed_shots: Mapped[int | None] = mapped_column(Integer)
+
+
+class UserSubscription(Base):
+    __tablename__ = "user_subscriptions"
+
+    user_email: Mapped[str] = mapped_column(
+        String, ForeignKey("users.email"), primary_key=True
+    )
+    creem_customer_id: Mapped[str | None] = mapped_column(String)
+    creem_subscription_id: Mapped[str | None] = mapped_column(String)
+    tier: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_period_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class UsageTracking(Base):
+    __tablename__ = "usage_tracking"
+
+    user_email: Mapped[str] = mapped_column(
+        String, ForeignKey("users.email"), primary_key=True
+    )
+    week_start: Mapped[date] = mapped_column(Date, primary_key=True)
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

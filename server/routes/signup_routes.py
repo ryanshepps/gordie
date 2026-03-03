@@ -48,6 +48,16 @@ def register_signup_routes(app):
         if email:
             logger.info(f"Website signup (email) from {email}")
 
+            from data.subscription_repository import SubscriptionRepository
+
+            sub_repo = SubscriptionRepository()
+            try:
+                sub_repo.create_trialing_subscription(email)
+            except Exception as e:
+                logger.error(f"Failed to create trial subscription for {email}: {e}", exc_info=True)
+            finally:
+                sub_repo.close()
+
             from server.thread_manager import resolve_thread
 
             thread_info = resolve_thread(user_email=email, subject="Website Signup")
