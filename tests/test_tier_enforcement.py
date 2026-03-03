@@ -11,6 +11,7 @@ from server.tier_enforcement import (
     _tier_cache,
     build_upgrade_message,
     check_usage_allowed,
+    get_billing_status,
     get_user_tier,
 )
 
@@ -25,13 +26,14 @@ def clear_tier_cache():
 def _mock_subscription(
     tier: str = "free",
     status: str = "expired",
+    creem_customer_id: str | None = None,
     trial_ends_at: datetime | None = None,
     current_period_ends_at: datetime | None = None,
 ) -> tuple[str, str | None, str | None, str, str, datetime | None, datetime | None, datetime]:
     return (
         "user@test.com",
-        None,
-        None,
+        creem_customer_id,
+        "sub_123" if creem_customer_id else None,
         tier,
         status,
         trial_ends_at,
@@ -194,3 +196,113 @@ class TestBuildUpgradeMessage:
     def test_fallback_to_reason_on_api_failure(self, mock_checkout):
         result = build_upgrade_message("user@test.com", "Limit reached.", "email")
         assert result == "Limit reached."
+
+
+class TestGetBillingStatus:
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_includes_question_limits(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 2
+        mock_team_cls.return_value.get_user_teams.return_value = [("l1",)]
+
+        result = get_billing_status("user@test.com")
+
+        assert result["tier"] == "free"
+        assert result["status"] == "expired"
+        assert result["questions_used_this_week"] == 2
+        assert result["questions_remaining"] == 1
+        assert result["leagues_connected"] == 1
+        assert result["leagues_allowed"] == 1
+        assert result["trial_days_remaining"] is None
+        assert result["current_period_ends"] is None
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_trialing_user_includes_trial_days(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+        trial_end = datetime.now(UTC) + timedelta(days=5, hours=12)
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="trialing", status="trialing", trial_ends_at=trial_end
+        )
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
+        mock_team_cls.return_value.get_user_teams.return_value = []
+
+        result = get_billing_status("user@test.com")
+
+        assert result["tier"] == "trialing"
+        assert result["trial_days_remaining"] == 5
+        assert result["questions_remaining"] is None
+        assert result["leagues_allowed"] is None
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_standard_user_includes_period_end(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+        period_end = datetime(2026, 4, 15, tzinfo=UTC)
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard",
+            status="active",
+            creem_customer_id="cus_123",
+            current_period_ends_at=period_end,
+        )
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
+        mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",)]
+
+        result = get_billing_status("user@test.com")
+
+        assert result["tier"] == "standard"
+        assert result["current_period_ends"] == "2026-04-15"
+        assert result["leagues_connected"] == 2
+        assert result["leagues_allowed"] == 3
+        assert result["questions_remaining"] is None
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_no_subscription_defaults_to_free(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = None
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
+        mock_team_cls.return_value.get_user_teams.return_value = []
+
+        result = get_billing_status("nobody@test.com")
+
+        assert result["tier"] == "free"
+        assert result["questions_remaining"] == 3
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_expired_trial_resolves_to_free(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="trialing",
+            status="trialing",
+            trial_ends_at=datetime.now(UTC) - timedelta(days=1),
+        )
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
+        mock_team_cls.return_value.get_user_teams.return_value = []
+
+        result = get_billing_status("user@test.com")
+
+        assert result["tier"] == "free"
+        assert result["status"] == "expired"
+        assert result["trial_days_remaining"] is None
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_allstar_has_unlimited_leagues(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="allstar",
+            status="active",
+            creem_customer_id="cus_456",
+            current_period_ends_at=datetime(2026, 5, 1, tzinfo=UTC),
+        )
+        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
+        mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",), ("l3",), ("l4",)]
+
+        result = get_billing_status("user@test.com")
+
+        assert result["leagues_allowed"] is None
+        assert result["leagues_connected"] == 4

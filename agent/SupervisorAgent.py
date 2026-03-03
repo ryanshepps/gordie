@@ -18,6 +18,9 @@ from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
+from tools.billing.generate_checkout_link import generate_checkout_link
+from tools.billing.generate_portal_link import generate_portal_link
+from tools.billing.get_subscription_status import get_subscription_status
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.notifications.manage_notifications import manage_notifications
 from tools.yahoo.onboard_user_team import onboard_user_team
@@ -47,6 +50,9 @@ def create_supervisor_agent(system_prompt: str):
         onboard_user_team,
         search_past_conversations,
         manage_notifications,
+        get_subscription_status,
+        generate_checkout_link,
+        generate_portal_link,
     ]
 
     return create_agent(

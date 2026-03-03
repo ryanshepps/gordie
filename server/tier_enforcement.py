@@ -2,8 +2,10 @@
 
 import time
 from datetime import UTC, date, datetime, timedelta
+from typing import Any, TypedDict
 
 from data.subscription_repository import SubscriptionRepository, UsageTrackingRepository
+from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,37 +25,97 @@ _tier_cache: dict[str, tuple[str, float]] = {}
 _CACHE_TTL_SECONDS = 60
 
 
+class BillingStatus(TypedDict):
+    tier: str
+    status: str
+    trial_days_remaining: int | None
+    current_period_ends: str | None
+    questions_used_this_week: int
+    questions_remaining: int | None
+    leagues_connected: int
+    leagues_allowed: int | None
+
+
 def _current_week_start() -> date:
     today = datetime.now(UTC).date()
     return today - timedelta(days=today.weekday())
+
+
+def _resolve_billing_state(sub: tuple[Any, ...] | None) -> tuple[str, str]:
+    if not sub:
+        return ("free", "expired")
+
+    tier: str = sub[3]
+    status: str = sub[4]
+    trial_ends_at: datetime | None = sub[5]
+    current_period_ends_at: datetime | None = sub[6]
+
+    now = datetime.now(UTC)
+
+    if status == "expired":
+        return ("free", "expired")
+
+    if tier == "trialing" and trial_ends_at and trial_ends_at < now:
+        return ("free", "expired")
+
+    if status == "canceled" and current_period_ends_at and current_period_ends_at < now:
+        return ("free", status)
+
+    return (tier, status)
 
 
 def _fetch_tier_from_db(email: str) -> str:
     repo = SubscriptionRepository()
     try:
         sub = repo.get_subscription(email)
-        if not sub:
-            return "free"
-
-        tier: str = sub[3]
-        status: str = sub[4]
-        trial_ends_at: datetime | None = sub[5]
-        current_period_ends_at: datetime | None = sub[6]
-
-        now = datetime.now(UTC)
-
-        if status == "expired":
-            return "free"
-
-        if tier == "trialing" and trial_ends_at and trial_ends_at < now:
-            return "free"
-
-        if status == "canceled" and current_period_ends_at and current_period_ends_at < now:
-            return "free"
-
+        tier, _ = _resolve_billing_state(sub)
         return tier
     finally:
         repo.close()
+
+
+def get_billing_status(email: str) -> BillingStatus:
+    sub_repo = SubscriptionRepository()
+    usage_repo = UsageTrackingRepository()
+    team_repo = YahooUserTeamRepository()
+    try:
+        sub = sub_repo.get_subscription(email)
+        tier, status = _resolve_billing_state(sub)
+
+        trial_ends_at: datetime | None = sub[5] if sub else None
+        current_period_ends_at: datetime | None = sub[6] if sub else None
+
+        trial_days: int | None = None
+        if tier == "trialing" and trial_ends_at:
+            trial_days = max((trial_ends_at - datetime.now(UTC)).days, 0)
+
+        week_start = _current_week_start()
+        questions_used = usage_repo.get_weekly_usage(email, week_start)
+
+        questions_remaining: int | None = None
+        if tier == "free":
+            questions_remaining = max(FREE_QUESTIONS_PER_WEEK - questions_used, 0)
+
+        leagues_connected = len(team_repo.get_user_teams(email))
+
+        period_end: str | None = None
+        if current_period_ends_at and tier in ("standard", "allstar"):
+            period_end = current_period_ends_at.strftime("%Y-%m-%d")
+
+        return BillingStatus(
+            tier=tier,
+            status=status,
+            trial_days_remaining=trial_days,
+            current_period_ends=period_end,
+            questions_used_this_week=questions_used,
+            questions_remaining=questions_remaining,
+            leagues_connected=leagues_connected,
+            leagues_allowed=LEAGUE_LIMITS.get(tier),
+        )
+    finally:
+        sub_repo.close()
+        usage_repo.close()
+        team_repo.close()
 
 
 def get_user_tier(email: str) -> str:
