@@ -10,6 +10,7 @@ from server.tier_enforcement import (
     FREE_QUESTIONS_PER_WEEK,
     _tier_cache,
     build_upgrade_message,
+    check_league_limit,
     check_usage_allowed,
     get_billing_status,
     get_user_tier,
@@ -306,3 +307,91 @@ class TestGetBillingStatus:
 
         assert result["leagues_allowed"] is None
         assert result["leagues_connected"] == 4
+
+
+class TestCheckLeagueLimit:
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_with_no_leagues_allowed(self, mock_sub_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        mock_team_cls.return_value.get_user_teams.return_value = []
+
+        allowed, reason = check_league_limit("free@test.com")
+
+        assert allowed is True
+        assert reason == ""
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        mock_team_cls.return_value.get_user_teams.return_value = [("l1",)]
+
+        allowed, reason = check_league_limit("free@test.com")
+
+        assert allowed is False
+        assert "league limit" in reason
+        assert "free" in reason
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_standard_user_under_limit_allowed(self, mock_sub_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard", status="active"
+        )
+        mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",)]
+
+        allowed, reason = check_league_limit("standard@test.com")
+
+        assert allowed is True
+        assert reason == ""
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_standard_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard", status="active"
+        )
+        mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",), ("l3",)]
+
+        allowed, reason = check_league_limit("standard@test.com")
+
+        assert allowed is False
+        assert "league limit" in reason
+        assert "standard" in reason
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_allstar_user_unlimited(self, mock_sub_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="allstar", status="active"
+        )
+        mock_team_cls.return_value.get_user_teams.return_value = [
+            (f"l{i}",) for i in range(10)
+        ]
+
+        allowed, reason = check_league_limit("allstar@test.com")
+
+        assert allowed is True
+        assert reason == ""
+
+    @patch("server.tier_enforcement.YahooUserTeamRepository")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_trialing_user_unlimited(self, mock_sub_cls, mock_team_cls):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="trialing",
+            status="trialing",
+            trial_ends_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        mock_team_cls.return_value.get_user_teams.return_value = [
+            (f"l{i}",) for i in range(5)
+        ]
+
+        allowed, reason = check_league_limit("trial@test.com")
+
+        assert allowed is True
+        assert reason == ""

@@ -168,6 +168,29 @@ def check_usage_allowed(email: str, action: str) -> tuple[bool, str]:
     return (True, "")
 
 
+def check_league_limit(email: str) -> tuple[bool, str]:
+    tier = get_user_tier(email)
+    limit = LEAGUE_LIMITS.get(tier)
+
+    if limit is None:
+        return (True, "")
+
+    team_repo = YahooUserTeamRepository()
+    try:
+        count = len(team_repo.get_user_teams(email))
+    finally:
+        team_repo.close()
+
+    if count >= limit:
+        return (
+            False,
+            f"You've reached your league limit ({limit} league{'s' if limit > 1 else ''} "
+            f"on the {tier} tier). Upgrade your plan to connect more leagues.",
+        )
+
+    return (True, "")
+
+
 def build_upgrade_message(email: str, reason: str, channel: str) -> str:
     try:
         from server.creem_client import create_checkout_session

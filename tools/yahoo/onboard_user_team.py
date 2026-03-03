@@ -9,6 +9,7 @@ from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
+from server.tier_enforcement import build_upgrade_message, check_league_limit
 
 logger = get_logger(__name__)
 
@@ -44,8 +45,11 @@ def onboard_user_team(
     Returns:
         Confirmation message about the saved team.
     """
+    allowed, reason = check_league_limit(user_email)
+    if not allowed:
+        return build_upgrade_message(user_email, reason, "email")
+
     try:
-        # Create client with just the numeric league_id
         yahoo_client = AuthenticatedYahooClient(user_email=user_email, league_id=league_id)
         yahoo_query = yahoo_client.query
 
