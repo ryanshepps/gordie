@@ -130,9 +130,9 @@ def register_email_routes(app):
         # Process in background thread
         def process_email():
             try:
-                from server.tier_enforcement import build_upgrade_message, check_usage_allowed
+                from server.tier_enforcement import build_upgrade_message, check_question_allowed
 
-                allowed, reason = check_usage_allowed(sender_email, "question")
+                allowed, reason = check_question_allowed(sender_email, message_body)
                 if not allowed:
                     upgrade_msg = build_upgrade_message(sender_email, reason, "email")
 

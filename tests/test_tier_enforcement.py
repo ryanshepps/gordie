@@ -11,7 +11,9 @@ from server.tier_enforcement import (
     _tier_cache,
     build_upgrade_message,
     check_league_limit,
+    check_question_allowed,
     check_usage_allowed,
+    classify_message_intent,
     get_billing_status,
     get_user_tier,
 )
@@ -117,37 +119,90 @@ class TestGetUserTier:
 
 
 
-class TestCheckUsageAllowed:
-    @patch("server.tier_enforcement.UsageTrackingRepository")
+class TestCheckQuestionAllowed:
+    @patch("server.tier_enforcement.classify_message_intent")
     @patch("server.tier_enforcement.SubscriptionRepository")
-    def test_free_user_under_limit_allowed_and_incremented(
-        self, mock_sub_cls, mock_usage_cls
+    def test_paid_user_skips_classification(self, mock_sub_cls, mock_classify):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="standard", status="active"
+        )
+        allowed, reason = check_question_allowed("paid@test.com", "Who should I start?")
+
+        assert allowed is True
+        assert reason == ""
+        mock_classify.assert_not_called()
+
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.classify_message_intent", return_value="general")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_general_message_not_counted(
+        self, mock_sub_cls, mock_classify, mock_usage_cls
+    ):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        allowed, reason = check_question_allowed("free@test.com", "How do I upgrade?")
+
+        assert allowed is True
+        assert reason == ""
+        mock_usage_cls.return_value.increment_question_count.assert_not_called()
+
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.classify_message_intent", return_value="analysis")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_analysis_message_counted(
+        self, mock_sub_cls, mock_classify, mock_usage_cls
     ):
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="free", status="expired"
         )
         mock_usage_cls.return_value.get_weekly_usage.return_value = 1
 
-        allowed, reason = check_usage_allowed("free@test.com", "question")
+        allowed, reason = check_question_allowed("free@test.com", "Should I start McDavid?")
 
         assert allowed is True
         assert reason == ""
         mock_usage_cls.return_value.increment_question_count.assert_called_once()
 
     @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.classify_message_intent", return_value="analysis")
     @patch("server.tier_enforcement.SubscriptionRepository")
-    def test_free_user_at_limit_rejected(self, mock_sub_cls, mock_usage_cls):
+    def test_free_user_analysis_message_over_quota_blocked(
+        self, mock_sub_cls, mock_classify, mock_usage_cls
+    ):
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="free", status="expired"
         )
         mock_usage_cls.return_value.get_weekly_usage.return_value = FREE_QUESTIONS_PER_WEEK
 
-        allowed, reason = check_usage_allowed("free@test.com", "question")
+        allowed, reason = check_question_allowed("free@test.com", "Trade advice?")
 
         assert allowed is False
         assert "free questions" in reason
         mock_usage_cls.return_value.increment_question_count.assert_not_called()
 
+    @patch("server.tier_enforcement.UsageTrackingRepository")
+    @patch("server.tier_enforcement.classify_message_intent", return_value="general")
+    @patch("server.tier_enforcement.SubscriptionRepository")
+    def test_free_user_general_message_over_quota_still_allowed(
+        self, mock_sub_cls, mock_classify, mock_usage_cls
+    ):
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="free", status="expired"
+        )
+        allowed, reason = check_question_allowed("free@test.com", "What can you do?")
+
+        assert allowed is True
+        assert reason == ""
+
+    @patch("server.tier_enforcement.ChatOpenAI")
+    def test_classification_failure_defaults_to_analysis(self, mock_llm_cls):
+        mock_llm_cls.return_value.invoke.side_effect = Exception("API down")
+
+        assert classify_message_intent("start or sit?") == "analysis"
+
+
+class TestCheckUsageAllowed:
     @patch("server.tier_enforcement.SubscriptionRepository")
     def test_digest_allowed_for_paid_tiers(self, mock_repo_cls):
         for tier in DIGEST_ALLOWED_TIERS:

@@ -2,13 +2,27 @@
 
 import time
 from datetime import UTC, date, datetime, timedelta
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
+
+from langchain_openai import ChatOpenAI
 
 from data.subscription_repository import SubscriptionRepository, UsageTrackingRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
 
 logger = get_logger(__name__)
+
+MessageIntent = Literal["analysis", "general"]
+
+_INTENT_SYSTEM_PROMPT = (
+    "You classify fantasy hockey messages. Respond with exactly one word.\n\n"
+    "Respond 'analysis' if the message asks for fantasy hockey advice, player stats, "
+    "trade evaluation, roster help, waiver/pickup recommendations, matchup questions, "
+    "or any team-specific processing.\n\n"
+    "Respond 'general' if the message is about billing, subscriptions, upgrading, "
+    "what the assistant can do, greetings, how-to questions about Gordie, "
+    "or anything not requiring team/player analysis."
+)
 
 FREE_QUESTIONS_PER_WEEK = 3
 
@@ -131,34 +145,57 @@ def get_user_tier(email: str) -> str:
     return tier
 
 
-def check_usage_allowed(email: str, action: str) -> tuple[bool, str]:
+def classify_message_intent(message: str) -> MessageIntent:
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        response = llm.invoke([
+            {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
+            {"role": "user", "content": message},
+        ])
+        raw = str(response.content).strip().lower()
+        if raw == "general":
+            return "general"
+        return "analysis"
+    except Exception as e:
+        logger.warning(f"Intent classification failed, defaulting to analysis: {e}")
+        return "analysis"
+
+
+def check_question_allowed(email: str, message: str) -> tuple[bool, str]:
     tier = get_user_tier(email)
 
-    if action == "question":
-        if tier != "free":
-            return (True, "")
-
-        week_start = _current_week_start()
-        usage_repo = UsageTrackingRepository()
-        try:
-            count = usage_repo.get_weekly_usage(email, week_start)
-        finally:
-            usage_repo.close()
-
-        if count >= FREE_QUESTIONS_PER_WEEK:
-            return (
-                False,
-                f"You've used all {FREE_QUESTIONS_PER_WEEK} free questions this week. "
-                "Upgrade to Standard or All-Star for unlimited questions.",
-            )
-
-        usage_repo = UsageTrackingRepository()
-        try:
-            usage_repo.increment_question_count(email, week_start)
-        finally:
-            usage_repo.close()
-
+    if tier != "free":
         return (True, "")
+
+    intent = classify_message_intent(message)
+    if intent == "general":
+        return (True, "")
+
+    week_start = _current_week_start()
+    usage_repo = UsageTrackingRepository()
+    try:
+        count = usage_repo.get_weekly_usage(email, week_start)
+    finally:
+        usage_repo.close()
+
+    if count >= FREE_QUESTIONS_PER_WEEK:
+        return (
+            False,
+            f"You've used all {FREE_QUESTIONS_PER_WEEK} free questions this week. "
+            "Upgrade to Standard or All-Star for unlimited questions.",
+        )
+
+    usage_repo = UsageTrackingRepository()
+    try:
+        usage_repo.increment_question_count(email, week_start)
+    finally:
+        usage_repo.close()
+
+    return (True, "")
+
+
+def check_usage_allowed(email: str, action: str) -> tuple[bool, str]:
+    tier = get_user_tier(email)
 
     if action == "digest":
         if tier in DIGEST_ALLOWED_TIERS:

@@ -274,9 +274,9 @@ def register_sms_routes(app):
         # Process in background thread
         def process_sms():
             try:
-                from server.tier_enforcement import build_upgrade_message, check_usage_allowed
+                from server.tier_enforcement import build_upgrade_message, check_question_allowed
 
-                allowed, reason = check_usage_allowed(user_email, "question")
+                allowed, reason = check_question_allowed(user_email, message_body)
                 if not allowed:
                     upgrade_msg = build_upgrade_message(user_email, reason, "sms")
                     sms_service = SmsService()
