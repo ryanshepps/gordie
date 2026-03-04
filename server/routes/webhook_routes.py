@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import logging
 import os
+from collections.abc import Mapping
 from typing import cast
 
 from quart import jsonify, request
@@ -11,7 +12,8 @@ from quart import jsonify, request
 from data.subscription_repository import SubscriptionRepository
 from module.logger import get_logger
 
-WebhookPayload = dict[str, str | dict[str, str] | None]
+WebhookValue = str | dict[str, str] | None
+WebhookObject = Mapping[str, WebhookValue]
 
 
 def verify_creem_signature(raw_body: bytes, signature: str) -> bool:
@@ -26,33 +28,40 @@ def verify_creem_signature(raw_body: bytes, signature: str) -> bool:
     return hmac.compare_digest(computed, signature)
 
 
-def _extract_customer_email(data: WebhookPayload) -> str | None:
-    customer = data.get("customer")
+def _get_object(data: Mapping[str, WebhookValue]) -> WebhookObject:
+    obj = data.get("object")
+    if isinstance(obj, dict):
+        return obj
+    return {}
+
+
+def _extract_customer_email(obj: WebhookObject) -> str | None:
+    customer = obj.get("customer")
     if isinstance(customer, dict):
         return customer.get("email")
     return None
 
 
-def _extract_subscription_id(data: WebhookPayload) -> str | None:
-    subscription = data.get("subscription")
+def _extract_subscription_id(obj: WebhookObject) -> str | None:
+    subscription = obj.get("subscription")
     if isinstance(subscription, dict):
         return subscription.get("id")
-    if isinstance(subscription, str):
-        return subscription
+    if obj.get("object") == "subscription":
+        obj_id = obj.get("id")
+        if isinstance(obj_id, str):
+            return obj_id
     return None
 
 
-def _extract_customer_id(data: WebhookPayload) -> str | None:
-    customer = data.get("customer")
+def _extract_customer_id(obj: WebhookObject) -> str | None:
+    customer = obj.get("customer")
     if isinstance(customer, dict):
         return customer.get("id")
-    if isinstance(customer, str):
-        return customer
     return None
 
 
-def _extract_product_id(data: WebhookPayload) -> str | None:
-    product = data.get("product")
+def _extract_product_id(obj: WebhookObject) -> str | None:
+    product = obj.get("product")
     if isinstance(product, dict):
         return product.get("id")
     if isinstance(product, str):
@@ -60,8 +69,11 @@ def _extract_product_id(data: WebhookPayload) -> str | None:
     return None
 
 
-def _extract_period_end(data: WebhookPayload) -> str | None:
-    subscription = data.get("subscription")
+def _extract_period_end(obj: WebhookObject) -> str | None:
+    period_end = obj.get("current_period_end_date")
+    if isinstance(period_end, str):
+        return period_end
+    subscription = obj.get("subscription")
     if isinstance(subscription, dict):
         return subscription.get("current_period_end_date")
     return None
@@ -79,25 +91,30 @@ def register_webhook_routes(app):
             logger.warning("Creem webhook signature verification failed")
             return jsonify({"error": "Invalid signature"}), 403
 
-        data: WebhookPayload | None = await request.get_json(silent=True)
+        data: Mapping[str, WebhookValue] | None = await request.get_json(silent=True)
         if not data:
             return jsonify({"error": "Invalid body"}), 400
 
         event_type = data.get("eventType", "")
         logger.info(f"Creem webhook received: {event_type}")
+        logger.info(f"Creem webhook payload: {data}")
+
+        obj = _get_object(data)
 
         repo = SubscriptionRepository()
         try:
             if event_type == "checkout.completed":
-                _handle_checkout_completed(repo, data, logger)
+                _handle_checkout_completed(repo, obj, logger)
+            elif event_type == "subscription.active":
+                _handle_subscription_active(repo, obj, logger)
             elif event_type == "subscription.paid":
-                _handle_subscription_paid(repo, data, logger)
+                _handle_subscription_paid(repo, obj, logger)
             elif event_type == "subscription.expired":
-                _handle_subscription_expired(repo, data, logger)
+                _handle_subscription_expired(repo, obj, logger)
             elif event_type == "subscription.canceled":
-                _handle_subscription_canceled(repo, data, logger)
+                _handle_subscription_canceled(repo, obj, logger)
             elif event_type == "subscription.paused":
-                _handle_subscription_paused(repo, data, logger)
+                _handle_subscription_paused(repo, obj, logger)
             else:
                 logger.info(f"Ignoring unhandled Creem event: {event_type}")
         except Exception as e:
@@ -110,15 +127,15 @@ def register_webhook_routes(app):
 
 
 def _handle_checkout_completed(
-    repo: SubscriptionRepository, data: WebhookPayload, logger: logging.Logger
+    repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
     from server.creem_client import tier_from_product_id
 
-    email = _extract_customer_email(data)
-    customer_id = _extract_customer_id(data)
-    subscription_id = _extract_subscription_id(data)
-    product_id = _extract_product_id(data)
-    period_end = _extract_period_end(data)
+    email = _extract_customer_email(obj)
+    customer_id = _extract_customer_id(obj)
+    subscription_id = _extract_subscription_id(obj)
+    product_id = _extract_product_id(obj)
+    period_end = _extract_period_end(obj)
 
     if not email:
         logger.warning("checkout.completed missing customer email")
@@ -135,11 +152,37 @@ def _handle_checkout_completed(
     logger.info(f"Activated {tier} subscription for {email}")
 
 
-def _handle_subscription_paid(
-    repo: SubscriptionRepository, data: WebhookPayload, logger: logging.Logger
+def _handle_subscription_active(
+    repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    subscription_id = _extract_subscription_id(data)
-    period_end = _extract_period_end(data)
+    from server.creem_client import tier_from_product_id
+
+    email = _extract_customer_email(obj)
+    customer_id = _extract_customer_id(obj)
+    subscription_id = _extract_subscription_id(obj)
+    product_id = _extract_product_id(obj)
+    period_end = _extract_period_end(obj)
+
+    if not email:
+        logger.warning("subscription.active missing customer email")
+        return
+
+    tier = tier_from_product_id(product_id or "")
+    repo.activate_subscription(
+        user_email=email,
+        creem_customer_id=customer_id or "",
+        creem_subscription_id=subscription_id or "",
+        tier=tier,
+        current_period_ends_at=period_end or "",
+    )
+    logger.info(f"Activated {tier} subscription for {email} (subscription.active)")
+
+
+def _handle_subscription_paid(
+    repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
+) -> None:
+    subscription_id = _extract_subscription_id(obj)
+    period_end = _extract_period_end(obj)
 
     if not subscription_id:
         logger.warning("subscription.paid missing subscription ID")
@@ -147,6 +190,22 @@ def _handle_subscription_paid(
 
     existing = repo.find_subscription_by_creem_id(subscription_id)
     if not existing:
+        email = _extract_customer_email(obj)
+        if email:
+            from server.creem_client import tier_from_product_id
+
+            customer_id = _extract_customer_id(obj)
+            product_id = _extract_product_id(obj)
+            tier = tier_from_product_id(product_id or "")
+            repo.activate_subscription(
+                user_email=email,
+                creem_customer_id=customer_id or "",
+                creem_subscription_id=subscription_id,
+                tier=tier,
+                current_period_ends_at=period_end or "",
+            )
+            logger.info(f"Activated {tier} subscription for {email} via subscription.paid (no prior record)")
+            return
         logger.warning(f"subscription.paid for unknown subscription: {subscription_id}")
         return
 
@@ -159,9 +218,9 @@ def _handle_subscription_paid(
 
 
 def _handle_subscription_expired(
-    repo: SubscriptionRepository, data: WebhookPayload, logger: logging.Logger
+    repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    subscription_id = _extract_subscription_id(data)
+    subscription_id = _extract_subscription_id(obj)
     if not subscription_id:
         logger.warning("subscription.expired missing subscription ID")
         return
@@ -177,9 +236,9 @@ def _handle_subscription_expired(
 
 
 def _handle_subscription_canceled(
-    repo: SubscriptionRepository, data: WebhookPayload, logger: logging.Logger
+    repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    subscription_id = _extract_subscription_id(data)
+    subscription_id = _extract_subscription_id(obj)
     if not subscription_id:
         logger.warning("subscription.canceled missing subscription ID")
         return
@@ -195,9 +254,9 @@ def _handle_subscription_canceled(
 
 
 def _handle_subscription_paused(
-    repo: SubscriptionRepository, data: WebhookPayload, logger: logging.Logger
+    repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    subscription_id = _extract_subscription_id(data)
+    subscription_id = _extract_subscription_id(obj)
     if not subscription_id:
         logger.warning("subscription.paused missing subscription ID")
         return
