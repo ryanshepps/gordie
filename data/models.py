@@ -224,3 +224,14 @@ class UsageTracking(Base):
     )
     week_start: Mapped[date] = mapped_column(Date, primary_key=True)
     question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
+class DigestInjuryState(Base):
+    __tablename__ = "digest_injury_states"
+
+    user_email: Mapped[str] = mapped_column(
+        String, ForeignKey("users.email"), primary_key=True
+    )
+    player_name: Mapped[str] = mapped_column(String, primary_key=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -33,11 +33,26 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
     ),
     (DigestType.NEWS, "email"): (
         "Write like you're DMing breaking news that affects their team. "
-        "Urgent, direct, actionable. Keep it under 400 words."
+        "Urgent, direct, actionable. Keep it under 400 words.\n\n"
+        "RULES:\n"
+        "- Never say \"tonight\" for a player unless has_game_today is true\n"
+        "- For IR players with already_on_ir_slot=true, do NOT suggest finding a replacement\n"
+        "- For new injuries without a game today, mention when their next game is instead of \"tonight\"\n"
+        "- Only recommend \"start X over Y\" when position_conflicts exist in the data\n"
+        "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
+        "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely\n"
+        "- Use the injury alert fields (has_game_today, is_new_injury, already_on_ir_slot) to guide tone"
     ),
     (DigestType.NEWS, "sms"): (
         "Write like you're DMing breaking news that affects their team. "
-        "Urgent, direct, actionable. No markdown. Keep it under 150 words."
+        "Urgent, direct, actionable. No markdown. Keep it under 150 words.\n\n"
+        "RULES:\n"
+        "- Never say \"tonight\" for a player unless has_game_today is true\n"
+        "- For IR players with already_on_ir_slot=true, do NOT suggest finding a replacement\n"
+        "- For new injuries without a game today, mention when their next game is instead of \"tonight\"\n"
+        "- Only recommend \"start X over Y\" when position_conflicts exist in the data\n"
+        "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
+        "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely"
     ),
 }
 

@@ -15,6 +15,13 @@ from pydantic import BaseModel, Field
 # =============================================================================
 
 
+class RosterPlayer(BaseModel):
+    name: str
+    nhl_team: str
+    roster_slot: str
+    position: str
+
+
 class BaseAlert(BaseModel):
     """Base class for all alert types."""
 
@@ -53,6 +60,10 @@ class UserInjuryAlert(InjuryAlert):
     """Injury alert enriched with fantasy context."""
 
     fantasy_impact: str
+    has_game_today: bool = False
+    is_new_injury: bool = True
+    already_on_ir_slot: bool = False
+    next_game_info: str | None = None
 
 
 class UserTradeAlert(TradeAlert):
@@ -83,11 +94,15 @@ class NewsDigest(BaseModel):
     injury_alerts: list[UserInjuryAlert] = Field(default_factory=list)
     trade_alerts: list[UserTradeAlert] = Field(default_factory=list)
     matchup_alerts: list[UserMatchupAlert] = Field(default_factory=list)
+    bench_reminders: list[str] = Field(default_factory=list)
+    position_conflicts: dict[str, list[str]] = Field(default_factory=dict)
     generated_at: datetime = Field(default_factory=datetime.now)
 
     def has_alerts(self) -> bool:
         """Check if this digest contains any alerts."""
-        return bool(self.injury_alerts or self.trade_alerts or self.matchup_alerts)
+        return bool(
+            self.injury_alerts or self.trade_alerts or self.matchup_alerts or self.bench_reminders
+        )
 
     @property
     def total_alerts(self) -> int:

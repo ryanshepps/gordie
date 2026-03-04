@@ -1,24 +1,18 @@
-"""News digest job for sending personalized NHL news alerts.
-
-This module orchestrates the daily news digest:
-1. Fetches raw news from all sources (cached, shared across users)
-2. Gets all users with news_digest notifications enabled
-3. For each user, matches news against their roster
-4. Sends personalized email if relevant alerts exist
-"""
-
 from __future__ import annotations
 
 import uuid
 
 from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
+from agent.news.lineup_analyzer import analyze_lineup, parse_roster_position_configs
 from agent.news.news_digest import NewsDigest, RawNewsCollection
-from agent.news.news_processor import process_news_for_user
+from agent.news.news_processor import _extract_roster_players, process_news_for_user
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.news.espn_client import fetch_injuries
 from client.news.matchup_client import fetch_matchups
+from client.news.schedule_client import fetch_teams_playing_today
 from client.news.transactions_client import fetch_trades
+from data.digest_injury_state_repository import DigestInjuryStateRepository
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
@@ -33,11 +27,6 @@ logger = get_logger(__name__)
 
 
 def run_news_digest() -> None:
-    """Send news digest emails to all opted-in users.
-
-    This is the main entry point for the scheduled job.
-    """
-    # Fetch raw news from all sources (shared across all users)
     raw_news = _fetch_all_news()
 
     if not raw_news.injuries and not raw_news.trades and not raw_news.matchups:
@@ -49,19 +38,16 @@ def run_news_digest() -> None:
         f"{len(raw_news.trades)} trades, {len(raw_news.matchups)} matchups"
     )
 
+    teams_playing = fetch_teams_playing_today()
+
     run_per_user_job(
         job_name="news_digest",
         notification_type="news_digest",
-        handler=lambda email, league: _send_user_digest(raw_news, email, league),
+        handler=lambda email, league: _send_user_digest(raw_news, email, league, teams_playing),
     )
 
 
 def _fetch_all_news() -> RawNewsCollection:
-    """Fetch news from all sources and combine into a single collection.
-
-    Returns:
-        RawNewsCollection containing all alerts from all sources
-    """
     injuries = fetch_injuries()
     trades = fetch_trades()
     matchups = fetch_matchups()
@@ -73,18 +59,12 @@ def _fetch_all_news() -> RawNewsCollection:
     )
 
 
-def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: str) -> bool:
-    """Process and send news digest to a single user for a specific league.
-
-    Args:
-        raw_news: Pre-fetched raw news collection
-        user_email: User's email address
-        league_id: Yahoo league ID
-
-    Returns:
-        True if email was sent, False if no relevant alerts (skipped)
-    """
-    # Fetch league info
+def _send_user_digest(
+    raw_news: RawNewsCollection,
+    user_email: str,
+    league_id: str,
+    teams_playing_today: set[str],
+) -> bool:
     league_repo = YahooLeagueRepository()
     try:
         league = league_repo.get_league(league_id)
@@ -92,10 +72,10 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
             logger.warning(f"League {league_id} not found, skipping digest for {user_email}")
             return False
         league_name = league[2]
+        league_settings_json = league[4]
     finally:
         league_repo.close()
 
-    # Fetch user's team info
     team_repo = YahooUserTeamRepository()
     try:
         teams = team_repo.get_all(user_email=user_email, league_id=league_id)
@@ -107,16 +87,25 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
     finally:
         team_repo.close()
 
-    # Fetch current roster via Yahoo client
     yahoo_client = AuthenticatedYahooClient(user_email=user_email, league_id=int(league_id))
     current_roster = yahoo_client.query.get_team_roster_player_stats(team_id)
 
-    # Process news against roster
     roster_list = (
         current_roster
         if isinstance(current_roster, list)
         else [current_roster] if current_roster else []
     )
+
+    roster_players = _extract_roster_players(roster_list)
+
+    roster_position_configs = parse_roster_position_configs(league_settings_json)
+    lineup_analysis = analyze_lineup(roster_players, teams_playing_today, roster_position_configs)
+
+    injury_state_repo = DigestInjuryStateRepository()
+    try:
+        previous_injury_states = injury_state_repo.get_previous_states(user_email)
+    finally:
+        injury_state_repo.close()
 
     digest = process_news_for_user(
         raw_news=raw_news,
@@ -126,9 +115,11 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
         team_id=team_id,
         league_name=league_name,
         team_name=team_name,
+        teams_playing_today=teams_playing_today,
+        previous_injury_states=previous_injury_states,
+        lineup_analysis=lineup_analysis,
     )
 
-    # Only send if there are relevant alerts
     if not digest.has_alerts():
         logger.debug(f"No relevant alerts for {user_email} in {league_name}")
         return False
@@ -141,6 +132,16 @@ def _send_user_digest(raw_news: RawNewsCollection, user_email: str, league_id: s
         _send_news_sms(content, channel.phone_number, user_email, league_name)
     else:
         _send_news_email(content, user_email, league_name)
+
+    current_injury_states = {
+        alert.player_name.lower(): alert.status for alert in digest.injury_alerts
+    }
+    if current_injury_states:
+        state_repo = DigestInjuryStateRepository()
+        try:
+            state_repo.save_current_states(user_email, current_injury_states)
+        finally:
+            state_repo.close()
 
     return True
 
@@ -189,24 +190,14 @@ def _send_news_sms(
 
 
 def build_digest_content(digest: NewsDigest) -> str:
-    """Build the news digest email content in markdown format.
-
-    Args:
-        digest: NewsDigest containing user-specific alerts
-
-    Returns:
-        Markdown-formatted content for the email
-    """
     sections: list[str] = []
 
-    # Header
     sections.append(
         f"Hey there! Here's today's NHL news that affects your team "
         f"**{digest.team_name}** in {digest.league_name}."
     )
     sections.append("")
 
-    # Injury Alerts
     if digest.injury_alerts:
         sections.append("## Injury Updates")
         sections.append("")
@@ -217,7 +208,6 @@ def build_digest_content(digest: NewsDigest) -> str:
             sections.append(f"  - *{alert.fantasy_impact}*")
         sections.append("")
 
-    # Trade Alerts
     if digest.trade_alerts:
         sections.append("## Trade News")
         sections.append("")
@@ -228,7 +218,6 @@ def build_digest_content(digest: NewsDigest) -> str:
             sections.append(f"  - *{alert.fantasy_impact}*")
         sections.append("")
 
-    # Matchup Alerts
     if digest.matchup_alerts:
         sections.append("## Favorable Matchups Today")
         sections.append("")
@@ -243,7 +232,13 @@ def build_digest_content(digest: NewsDigest) -> str:
             )
         sections.append("")
 
-    # Footer with timestamp to ensure uniqueness
+    if digest.bench_reminders:
+        sections.append("## Bench Alert")
+        sections.append("")
+        for player_name in digest.bench_reminders:
+            sections.append(f"- **{player_name}** has a game today but is on the bench")
+        sections.append("")
+
     sections.append("Good luck today!")
     sections.append("")
     sections.append(f"*- Gordie* | {digest.generated_at.strftime('%B %d, %Y at %I:%M %p')}")
