@@ -41,7 +41,8 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
         "- Only recommend \"start X over Y\" when position_conflicts exist in the data\n"
         "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
         "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely\n"
-        "- Use the injury alert fields (has_game_today, is_new_injury, already_on_ir_slot) to guide tone"
+        "- Use the injury alert fields (has_game_today, is_new_injury, already_on_ir_slot) to guide tone\n"
+        "- Do NOT end with questions, offers to help, or calls to action (e.g. \"Want me to check waivers?\"). Just deliver the news and sign off."
     ),
     (DigestType.NEWS, "sms"): (
         "Write like you're DMing breaking news that affects their team. "
@@ -52,7 +53,8 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
         "- For new injuries without a game today, mention when their next game is instead of \"tonight\"\n"
         "- Only recommend \"start X over Y\" when position_conflicts exist in the data\n"
         "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
-        "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely"
+        "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely\n"
+        "- Do NOT end with questions, offers to help, or calls to action (e.g. \"Want me to check waivers?\"). Just deliver the news and sign off."
     ),
 }
 
