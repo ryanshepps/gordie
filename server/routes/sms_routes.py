@@ -274,15 +274,12 @@ def register_sms_routes(app):
         # Process in background thread
         def process_sms():
             try:
-                from server.tier_enforcement import build_upgrade_message, check_question_allowed
+                from server.tier_enforcement import build_billing_context, check_question_allowed
 
+                billing_ctx = None
                 allowed, reason = check_question_allowed(user_email, message_body)
                 if not allowed:
-                    upgrade_msg = build_upgrade_message(user_email, reason, "sms")
-                    sms_service = SmsService()
-                    sms_service.send_sms(phone_number, upgrade_msg)
-                    logger.info(f"Rate-limited SMS from {phone_number}, sent upgrade message")
-                    return
+                    billing_ctx = build_billing_context(user_email, reason, "sms")
 
                 from scripts.message_agent import message_agent
 
@@ -292,6 +289,7 @@ def register_sms_routes(app):
                     channel="sms",
                     user_email=user_email,
                     phone_number=phone_number,
+                    billing_context=billing_ctx,
                 )
                 logger.info(f"Agent processing complete for SMS from {phone_number}")
             except Exception as e:

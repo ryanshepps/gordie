@@ -61,6 +61,7 @@ def message_agent(
     team_context: str | None = None,
     original_subject: str | None = None,
     original_message: str | None = None,
+    billing_context: str | None = None,
 ) -> str:
     """
     Send a message to the agent graph and continue the conversation.
@@ -110,6 +111,7 @@ def message_agent(
                 "flow_reasoning": None,
                 "original_subject": original_subject,
                 "original_message": original_message or message,
+                "billing_context": billing_context,
             }
 
             # Persist user message before invoking graph

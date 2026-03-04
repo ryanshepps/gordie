@@ -181,8 +181,8 @@ def check_question_allowed(email: str, message: str) -> tuple[bool, str]:
     if count >= FREE_QUESTIONS_PER_WEEK:
         return (
             False,
-            f"You've used all {FREE_QUESTIONS_PER_WEEK} free questions this week. "
-            "Upgrade to Standard or All-Star for unlimited questions.",
+            f"Hey, you've burned through your {FREE_QUESTIONS_PER_WEEK} free questions for the week. "
+            "I'm still here, but I need you to upgrade to Standard or All-Star to keep the advice coming.",
         )
 
     usage_repo = UsageTrackingRepository()
@@ -200,7 +200,7 @@ def check_usage_allowed(email: str, action: str) -> tuple[bool, str]:
     if action == "digest":
         if tier in DIGEST_ALLOWED_TIERS:
             return (True, "")
-        return (False, "Digests require an active subscription.")
+        return (False, "Digests are a perk for subscribers — upgrade and I'll send you one every week.")
 
     return (True, "")
 
@@ -221,11 +221,40 @@ def check_league_limit(email: str) -> tuple[bool, str]:
     if count >= limit:
         return (
             False,
-            f"You've reached your league limit ({limit} league{'s' if limit > 1 else ''} "
-            f"on the {tier} tier). Upgrade your plan to connect more leagues.",
+            f"You're maxed out at {limit} league{'s' if limit > 1 else ''} "
+            f"on the {tier} tier. Upgrade your plan and I'll cover all your leagues.",
         )
 
     return (True, "")
+
+
+def build_billing_context(email: str, reason: str, channel: str) -> str:
+    try:
+        from server.creem_client import create_checkout_session
+
+        standard_url = create_checkout_session("standard_monthly", email)
+        allstar_url = create_checkout_session("allstar_monthly", email)
+    except Exception as e:
+        logger.warning(f"Failed to generate checkout links for {email}: {e}")
+        standard_url = None
+        allstar_url = None
+
+    lines = [
+        "BILLING LIMIT REACHED — The user has hit their free-tier question limit.",
+        f"Reason: {reason}",
+        "",
+        "Respond to the user in your normal voice. Acknowledge their question,",
+        "let them know they've used their free questions for the week,",
+        "and encourage them to upgrade. Include the checkout links below.",
+    ]
+
+    if channel == "sms" and standard_url:
+        lines.append(f"\nUpgrade link: {standard_url}")
+    elif standard_url and allstar_url:
+        lines.append(f"\nStandard ($10/mo) — 3 leagues, weekly digests: {standard_url}")
+        lines.append(f"All-Star ($18/mo) — unlimited everything: {allstar_url}")
+
+    return "\n".join(lines)
 
 
 def build_upgrade_message(email: str, reason: str, channel: str) -> str:
@@ -235,13 +264,13 @@ def build_upgrade_message(email: str, reason: str, channel: str) -> str:
         standard_url = create_checkout_session("standard_monthly", email)
 
         if channel == "sms":
-            return f"{reason}\n\nUpgrade: {standard_url}"
+            return f"{reason}\n\nHere's the link to upgrade: {standard_url}"
 
         allstar_url = create_checkout_session("allstar_monthly", email)
         return (
             f"{reason}\n\n"
-            f"Upgrade to Standard ($10/mo): {standard_url}\n"
-            f"Upgrade to All-Star ($18/mo): {allstar_url}"
+            f"Standard ($10/mo) — 3 leagues, weekly digests: {standard_url}\n"
+            f"All-Star ($18/mo) — unlimited everything: {allstar_url}"
         )
     except Exception as e:
         logger.warning(f"Failed to generate checkout links for {email}: {e}")

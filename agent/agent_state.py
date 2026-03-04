@@ -52,3 +52,4 @@ class AgentState(_AgentStateRequired, total=False):
     # Email threading fields
     original_subject: str | None  # Original email subject for reply threading
     original_message: str | None  # Original user message for quoting in replies
+    billing_context: str | None  # Billing limit info injected into system prompt

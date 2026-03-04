@@ -9,6 +9,7 @@ from server.tier_enforcement import (
     DIGEST_ALLOWED_TIERS,
     FREE_QUESTIONS_PER_WEEK,
     _tier_cache,
+    build_billing_context,
     build_upgrade_message,
     check_league_limit,
     check_question_allowed,
@@ -224,7 +225,7 @@ class TestCheckUsageAllowed:
         )
         allowed, reason = check_usage_allowed("free@test.com", "digest")
         assert allowed is False
-        assert "subscription" in reason.lower()
+        assert "subscriber" in reason.lower()
 
 
 class TestBuildUpgradeMessage:
@@ -389,7 +390,7 @@ class TestCheckLeagueLimit:
         allowed, reason = check_league_limit("free@test.com")
 
         assert allowed is False
-        assert "league limit" in reason
+        assert "maxed out" in reason
         assert "free" in reason
 
     @patch("server.tier_enforcement.YahooUserTeamRepository")
@@ -416,7 +417,7 @@ class TestCheckLeagueLimit:
         allowed, reason = check_league_limit("standard@test.com")
 
         assert allowed is False
-        assert "league limit" in reason
+        assert "maxed out" in reason
         assert "standard" in reason
 
     @patch("server.tier_enforcement.YahooUserTeamRepository")
@@ -450,3 +451,40 @@ class TestCheckLeagueLimit:
 
         assert allowed is True
         assert reason == ""
+
+
+class TestBuildBillingContext:
+    @patch("server.creem_client.create_checkout_session")
+    def test_email_includes_both_plan_links(self, mock_checkout):
+        mock_checkout.side_effect = [
+            "https://checkout.creem.io/standard",
+            "https://checkout.creem.io/allstar",
+        ]
+        result = build_billing_context("user@test.com", "Limit reached.", "email")
+
+        assert "BILLING LIMIT REACHED" in result
+        assert "Limit reached." in result
+        assert "https://checkout.creem.io/standard" in result
+        assert "https://checkout.creem.io/allstar" in result
+        assert "Standard" in result
+        assert "All-Star" in result
+
+    @patch("server.creem_client.create_checkout_session")
+    def test_sms_includes_single_link(self, mock_checkout):
+        mock_checkout.side_effect = [
+            "https://checkout.creem.io/standard",
+            "https://checkout.creem.io/allstar",
+        ]
+        result = build_billing_context("user@test.com", "Limit reached.", "sms")
+
+        assert "Upgrade link:" in result
+        assert "https://checkout.creem.io/standard" in result
+        assert "All-Star" not in result
+
+    @patch("server.creem_client.create_checkout_session", side_effect=Exception("API error"))
+    def test_fallback_on_api_failure_still_has_context(self, mock_checkout):
+        result = build_billing_context("user@test.com", "Limit reached.", "email")
+
+        assert "BILLING LIMIT REACHED" in result
+        assert "Limit reached." in result
+        assert "https://" not in result

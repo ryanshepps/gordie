@@ -11,7 +11,7 @@ from langgraph.types import Command
 
 from agent.agent_state import AgentState
 from agent.checkpointer import checkpointer
-from agent.context_validator import validate_context
+from agent.context_validator import ValidationResult, validate_context
 from agent.prompts.assemble import assemble_system_prompt
 from agent.subagents.available import available_players
 from agent.subagents.trade import trade
@@ -80,6 +80,40 @@ def _add_error_response(state: AgentState, error_message: str) -> None:
     state["response"] = error_message
 
 
+def _invoke_billing_response(
+    state: AgentState, user_email: str, billing_context: str
+) -> Command[Literal["response", "__end__"]]:
+    """Handle billing-limited requests by letting Gordie respond with upgrade info."""
+    try:
+        channel = state.get("channel", "email")
+        validation_result = ValidationResult(system_message=billing_context)
+        system_prompt = assemble_system_prompt(validation_result, channel, user_email)
+
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        user_messages = []
+        for m in state.get("messages", []):
+            if isinstance(m, dict):
+                user_messages.append({"role": "user", "content": str(m.get("content", ""))})
+            elif hasattr(m, "type") and m.type == "human":
+                user_messages.append({"role": "user", "content": str(m.content)})
+        messages = [{"role": "system", "content": system_prompt}, *user_messages]
+
+        response = llm.invoke(messages)
+        response_content = str(response.content)
+
+        state["response"] = response_content
+        ai_msg = AIMessage(content=response_content)
+        state["messages"] = [*list(state.get("messages", [])), ai_msg]
+
+        return Command(goto="response", update=state)
+    except Exception as e:
+        logger.error(f"Error in billing response: {e}", exc_info=True)
+        _add_error_response(
+            state, "I encountered an error processing your request. Could you please try again?"
+        )
+        return Command(goto="response", update=state)
+
+
 def _invoke_supervisor(
     state: AgentState, user_email: str
 ) -> Command[Literal["response", "__end__"]]:
@@ -145,5 +179,9 @@ def supervisor_node(
     )
 
     logger.info(f"Supervisor processing: {message_content}...")
+
+    billing_context = state.get("billing_context")
+    if billing_context:
+        return _invoke_billing_response(state, user_email, billing_context)
 
     return _invoke_supervisor(state, user_email)
