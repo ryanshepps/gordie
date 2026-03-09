@@ -38,13 +38,6 @@ _server_instance: "Server | None" = None
 _server_lock = threading.Lock()
 
 
-async def _shutdown_async_agent() -> None:
-    """Shut down the async agent connection if it was initialized."""
-    from agent.async_graph_builder import close_async_agent
-
-    await close_async_agent()
-
-
 class Server:
     """
     Quart server for handling OAuth callbacks and email webhooks.
@@ -81,9 +74,8 @@ class Server:
         # Register scheduled notification jobs
         register_scheduled_jobs(self.scheduler)
 
-        # Shut down the scheduler and async agent when exiting
+        # Shut down the scheduler when exiting
         atexit.register(lambda: self.scheduler.shutdown())
-        atexit.register(lambda: asyncio.run(_shutdown_async_agent()))
 
         # Set up routes
         self._setup_routes()
