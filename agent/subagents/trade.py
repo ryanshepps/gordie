@@ -10,7 +10,7 @@ from module.logger import get_logger
 from tools.player_comparison.calculate_undervalued_score import (
     calculate_undervalued_score,
 )
-from tools.stats.run_moneypuck_query import run_moneypuck_query
+from tools.stats.query_stats_db import query_stats_db
 from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
 from tools.yahoo.get_league_teams import get_league_teams
 from tools.yahoo.get_team_roster import get_team_roster
@@ -31,7 +31,7 @@ class Linemate(BaseModel):
 class PlayerStats(BaseModel):
     """Comprehensive stats for a single player.
 
-    These stats MUST come from run_moneypuck_query + calculate_undervalued_score - do not fabricate values.
+    These stats MUST come from query_stats_db + calculate_undervalued_score - do not fabricate values.
     """
 
     name: str = Field(description="Player's full name")
@@ -98,7 +98,7 @@ class PlayerStats(BaseModel):
         """TOI should be realistic (players typically get 10-25 min/game)."""
         if v < 5 or v > 30:
             raise ValueError(
-                f"TOI of {v} is unrealistic. Did you actually call run_moneypuck_query + calculate_undervalued_score?"
+                f"TOI of {v} is unrealistic. Did you actually call query_stats_db + calculate_undervalued_score?"
             )
         return v
 
@@ -108,7 +108,7 @@ class PlayerStats(BaseModel):
         """Fenwick/Corsi % should be realistic (typically 40-60%)."""
         if v < 30 or v > 70:
             raise ValueError(
-                f"Percentage of {v} is unrealistic. Did you actually call run_moneypuck_query + calculate_undervalued_score?"
+                f"Percentage of {v} is unrealistic. Did you actually call query_stats_db + calculate_undervalued_score?"
             )
         return v
 
@@ -215,7 +215,7 @@ class TradeResponse(BaseModel):
 
     This response will be REJECTED if:
     - player_stats is missing entries for the subject player or any trade target
-    - player_stats contains fabricated data (not from run_moneypuck_query + calculate_undervalued_score)
+    - player_stats contains fabricated data (not from query_stats_db + calculate_undervalued_score)
     - trade_targets have generic pitches without specific stats
     - schedule and linemate data are ignored when making trade recommendations
     """
@@ -255,7 +255,7 @@ class TradeResponse(BaseModel):
         ):
             raise ValueError(
                 f"Missing stats for subject player '{self.subject_player}'. "
-                "You MUST call run_moneypuck_query + calculate_undervalued_score for the subject player."
+                "You MUST call query_stats_db + calculate_undervalued_score for the subject player."
             )
 
         # Check all trade targets have stats
@@ -263,7 +263,7 @@ class TradeResponse(BaseModel):
         if missing:
             raise ValueError(
                 f"Missing stats for trade targets: {missing}. "
-                "You MUST call run_moneypuck_query + calculate_undervalued_score for ALL trade targets before responding."
+                "You MUST call query_stats_db + calculate_undervalued_score for ALL trade targets before responding."
             )
 
         return self
@@ -320,8 +320,8 @@ but have BETTER advanced stats indicating they'll improve:
    - For "trading_away": look for players with WORSE rank but BETTER underlying stats
    - For "trading_for": look for similarly-ranked players with better upside indicators
 
-3. Get stats for ALL players using run_moneypuck_query, then calculate_undervalued_score:
-   - Use run_moneypuck_query with "player stats '<name>' --json" for each player
+3. Get stats for ALL players using query_stats_db, then calculate_undervalued_score:
+   - Use query_stats_db with SQL to fetch player stats from the skaters table
    - Pass the fetched stats to calculate_undervalued_score for Yahoo rank, schedule, and scoring
    - IMPORTANT: Each player gets an undervalued_score and undervalued_reasons
 
@@ -359,7 +359,7 @@ agent = create_subagent(
     tools=[
         get_team_roster,
         get_league_teams,
-        run_moneypuck_query,
+        query_stats_db,
         calculate_undervalued_score,
         find_similar_ranked_players,
     ],

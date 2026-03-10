@@ -74,11 +74,25 @@ class Server:
         # Register scheduled notification jobs
         register_scheduled_jobs(self.scheduler)
 
+        # Ensure stats DB exists on first deploy
+        threading.Thread(target=self._refresh_stats_db_on_startup, daemon=True).start()
+
         # Shut down the scheduler when exiting
         atexit.register(lambda: self.scheduler.shutdown())
 
         # Set up routes
         self._setup_routes()
+
+    @staticmethod
+    def _refresh_stats_db_on_startup() -> None:
+        logger = get_logger(__name__)
+        try:
+            from scheduled.refresh_stats_db import refresh_stats_db
+
+            refresh_stats_db()
+            logger.info("Stats DB refreshed on startup")
+        except Exception:
+            logger.exception("Failed to refresh stats DB on startup")
 
     def _setup_routes(self):
         """Configure Quart routes."""

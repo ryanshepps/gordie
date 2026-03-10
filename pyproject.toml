@@ -28,7 +28,7 @@ dependencies = [
     "pytest-cov>=7.0.0",
     "logfire>=3.0.0",
     "opentelemetry-instrumentation-asgi>=0.45b0",
-    "moneypuckpy",
+    "duckdb>=1.0.0",
 ]
 
 [tool.ruff]
@@ -129,4 +129,3 @@ exclude = [
 ]
 
 [tool.uv.sources]
-moneypuckpy = { path = "../moneypuckpy" }

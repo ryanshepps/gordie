@@ -23,7 +23,7 @@ from tools.billing.generate_portal_link import generate_portal_link
 from tools.billing.get_subscription_status import get_subscription_status
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.notifications.manage_notifications import manage_notifications
-from tools.stats.run_moneypuck_query import run_moneypuck_query
+from tools.stats.query_stats_db import query_stats_db
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 END_NODE: Literal["__end__"] = "__end__"
@@ -48,7 +48,7 @@ def create_supervisor_agent(system_prompt: str):
     tools = [
         trade,
         available_players,
-        run_moneypuck_query,
+        query_stats_db,
         onboard_user_team,
         search_past_conversations,
         manage_notifications,

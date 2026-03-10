@@ -260,7 +260,7 @@ def calculate_undervalued_score(
 ) -> str:
     """Calculate an undervalued score for a player using pre-fetched MoneyPuck stats.
 
-    This tool takes stats you already fetched via run_moneypuck_query and enriches them with:
+    This tool takes stats you already fetched via query_stats_db and enriches them with:
     1. Yahoo fantasy league rank and ownership info
     2. Team schedule (games this week and next week)
     3. Linemate information
@@ -272,7 +272,7 @@ def calculate_undervalued_score(
     - 0-3: Fairly valued
     - < 0: OVERVALUED — avoid acquiring
 
-    You MUST first use run_moneypuck_query to get the player's stats, then pass them here.
+    You MUST first use query_stats_db to get the player's stats, then pass them here.
 
     Args:
         stats: Pre-fetched MoneyPuck stats for the player
