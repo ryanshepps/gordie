@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from agent.news.news_digest import NewsDigest
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.persona import PERSONA
+from agent.prompts.phrasebook import PHRASEBOOK
 from data.pydantic_models import DigestData
 from module.logger import get_logger
 
@@ -62,7 +63,7 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
 def _build_system_prompt(digest_type: DigestType, channel: str = "email") -> str:
     channel_guidelines = get_channel_guidelines(channel)
     instructions = WRITING_INSTRUCTIONS[(digest_type, channel)]
-    return f"{PERSONA}\n\n{channel_guidelines}\n\n# TASK\n{instructions}"
+    return f"{PERSONA}\n{PHRASEBOOK}\n\n{channel_guidelines}\n\n# TASK\n{instructions}"
 
 
 def write_digest_content(
