@@ -1,6 +1,8 @@
 """Tool for querying the DuckDB stats database."""
 
 import json
+import re
+from typing import Literal
 
 import duckdb
 from langchain.tools import tool
@@ -14,17 +16,39 @@ logger = get_logger(__name__)
 
 MAX_ROWS = 50
 
+Situation = Literal["all", "5on5", "5on4", "4on5"]
+
 
 class QueryStatsDbInput(BaseModel):
     sql: str = Field(description="DuckDB SQL query to execute against the stats database")
+    situation: Situation = Field(
+        description=(
+            "Situation filter applied to every table scan. "
+            "'all' for totals, '5on5' for even-strength, "
+            "'5on4' for power play, '4on5' for penalty kill."
+        )
+    )
+
+
+def _inject_situation(sql: str, situation: str) -> str:
+    tables = ["skaters", "goalies", "teams"]
+    ctes = ", ".join(
+        f"_{t} AS (SELECT * FROM {t} WHERE situation = '{situation}')"
+        for t in tables
+    )
+    rewritten = sql
+    for t in tables:
+        rewritten = re.sub(rf"\b{t}\b", f"_{t}", rewritten)
+    return f"WITH {ctes} {rewritten}"
 
 
 @tool(args_schema=QueryStatsDbInput, description=TOOL_DESCRIPTION)
-def query_stats_db(sql: str) -> str:
+def query_stats_db(sql: str, situation: Situation) -> str:
     """Execute a SQL query against the MoneyPuck stats DuckDB database."""
     try:
         conn = get_stats_connection()
-        result = conn.execute(sql)
+        wrapped_sql = _inject_situation(sql, situation)
+        result = conn.execute(wrapped_sql)
 
         columns = [desc[0] for desc in result.description]
         rows = result.fetchmany(MAX_ROWS + 1)
@@ -43,9 +67,7 @@ def query_stats_db(sql: str) -> str:
 
         return json.dumps(output, default=str)
 
-    except FileNotFoundError as e:
-        logger.error(f"Stats DB not found: {e}")
-        return f"Error: {e}"
-    except duckdb.Error as e:
-        logger.warning(f"DuckDB query error: {e}")
-        return f"SQL error: {e}"
+    except FileNotFoundError:
+        raise
+    except duckdb.Error:
+        raise

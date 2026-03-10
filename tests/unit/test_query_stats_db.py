@@ -18,8 +18,15 @@ def mock_connection():
     conn.execute(
         "INSERT INTO skaters VALUES "
         "('Connor McDavid', 'EDM', 50, 'all'), "
+        "('Connor McDavid', 'EDM', 35, '5on5'), "
         "('Auston Matthews', 'TOR', 45, 'all'), "
         "('Leon Draisaitl', 'EDM', 42, 'all')"
+    )
+    conn.execute(
+        "CREATE TABLE goalies (name VARCHAR, team VARCHAR, wins INTEGER, situation VARCHAR)"
+    )
+    conn.execute(
+        "CREATE TABLE teams (team VARCHAR, wins INTEGER, situation VARCHAR)"
     )
     with patch("tools.stats.query_stats_db.get_stats_connection", return_value=conn):
         yield conn
@@ -27,36 +34,48 @@ def mock_connection():
 
 
 class TestQueryStatsDb:
-    def test_valid_sql_returns_json_results(self, mock_connection):
+    def test_returns_only_matching_situation(self, mock_connection):
         result = query_stats_db.invoke(
-            {"sql": "SELECT name, goals FROM skaters ORDER BY goals DESC LIMIT 2"}
+            {"sql": "SELECT name, goals FROM skaters ORDER BY goals DESC", "situation": "all"}
         )
         parsed = json.loads(result)
 
-        assert len(parsed["results"]) == 2
+        names = [r["name"] for r in parsed["results"]]
+        assert "Connor McDavid" in names
+        assert len(parsed["results"]) == 3
+
+    def test_5on5_situation_filters_correctly(self, mock_connection):
+        result = query_stats_db.invoke(
+            {"sql": "SELECT name, goals FROM skaters", "situation": "5on5"}
+        )
+        parsed = json.loads(result)
+
+        assert len(parsed["results"]) == 1
         assert parsed["results"][0]["name"] == "Connor McDavid"
-        assert parsed["results"][0]["goals"] == 50
+        assert parsed["results"][0]["goals"] == 35
 
-    def test_invalid_sql_returns_error_string(self, mock_connection):
-        result = query_stats_db.invoke({"sql": "SELECT nonexistent FROM skaters"})
-
-        assert "error" in result.lower()
+    def test_invalid_sql_raises(self, mock_connection):
+        with pytest.raises(duckdb.Error):
+            query_stats_db.invoke({"sql": "SELECT nonexistent FROM skaters", "situation": "all"})
 
     def test_truncation_at_max_rows(self, mock_connection):
         values = ", ".join(f"('Player{i}', 'TST', {i}, 'all')" for i in range(MAX_ROWS + 10))
         mock_connection.execute(f"INSERT INTO skaters VALUES {values}")
 
-        result = query_stats_db.invoke({"sql": "SELECT * FROM skaters"})
+        result = query_stats_db.invoke(
+            {"sql": "SELECT * FROM skaters", "situation": "all"}
+        )
         parsed = json.loads(result)
 
         assert len(parsed["results"]) == MAX_ROWS
         assert "truncated" in parsed["notice"].lower()
 
-    def test_db_not_found_returns_error(self):
-        with patch(
-            "tools.stats.query_stats_db.get_stats_connection",
-            side_effect=FileNotFoundError("Stats database not found"),
+    def test_db_not_found_raises(self):
+        with (
+            patch(
+                "tools.stats.query_stats_db.get_stats_connection",
+                side_effect=FileNotFoundError("Stats database not found"),
+            ),
+            pytest.raises(FileNotFoundError),
         ):
-            result = query_stats_db.invoke({"sql": "SELECT 1"})
-
-        assert "not found" in result.lower()
+            query_stats_db.invoke({"sql": "SELECT 1", "situation": "all"})
