@@ -10,6 +10,7 @@ from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
 from agent.email_enrichment import enrich_email_with_player_stats
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
+from client.moneypuck_cli import get_player_stats_by_names
 from data.pydantic_models import (
     DigestData,
     EnrichedFreeAgent,
@@ -27,9 +28,6 @@ from server.email_service import EmailService
 from server.sms_service import SmsService
 from server.thread_manager import save_message_id_mapping
 from tools.available.search_available_players import search_available_players
-from tools.player_comparison.get_comprehensive_player_stats import (
-    get_comprehensive_player_stats_internal,
-)
 from tools.player_comparison.get_team_schedule import get_team_schedule
 from tools.yahoo.get_team_matchups import get_current_matchup
 
@@ -191,36 +189,55 @@ def _fetch_and_enrich_free_agents(user_email: str, league_id: str) -> list[Enric
         if not players:
             return []
 
-        # Enrich with advanced stats
         player_names = [p["name"] for p in players]
-        stats_json = get_comprehensive_player_stats_internal(
-            player_names=player_names,
-            user_email=user_email,
-            league_id=league_id,
-        )
-        stats_data = json.loads(stats_json)
+        stats_data = get_player_stats_by_names(player_names)
+
+        nhl_teams = {p["name"]: p.get("team", "") for p in players}
+        unique_teams = list({t for t in nhl_teams.values() if t})
+        schedule_data: dict[str, dict[str, object]] = {}
+        if unique_teams:
+            try:
+                schedule_json = get_team_schedule(unique_teams)
+                schedule_data = json.loads(schedule_json)
+            except Exception as e:
+                logger.warning(f"Failed to fetch schedule for free agents: {e}")
 
         result: list[EnrichedFreeAgent] = []
         for player in players:
             name = player.get("name", "Unknown")
+            team = player.get("team", "")
             enriched = EnrichedFreeAgent(
                 name=name,
                 position=player.get("position"),
-                team=player.get("team"),
+                team=team,
                 percent_owned=player.get("percent_owned"),
             )
 
-            if name in stats_data and stats_data[name].get("status") == "success":
+            if name in stats_data:
                 stats = stats_data[name]
+                goals = int(stats.get("goals", stats.get("I_F_goals", 0)) or 0)
+                points = int(stats.get("points", stats.get("I_F_points", 0)) or 0)
+                assists = points - goals
+                corsi = stats.get("corsi_pct", stats.get("onIce_corsiPercentage"))
+                corsi_pct = float(corsi) if corsi else None
+
+                games_this_week: int | None = None
+                team_upper = team.upper() if team else ""
+                if team_upper in schedule_data:
+                    team_sched = schedule_data[team_upper]
+                    if team_sched.get("status") == "success":
+                        raw_games = team_sched.get("this_week_games", 0) or 0
+                        games_this_week = int(str(raw_games))
+
                 enriched = EnrichedFreeAgent(
                     name=name,
                     position=player.get("position"),
-                    team=player.get("team"),
+                    team=team,
                     percent_owned=player.get("percent_owned"),
-                    goals=stats.get("goals", 0),
-                    assists=stats.get("assists", 0),
-                    corsi_pct=stats.get("corsi_pct"),
-                    games_this_week=stats.get("games_remaining_this_week"),
+                    goals=goals,
+                    assists=max(0, assists),
+                    corsi_pct=corsi_pct,
+                    games_this_week=games_this_week,
                 )
 
             result.append(enriched)

@@ -9,7 +9,7 @@ from module.logger import get_logger
 from tools.available.search_available_players import search_available_players
 from tools.stats.get_player_line_info import get_player_line_info
 from tools.stats.get_player_schedule import get_player_schedule
-from tools.stats.get_player_stats import get_player_stats
+from tools.stats.run_moneypuck_query import run_moneypuck_query
 from tools.yahoo.get_player_yahoo_info import get_player_yahoo_info
 from tools.yahoo.get_team_roster import get_team_roster
 
@@ -61,7 +61,7 @@ agent = create_subagent(
     system_prompt=_available_players_task,
     tools=[
         search_available_players,
-        get_player_stats,
+        run_moneypuck_query,
         get_player_schedule,
         get_player_line_info,
         get_player_yahoo_info,

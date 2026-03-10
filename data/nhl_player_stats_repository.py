@@ -1,8 +1,4 @@
-"""Repository class for NHL player game statistics.
-
-For aggregate/season statistics, use the MoneyPuck client instead:
-    from client.moneypuck_client import get_player_stats, search_players
-"""
+"""Repository class for NHL player game statistics."""
 
 from typing import Any
 

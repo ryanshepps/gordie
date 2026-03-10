@@ -45,101 +45,64 @@ def _build_mock_fuzzy_resolve_response(player_names: list[str]) -> str:
     return json.dumps(result)
 
 
-def _build_mock_moneypuck_stats(player_ids: list[int], situation: str = "all") -> str:
-    """Build mock response for get_moneypuck_stats keyed by player ID."""
-    id_to_name = {v: k for k, v in MOCK_PLAYER_IDS.items()}
+MOCK_CLI_STATS = {
+    "Teuvo Teravainen": {
+        "name": "Teuvo Teravainen", "team": "CHI", "position": "RW",
+        "games_played": 35, "goals": 12, "points": 32, "x_goals": 10.5,
+        "fenwick_pct": 52.3, "corsi_pct": 51.0, "toi_per_game_minutes": 17.5,
+        "points_per_game": 0.91,
+    },
+    "Brock Boeser": {
+        "name": "Brock Boeser", "team": "VAN", "position": "RW",
+        "games_played": 38, "goals": 15, "points": 33, "x_goals": 12.0,
+        "fenwick_pct": 51.5, "corsi_pct": 50.8, "toi_per_game_minutes": 18.0,
+        "points_per_game": 0.87,
+    },
+    "Jake Guentzel": {
+        "name": "Jake Guentzel", "team": "TBL", "position": "LW",
+        "games_played": 40, "goals": 18, "points": 40, "x_goals": 16.0,
+        "fenwick_pct": 54.1, "corsi_pct": 53.5, "toi_per_game_minutes": 19.5,
+        "points_per_game": 1.0,
+    },
+    "Kevin Fiala": {
+        "name": "Kevin Fiala", "team": "LAK", "position": "LW",
+        "games_played": 36, "goals": 14, "points": 36, "x_goals": 12.0,
+        "fenwick_pct": 53.0, "corsi_pct": 52.5, "toi_per_game_minutes": 18.2,
+        "points_per_game": 1.0,
+    },
+    "Pavel Buchnevich": {
+        "name": "Pavel Buchnevich", "team": "STL", "position": "RW",
+        "games_played": 37, "goals": 13, "points": 35, "x_goals": 11.5,
+        "fenwick_pct": 51.8, "corsi_pct": 51.0, "toi_per_game_minutes": 17.8,
+        "points_per_game": 0.95,
+    },
+    "Dylan Cozens": {
+        "name": "Dylan Cozens", "team": "BUF", "position": "C",
+        "games_played": 38, "goals": 11, "points": 34, "x_goals": 10.0,
+        "fenwick_pct": 50.5, "corsi_pct": 50.0, "toi_per_game_minutes": 17.0,
+        "points_per_game": 0.89,
+    },
+    "Brock Nelson": {
+        "name": "Brock Nelson", "team": "NYI", "position": "C",
+        "games_played": 39, "goals": 16, "points": 36, "x_goals": 14.0,
+        "fenwick_pct": 52.0, "corsi_pct": 51.5, "toi_per_game_minutes": 18.5,
+        "points_per_game": 0.92,
+    },
+    "Timo Meier": {
+        "name": "Timo Meier", "team": "NJD", "position": "LW",
+        "games_played": 38, "goals": 10, "points": 28, "x_goals": 14.0,
+        "fenwick_pct": 48.2, "corsi_pct": 47.5, "toi_per_game_minutes": 16.5,
+        "points_per_game": 0.74,
+    },
+}
 
-    stats_by_name = {
-        "Teuvo Teravainen": {
-            "name": "Teuvo Teravainen",
-            "team": "CHI",
-            "games_played": 35,
-            "goals": 12,
-            "points": 32,
-            "x_goals": 10.5,
-            "fenwick_pct": 52.3,
-        },
-        "Brock Boeser": {
-            "name": "Brock Boeser",
-            "team": "VAN",
-            "games_played": 38,
-            "goals": 15,
-            "points": 33,
-            "x_goals": 12.0,
-            "fenwick_pct": 51.5,
-        },
-        "Jake Guentzel": {
-            "name": "Jake Guentzel",
-            "team": "TBL",
-            "games_played": 40,
-            "goals": 18,
-            "points": 40,
-            "x_goals": 16.0,
-            "fenwick_pct": 54.1,
-        },
-        "Kevin Fiala": {
-            "name": "Kevin Fiala",
-            "team": "LAK",
-            "games_played": 36,
-            "goals": 14,
-            "points": 36,
-            "x_goals": 12.0,
-            "fenwick_pct": 53.0,
-        },
-        "Pavel Buchnevich": {
-            "name": "Pavel Buchnevich",
-            "team": "STL",
-            "games_played": 37,
-            "goals": 13,
-            "points": 35,
-            "x_goals": 11.5,
-            "fenwick_pct": 51.8,
-        },
-        "Dylan Cozens": {
-            "name": "Dylan Cozens",
-            "team": "BUF",
-            "games_played": 38,
-            "goals": 11,
-            "points": 34,
-            "x_goals": 10.0,
-            "fenwick_pct": 50.5,
-        },
-        "Brock Nelson": {
-            "name": "Brock Nelson",
-            "team": "NYI",
-            "games_played": 39,
-            "goals": 16,
-            "points": 36,
-            "x_goals": 14.0,
-            "fenwick_pct": 52.0,
-        },
-        "Timo Meier": {
-            "name": "Timo Meier",
-            "team": "NJD",
-            "games_played": 38,
-            "goals": 10,
-            "points": 28,
-            "x_goals": 14.0,
-            "fenwick_pct": 48.2,
-        },
-    }
 
-    result = {}
-    for player_id in player_ids:
-        name = id_to_name.get(player_id)
-        if name and name in stats_by_name:
-            result[str(player_id)] = {
-                "status": "success",
-                "situation": situation,
-                "season": "2024-2025",
-                "stats": stats_by_name[name],
-            }
-        else:
-            result[str(player_id)] = {
-                "status": "not_found",
-                "message": f"No MoneyPuck data found for player {player_id}",
-            }
-    return json.dumps(result)
+def _mock_run_moneypuck_query(command: str) -> str:
+    """Mock run_moneypuck_query returning JSON stats for player stats commands."""
+    for name, stats in MOCK_CLI_STATS.items():
+        if name.lower() in command.lower() or name.split()[-1].lower() in command.lower():
+            return json.dumps(stats)
+    return json.dumps({"error": "Player not found"})
 
 
 def _build_mock_player_schedule() -> str:
@@ -234,16 +197,16 @@ def _build_mock_player_schedule() -> str:
 def mock_stats_tools(mocker):
     """Set up all stats tool mocks for available player tests."""
     mocker.patch(
-        "tools.stats.get_player_stats.fuzzy_resolve_nhl_api_player_ids",
-        side_effect=_build_mock_fuzzy_resolve_response,
+        "tools.stats.run_moneypuck_query.subprocess.run",
+        side_effect=lambda args, **kwargs: type("Result", (), {
+            "stdout": _mock_run_moneypuck_query(" ".join(args[3:])),
+            "stderr": "",
+            "returncode": 0,
+        })(),
     )
     mocker.patch(
         "tools.stats.get_player_schedule.fuzzy_resolve_nhl_api_player_ids",
         side_effect=_build_mock_fuzzy_resolve_response,
-    )
-    mocker.patch(
-        "tools.stats.get_player_stats.get_moneypuck_stats",
-        side_effect=_build_mock_moneypuck_stats,
     )
     mocker.patch(
         "tools.stats.get_player_schedule.get_team_schedule",

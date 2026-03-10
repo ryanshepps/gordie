@@ -7,7 +7,7 @@ from typing import Literal
 import requests
 from pydantic import BaseModel, Field
 
-from client.moneypuck_client import search_players as moneypuck_search
+from client.moneypuck_cli import search_player as moneypuck_search_cli
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,24 +77,21 @@ BuildResultOutput = SingleMatchResult | MultipleMatchResult
 
 
 def _search_moneypuck(player_name: str) -> list[PlayerMatch]:
-    """Search MoneyPuck data for players matching the name.
-
-    MoneyPuck provides current season stats for all NHL players.
-    """
+    """Search MoneyPuck data for players matching the name via CLI."""
     try:
-        df = moneypuck_search(player_name, situation="all", limit=5)
-        if df.empty:
+        results = moneypuck_search_cli(player_name)
+        if not results:
             return []
 
         return [
             PlayerMatch(
-                player_id=int(row["playerId"]),
-                full_name=str(row["name"]),
-                team_abbrev=str(row["team"]) if row["team"] is not None else None,
-                position=str(row["position"]) if row["position"] is not None else None,
-                games_in_db=int(row["games_played"]),
+                player_id=int(r.get("player_id", r.get("playerId", 0))),
+                full_name=str(r.get("name", "")),
+                team_abbrev=str(r["team"]) if r.get("team") else None,
+                position=str(r["position"]) if r.get("position") else None,
+                games_in_db=int(r["games_played"]) if r.get("games_played") else None,
             )
-            for _, row in df.iterrows()
+            for r in results[:5]
         ]
     except Exception as e:
         logger.error(f"MoneyPuck search error for '{player_name}': {e}")

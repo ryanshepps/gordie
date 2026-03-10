@@ -4,15 +4,32 @@ This module extracts player names mentioned in email content,
 fetches their MoneyPuck statistics, and appends a formatted table.
 """
 
-import json
 import re
 from typing import Any
 
-from client.moneypuck_client import get_player_name_lookup
+from client.moneypuck_cli import StatValue, get_player_stats_by_names, search_player
 from module.logger import get_logger
-from tools.player_comparison.get_moneypuck_stats import get_moneypuck_stats
 
 logger = get_logger(__name__)
+
+
+def _to_int(val: StatValue, default: int = 0) -> int:
+    if val is None or val is True or val is False:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _to_float(val: StatValue, default: float = 0.0) -> float:
+    if val is None or val is True or val is False:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
 
 # Stats to include in the table (subset for readability)
 TABLE_STATS = [
@@ -55,74 +72,72 @@ def extract_and_validate_player_names(content: str) -> list[tuple[str, int]]:
     if not matches:
         return []
 
-    # Get player lookup (uses cached MoneyPuck data)
-    player_lookup = get_player_name_lookup()
-
-    # Validate each candidate against database
-    seen = set()
-    validated = []
+    seen: set[str] = set()
+    validated: list[tuple[str, int]] = []
 
     for name in matches:
         name_lower = name.lower()
-        # Skip duplicates
         if name_lower in seen:
             continue
         seen.add(name_lower)
 
-        # O(1) lookup - if it's a real player, we get their ID
-        if name_lower in player_lookup:
-            canonical_name, player_id = player_lookup[name_lower]
-            validated.append((canonical_name, player_id))
+        results = search_player(name)
+        if results:
+            first = results[0]
+            canonical_name = str(first.get("name", name))
+            player_id = int(first.get("player_id", first.get("playerId", 0)))
+            if player_id:
+                validated.append((canonical_name, player_id))
 
     return validated
 
 
-def fetch_player_stats(player_ids: list[int]) -> list[dict[str, Any]]:
-    """Fetch MoneyPuck stats for players by ID.
+def fetch_player_stats(player_names: list[str]) -> list[dict[str, Any]]:
+    """Fetch MoneyPuck stats for players by name via CLI.
 
     Args:
-        player_ids: List of NHL player IDs
+        player_names: List of player names
 
     Returns:
         List of formatted player stat dicts
     """
-    if not player_ids:
+    if not player_names:
         return []
 
     try:
-        stats_json = get_moneypuck_stats(player_ids, situation="all")
-        stats_data = json.loads(stats_json)
+        all_stats = get_player_stats_by_names(player_names)
 
-        stats_list = []
-        for _, player_stats in stats_data.items():
-            if player_stats.get("status") != "success":
-                continue
+        stats_list: list[dict[str, Any]] = []
+        for name, stats in all_stats.items():
+            goals = _to_int(stats.get("goals") or stats.get("I_F_goals"))
+            points = _to_int(stats.get("points") or stats.get("I_F_points"))
+            assists = max(0, points - goals)
+            x_goals = _to_float(stats.get("x_goals") or stats.get("I_F_xGoals"))
 
-            stats = player_stats.get("stats", {})
-
-            # Calculate assists from primary + secondary
-            primary_assists = stats.get("primary_assists", 0)
-            secondary_assists = stats.get("secondary_assists", 0)
-            total_assists = primary_assists + secondary_assists
-
-            stats_list.append(
-                {
-                    "name": stats.get("name", "Unknown"),
-                    "position": stats.get("position", ""),
-                    "games_played": stats.get("games_played", 0),
-                    "goals": stats.get("goals", 0),
-                    "assists": total_assists,
-                    "points": stats.get("points", 0),
-                    "points_per_game": round(stats.get("points_per_game", 0), 2),
-                    "toi_per_game_minutes": round(stats.get("toi_per_game_minutes", 0), 1),
-                    "x_goals": round(stats.get("x_goals", 0), 2),
-                    "goals_above_expected": round(stats.get("goals_above_expected", 0), 2),
-                    "fenwick_pct": round(stats.get("fenwick_pct", 0), 1),
-                    "corsi_pct": round(stats.get("corsi_pct", 0), 1),
-                    "shots_on_goal": stats.get("shots_on_goal", 0),
-                    "high_danger_goals": stats.get("high_danger_goals", 0),
-                }
-            )
+            stats_list.append({
+                "name": str(stats.get("name") or name),
+                "position": str(stats.get("position") or ""),
+                "games_played": _to_int(stats.get("games_played")),
+                "goals": goals,
+                "assists": assists,
+                "points": points,
+                "points_per_game": round(_to_float(stats.get("points_per_game")), 2),
+                "toi_per_game_minutes": round(_to_float(stats.get("toi_per_game_minutes")), 1),
+                "x_goals": round(x_goals, 2),
+                "goals_above_expected": round(goals - x_goals, 2),
+                "fenwick_pct": round(
+                    _to_float(stats.get("fenwick_pct") or stats.get("onIce_fenwickPercentage")), 1
+                ),
+                "corsi_pct": round(
+                    _to_float(stats.get("corsi_pct") or stats.get("onIce_corsiPercentage")), 1
+                ),
+                "shots_on_goal": _to_int(
+                    stats.get("shots_on_goal") or stats.get("I_F_shotsOnGoal")
+                ),
+                "high_danger_goals": _to_int(
+                    stats.get("high_danger_goals") or stats.get("I_F_highDangerGoals")
+                ),
+            })
 
         return stats_list
 
@@ -257,12 +272,10 @@ def enrich_email_with_player_stats(
         return "", ""
 
     player_names = [name for name, _ in player_matches]
-    player_ids = [pid for _, pid in player_matches]
 
     logger.info(f"Found {len(player_matches)} players: {player_names}")
 
-    # Fetch stats directly by ID (no fuzzy resolution needed)
-    stats = fetch_player_stats(player_ids)
+    stats = fetch_player_stats(player_names)
 
     if not stats:
         logger.debug("Could not fetch stats for any players")

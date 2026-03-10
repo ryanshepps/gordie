@@ -161,25 +161,21 @@ def mock_free_agents_response():
 
 @pytest.fixture
 def mock_comprehensive_stats_response():
-    """Mock response from get_comprehensive_player_stats_internal."""
-    return json.dumps(
-        {
-            "Hot Player": {
-                "status": "success",
-                "goals": 5,
-                "assists": 8,
-                "corsi_pct": 55.2,
-                "games_remaining_this_week": 4,
-            },
-            "Rising Star": {
-                "status": "success",
-                "goals": 3,
-                "assists": 4,
-                "corsi_pct": 52.1,
-                "games_remaining_this_week": 3,
-            },
-        }
-    )
+    """Mock response from get_player_stats_by_names."""
+    return {
+        "Hot Player": {
+            "name": "Hot Player",
+            "goals": 5,
+            "points": 13,
+            "corsi_pct": 55.2,
+        },
+        "Rising Star": {
+            "name": "Rising Star",
+            "goals": 3,
+            "points": 7,
+            "corsi_pct": 52.1,
+        },
+    }
 
 
 @pytest.fixture
@@ -285,7 +281,7 @@ def mock_digest_dependencies(
             **{"invoke.return_value": mock_free_agents_response},
         ),
         patch(
-            "scheduled.weekly_digest.get_comprehensive_player_stats_internal",
+            "scheduled.weekly_digest.get_player_stats_by_names",
             return_value=mock_comprehensive_stats_response,
         ),
         patch(

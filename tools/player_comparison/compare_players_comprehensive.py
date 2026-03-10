@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class ComparePlayersInput(BaseModel):
     """Input schema for compare_players_comprehensive tool."""
 
-    player_stats: str = Field(description="JSON string of player stats from get_player_stats tool")
+    player_stats: str = Field(description="JSON string of player stats from run_moneypuck_query tool")
     fantasy_points: str = Field(
         description="JSON string of fantasy points from calculate_fantasy_points tool"
     )

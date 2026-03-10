@@ -77,7 +77,7 @@ def search_available_players(
     Search for available players (free agents and/or waivers) in a fantasy hockey league.
 
     Returns basic player info: name, team, position, ownership %, availability type.
-    Use get_player_stats to fetch detailed statistics for specific players.
+    Use run_moneypuck_query to fetch detailed statistics for specific players.
 
     Args:
         user_email: User's email for Yahoo authentication
