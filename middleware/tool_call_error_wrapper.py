@@ -31,9 +31,17 @@ def handle_tool_errors(request, handler):
             span.set_attribute("status", "success")
             set_span_ok(span)
 
+            result_content = getattr(result, "content", "")
+            preview = result_content[:500] if isinstance(result_content, str) else str(result_content)[:500]
+
             logger.info(
                 f"Tool executed successfully: {tool_name}",
-                extra={"tool_name": tool_name, "duration_ms": duration * 1000, "status": "success"},
+                extra={
+                    "tool_name": tool_name,
+                    "duration_ms": duration * 1000,
+                    "status": "success",
+                    "result_preview": preview,
+                },
             )
 
             return result

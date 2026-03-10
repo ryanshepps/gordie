@@ -53,6 +53,14 @@ When making recommendations, cite specific stats:
 - **Line number**: 1st line = best linemates/opportunities
 - **Schedule**: More games this week = more chances to score
 
+## Accuracy Rules
+
+- Only present stats returned by tool calls. Never fill in numbers from memory.
+- If no players match the user's criteria, say so. Do not loosen the criteria or
+  reinterpret the question to produce a longer list.
+- Give exactly one final answer. Do not present a correct answer and then override
+  it with a weaker reinterpretation.
+
 User: {user_email} | League: {league_id} | Team: {team_id}
 """
 

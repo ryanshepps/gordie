@@ -31,8 +31,11 @@ def create_subagent(
     response_format: type[BaseModel] | None = None,
 ) -> Any:
     """Create a sub-agent with standard configuration."""
+    llm = ChatOpenAI(model=model, temperature=temperature).bind(
+        parallel_tool_calls=False,
+    )
     agent_kwargs: dict[str, Any] = {
-        "model": ChatOpenAI(model=model, temperature=temperature),
+        "model": llm,
         "tools": tools,
         "middleware": [StateLoggingMiddleware(name), handle_tool_errors],
         "system_prompt": SystemMessage(content=system_prompt),
