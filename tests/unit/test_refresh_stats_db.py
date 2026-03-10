@@ -1,5 +1,6 @@
 """Tests for the refresh_stats_db job."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 import duckdb
@@ -16,15 +17,14 @@ def isolate_db(tmp_path, monkeypatch):
     return test_db_path
 
 
-def _noop_load_table(conn: duckdb.DuckDBPyConnection, table_type: str) -> None:
-    conn.execute(f"CREATE OR REPLACE TABLE {table_type} (name VARCHAR, season INTEGER)")
-    conn.execute(f"INSERT INTO {table_type} VALUES ('Test Player', 2025)")
+def _fake_download_csv(url: str, dest: Path) -> None:
+    dest.write_text("name,team,season\nTest Player,TST,2025\n")
 
 
 class TestRefreshStatsDb:
     def test_successful_refresh_creates_db_and_resets_connection(self, isolate_db):
         with (
-            patch("scheduled.refresh_stats_db._load_table", side_effect=_noop_load_table),
+            patch("scheduled.refresh_stats_db._download_csv", side_effect=_fake_download_csv),
             patch("scheduled.refresh_stats_db.reset_stats_connection") as mock_reset,
         ):
             refresh_stats_db()
@@ -33,7 +33,7 @@ class TestRefreshStatsDb:
         mock_reset.assert_called_once()
 
         conn = duckdb.connect(str(isolate_db), read_only=True)
-        result = conn.execute("SELECT name FROM skaters").fetchone()
+        result = conn.execute("SELECT name FROM skaters LIMIT 1").fetchone()
         conn.close()
         assert result is not None
         assert result[0] == "Test Player"
@@ -43,7 +43,7 @@ class TestRefreshStatsDb:
 
         with (
             patch(
-                "scheduled.refresh_stats_db._load_table",
+                "scheduled.refresh_stats_db._download_csv",
                 side_effect=Exception("download failed"),
             ),
             pytest.raises(Exception, match="download failed"),
@@ -54,7 +54,7 @@ class TestRefreshStatsDb:
 
     def test_metrics_incremented_on_success(self, isolate_db):
         with (
-            patch("scheduled.refresh_stats_db._load_table", side_effect=_noop_load_table),
+            patch("scheduled.refresh_stats_db._download_csv", side_effect=_fake_download_csv),
             patch("scheduled.refresh_stats_db.stats_db_refresh_total") as mock_counter,
             patch("scheduled.refresh_stats_db.stats_db_last_refresh_timestamp") as mock_gauge,
             patch("scheduled.refresh_stats_db.reset_stats_connection"),
@@ -68,7 +68,7 @@ class TestRefreshStatsDb:
     def test_metrics_incremented_on_error(self, isolate_db):
         with (
             patch(
-                "scheduled.refresh_stats_db._load_table",
+                "scheduled.refresh_stats_db._download_csv",
                 side_effect=Exception("fail"),
             ),
             patch("scheduled.refresh_stats_db.stats_db_refresh_total") as mock_counter,

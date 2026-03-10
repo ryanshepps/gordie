@@ -1,10 +1,12 @@
 """Refresh the DuckDB stats database from MoneyPuck CSV data."""
 
+import os
 import tempfile
 import time
 from pathlib import Path
 
 import duckdb
+import requests
 
 from module.logger import get_logger
 from module.metrics import stats_db_last_refresh_timestamp, stats_db_refresh_total
@@ -14,6 +16,7 @@ from tools.stats.duckdb_schema import DB_PATH, MONEYPUCK_BASE_URL, SEASONS
 logger = get_logger(__name__)
 
 TABLE_TYPES = ["skaters", "goalies", "teams"]
+REQUEST_HEADERS = {"User-Agent": "fantasy-agent/1.0"}
 
 
 def _csv_url(table_type: str, season: int) -> str:
@@ -21,11 +24,18 @@ def _csv_url(table_type: str, season: int) -> str:
     return f"{MONEYPUCK_BASE_URL}/{season}/regular/{suffix}.csv"
 
 
-def _load_table(conn: duckdb.DuckDBPyConnection, table_type: str) -> None:
-    urls = [_csv_url(table_type, season) for season in SEASONS]
+def _download_csv(url: str, dest: Path) -> None:
+    response = requests.get(url, headers=REQUEST_HEADERS, timeout=60)
+    response.raise_for_status()
+    dest.write_bytes(response.content)
+
+
+def _load_table(
+    conn: duckdb.DuckDBPyConnection, table_type: str, csv_dir: Path
+) -> None:
+    csv_files = sorted(csv_dir.glob(f"{table_type}_*.csv"))
     union_query = " UNION ALL BY NAME ".join(
-        f"SELECT *, {season} as season FROM read_csv_auto('{url}')"
-        for season, url in zip(SEASONS, urls, strict=True)
+        f"SELECT * FROM read_csv_auto('{csv_file}')" for csv_file in csv_files
     )
     conn.execute(f"CREATE OR REPLACE TABLE {table_type} AS ({union_query})")
     count = conn.execute(f"SELECT COUNT(*) FROM {table_type}").fetchone()
@@ -40,18 +50,25 @@ def refresh_stats_db() -> None:
     tmp_path = Path(tmp_path_str)
 
     try:
-        import os
-
         os.close(fd)
         tmp_path.unlink()
 
-        conn = duckdb.connect(str(tmp_path))
-        try:
-            conn.execute("INSTALL httpfs; LOAD httpfs;")
+        with tempfile.TemporaryDirectory() as csv_dir_str:
+            csv_dir = Path(csv_dir_str)
+
             for table_type in TABLE_TYPES:
-                _load_table(conn, table_type)
-        finally:
-            conn.close()
+                for season in SEASONS:
+                    url = _csv_url(table_type, season)
+                    dest = csv_dir / f"{table_type}_{season}.csv"
+                    logger.info(f"Downloading {url}")
+                    _download_csv(url, dest)
+
+            conn = duckdb.connect(str(tmp_path))
+            try:
+                for table_type in TABLE_TYPES:
+                    _load_table(conn, table_type, csv_dir)
+            finally:
+                conn.close()
 
         tmp_path.replace(DB_PATH)
         logger.info(f"Stats database refreshed at {DB_PATH}")
