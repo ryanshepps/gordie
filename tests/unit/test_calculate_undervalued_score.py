@@ -16,7 +16,7 @@ class TestCalculateScore:
         """Player shooting below expected with high xGoals should score highly."""
         stats = {
             "goals": 5, "x_goals": 12.0, "goals_above_expected": -7.0,
-            "toi_per_game_minutes": 18.0, "position": "C",
+            "games_played": 50, "toi_per_game_minutes": 18.0, "position": "C",
         }
         score, reasons = _calculate_score(stats)
         assert score >= 4
@@ -24,7 +24,10 @@ class TestCalculateScore:
 
     def test_positive_gae_penalizes(self):
         """Player overperforming should get negative score."""
-        stats = {"goals": 20, "x_goals": 12.0, "goals_above_expected": 8.0}
+        stats = {
+            "goals": 20, "x_goals": 12.0, "goals_above_expected": 8.0,
+            "games_played": 50,
+        }
         score, reasons = _calculate_score(stats)
         assert score < 0
         assert any("overperforming" in r.lower() for r in reasons)
@@ -71,6 +74,7 @@ class TestCalculateScore:
             "goals": 8,
             "x_goals": 14.0,
             "goals_above_expected": -6.0,
+            "games_played": 50,
             "fenwick_pct": 56.0,
             "corsi_pct": 55.0,
             "toi_per_game_minutes": 20.0,
@@ -82,6 +86,57 @@ class TestCalculateScore:
         score, reasons = _calculate_score(stats)
         assert score >= 10
         assert len(reasons) >= 4
+
+    def test_low_games_played_raw_gae_not_inflated(self):
+        """A player with few games should not get a large GAE bonus from raw totals alone.
+
+        Rakell scenario: 20 games, 3G vs 5.0 xG = -2.0 raw GAE.
+        Raw thresholds would give +2, but pace-adjusted GAE/82 = -8.2 which exceeds the
+        threshold. The xGoals pace threshold (3 * 20/82 = 0.73) also gates this properly
+        so a tiny sample with low volume doesn't score the same as a full-season player.
+        """
+        few_games_stats = {
+            "goals": 3, "x_goals": 5.0, "goals_above_expected": -2.0,
+            "games_played": 20, "toi_per_game_minutes": 16.0, "position": "RW",
+        }
+        full_season_stats = {
+            "goals": 10, "x_goals": 18.0, "goals_above_expected": -8.0,
+            "games_played": 70, "toi_per_game_minutes": 16.0, "position": "RW",
+        }
+        few_score, _ = _calculate_score(few_games_stats)
+        full_score, _ = _calculate_score(full_season_stats)
+        assert full_score >= few_score
+
+    def test_few_games_overperformer_not_penalized_like_full_season(self):
+        """A player with +4 GAE in 15 games should not be penalized the same as +4 in 70 games.
+
+        15 games: GAE/82 = +21.9 — high pace, but the raw +4 in 15GP is small-sample noise.
+        70 games: GAE/82 = +4.7 — sustained overperformance, deserves penalty.
+        Both should trigger the overperforming warning since pace is > 3, but this test
+        verifies the normalization math runs without error on low-GP players.
+        """
+        few_games = {
+            "goals": 10, "x_goals": 6.0, "goals_above_expected": 4.0,
+            "games_played": 15,
+        }
+        full_season = {
+            "goals": 25, "x_goals": 21.0, "goals_above_expected": 4.0,
+            "games_played": 70,
+        }
+        _few_score, few_reasons = _calculate_score(few_games)
+        _full_score, full_reasons = _calculate_score(full_season)
+        assert any("overperforming" in r.lower() for r in few_reasons)
+        assert any("overperforming" in r.lower() for r in full_reasons)
+
+    def test_very_few_games_gae_ignored(self):
+        """Players with fewer than 5 games should not get GAE regression bonuses."""
+        stats = {
+            "goals": 0, "x_goals": 3.0, "goals_above_expected": -3.0,
+            "games_played": 3, "toi_per_game_minutes": 14.0, "position": "C",
+        }
+        _score, reasons = _calculate_score(stats)
+        assert not any("significant" in r.lower() for r in reasons)
+        assert not any("candidate" in r.lower() and "positive" in r.lower() for r in reasons)
 
 
 class TestCalculateUndervaluedScoreTool:

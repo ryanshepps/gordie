@@ -88,4 +88,9 @@ SINGLE-SEASON STATS:
   per-season threshold pattern (WHERE + HAVING COUNT), not SUM.
 - Present only the data the query returns. If results are empty, say no players
   matched — never fill in numbers from memory.
+- When comparing players (drop/pickup/roster decisions), always include games_played
+  in your query. Raw season totals are misleading when players have different games
+  played — a player returning from injury or a recent call-up will have lower totals
+  but may be producing at a higher rate. Account for games played context when
+  interpreting stats and making recommendations.
 """

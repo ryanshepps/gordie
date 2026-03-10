@@ -118,24 +118,27 @@ def _calculate_score(stats: "Mapping[str, StatsValue]") -> tuple[float, list[str
     gae = _to_float(stats.get("goals_above_expected"))
     x_goals = _to_float(stats.get("x_goals"))
     goals = _to_int(stats.get("goals"))
+    games = _to_int(stats.get("games_played"))
 
-    if gae < -3 and x_goals > 5:
+    gae_per_82 = gae * (82 / games) if games >= 5 else 0.0
+
+    if games >= 5 and gae_per_82 < -3 and x_goals > (5 * games / 82):
         score += 4
         reasons.append(
-            f"Significant positive regression candidate: {goals}G vs {x_goals:.1f} xG (GAE: {gae:.1f})"
+            f"Significant positive regression candidate: {goals}G vs {x_goals:.1f} xG in {games}GP (GAE/82: {gae_per_82:.1f})"
         )
-    elif gae < -1.5 and x_goals > 3:
+    elif games >= 5 and gae_per_82 < -1.5 and x_goals > (3 * games / 82):
         score += 2
         reasons.append(
-            f"Positive regression candidate: {goals}G vs {x_goals:.1f} xG (GAE: {gae:.1f})"
+            f"Positive regression candidate: {goals}G vs {x_goals:.1f} xG in {games}GP (GAE/82: {gae_per_82:.1f})"
         )
     elif gae < 0:
         score += 0.5
         reasons.append(f"Slight positive regression possible: {goals}G vs {x_goals:.1f} xG")
-    elif gae > 3:
+    elif games >= 5 and gae_per_82 > 3:
         score -= 2
         reasons.append(
-            f"WARNING: Overperforming, likely to regress DOWN: {goals}G vs {x_goals:.1f} xG (GAE: +{gae:.1f})"
+            f"WARNING: Overperforming, likely to regress DOWN: {goals}G vs {x_goals:.1f} xG in {games}GP (GAE/82: +{gae_per_82:.1f})"
         )
 
     fenwick = _to_float(stats.get("fenwick_pct"), 50.0)
