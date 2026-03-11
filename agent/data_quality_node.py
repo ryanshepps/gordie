@@ -7,7 +7,7 @@ found (or the retry limit is reached), it passes through to voice_rewrite.
 
 from typing import Literal
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 
@@ -120,7 +120,7 @@ def data_quality_node(
             return Command(goto="voice_rewrite", update=state)
 
         logger.info(f"Data quality issue found, routing back to supervisor: {feedback}")
-        feedback_msg = HumanMessage(
+        feedback_msg = SystemMessage(
             content=(
                 f"[DATA QUALITY REVIEWER] Your previous response has a data quality "
                 f"issue. Please redo your analysis with this feedback:\n\n{feedback}"

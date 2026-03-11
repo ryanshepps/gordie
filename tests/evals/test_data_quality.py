@@ -3,7 +3,7 @@
 import uuid
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agent.agent_state import AgentState
 from agent.data_quality_node import data_quality_node
@@ -55,7 +55,7 @@ class TestDataQualityGamesPlayed:
         feedback_messages = [
             m
             for m in update.get("messages", [])
-            if isinstance(m, HumanMessage) and "DATA QUALITY" in m.content
+            if isinstance(m, SystemMessage) and "DATA QUALITY" in m.content
         ]
         assert len(feedback_messages) == 1
         assert update.get("data_quality_retries") == 1
