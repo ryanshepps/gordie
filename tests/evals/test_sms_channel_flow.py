@@ -12,8 +12,9 @@ from typing import Any, cast
 import pytest
 from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 
-from agent.SupervisorAgent import supervisor_node
+from agent.graph_builder import agent
 from tests.evals.conftest import retry_on_rate_limit
 
 MARKDOWN_PATTERNS = (
@@ -23,6 +24,12 @@ MARKDOWN_PATTERNS = (
     re.compile(r"\|\s"),
 )
 SMS_MAX_LENGTH = 800
+
+
+def _invoke_graph(state: dict[str, Any]) -> str:
+    config = cast(RunnableConfig, cast(object, {"configurable": {"thread_id": state.get("thread_id", "test")}}))
+    result = agent.invoke(cast(Any, state), config)
+    return str(result.get("response", ""))
 
 
 @pytest.fixture
@@ -84,10 +91,7 @@ class TestSmsMessageQuality:
         self, sms_user_state, mock_yahoo_tools, user_message
     ):
         sms_user_state["messages"] = [HumanMessage(content=user_message)]
-        result = supervisor_node(sms_user_state)
-
-        update = result.update or {}
-        response = update.get("response", "")
+        response = _invoke_graph(sms_user_state)
 
         assert response, "SMS agent produced no response"
 
@@ -136,16 +140,12 @@ class TestSmsVsEmailConsistency:
         question = "Should I trade away Draisaitl? What should I target?"
 
         sms_user_state["messages"] = [HumanMessage(content=question)]
-        sms_result = supervisor_node(sms_user_state)
-        sms_update = sms_result.update or {}
-        sms_response = cast(dict[str, Any], sms_update).get("response", "")
+        sms_response = _invoke_graph(sms_user_state)
 
         assert sms_response, "SMS agent produced no output"
 
         email_user_state["messages"] = [HumanMessage(content=question)]
-        email_result = supervisor_node(email_user_state)
-        email_update = email_result.update or {}
-        email_response = cast(dict[str, Any], email_update).get("response", "")
+        email_response = _invoke_graph(email_user_state)
 
         assert email_response, "Email agent produced no output"
 

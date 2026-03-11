@@ -1,7 +1,6 @@
 from agent.context_validator import ValidationResult
+from agent.prompts.analyst_identity import ANALYST_IDENTITY
 from agent.prompts.channel_guidelines import get_channel_guidelines
-from agent.prompts.persona import PERSONA
-from agent.prompts.phrasebook import PHRASEBOOK
 from agent.prompts.rules import RULES
 
 
@@ -17,4 +16,4 @@ def assemble_system_prompt(
         context_parts.append(f"Team ID: {validation_result.team_id}")
     context_section = "\n".join(context_parts)
 
-    return f"{PERSONA}\n{PHRASEBOOK}\n{RULES}\n{channel_guidelines}\n\n{context_section}"
+    return f"{ANALYST_IDENTITY}\n{RULES}\n{channel_guidelines}\n\n{context_section}"
