@@ -30,12 +30,12 @@ class TestResponseNodeSmsDispatch:
         }
 
         with (
-            patch("agent.response_node._send_sms") as mock_sms,
+            patch("agent.response_node.send_sms_response") as mock_sms,
             patch("agent.response_node._store_conversation_memory"),
         ):
             result = response_node(state)
 
-        mock_sms.assert_called_once_with("+15551234567", "Go with Matthews tonight.")
+        mock_sms.assert_called_once_with(state, "Go with Matthews tonight.")
         assert result.goto == "__end__"
 
     def test_logs_warning_when_no_ai_message(self):
@@ -52,7 +52,7 @@ class TestResponseNodeSmsDispatch:
         }
 
         with (
-            patch("agent.response_node._send_sms") as mock_sms,
+            patch("agent.response_node.send_sms_response") as mock_sms,
             patch("agent.response_node._store_conversation_memory"),
         ):
             result = response_node(state)
