@@ -1,6 +1,7 @@
 """Tool to get a player's current season rank in a fantasy hockey league."""
 
 import json
+from urllib.parse import quote
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
@@ -105,7 +106,8 @@ def get_player_season_rank(
 
         # Search for the player by name, sorted by actual rank (fantasy points)
         # We fetch more players to ensure we can find the player's true rank
-        url = f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_key}/players;search={player_name};sort=AR;count=25"
+        encoded_name = quote(player_name, safe="")
+        url = f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_key}/players;search={encoded_name};sort=AR;count=25"
 
         logger.info(f"Searching for player rank: {player_name}")
 

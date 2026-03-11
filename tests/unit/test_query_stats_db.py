@@ -54,9 +54,16 @@ class TestQueryStatsDb:
         assert parsed["results"][0]["name"] == "Connor McDavid"
         assert parsed["results"][0]["goals"] == 35
 
-    def test_invalid_sql_raises(self, mock_connection):
-        with pytest.raises(duckdb.Error):
-            query_stats_db.invoke({"sql": "SELECT nonexistent FROM skaters", "situation": "all"})
+    def test_column_not_found_returns_available_columns(self, mock_connection):
+        result = query_stats_db.invoke(
+            {"sql": "SELECT nonexistent FROM skaters", "situation": "all"}
+        )
+        parsed = json.loads(result)
+
+        assert "error" in parsed
+        assert "available_columns" in parsed
+        assert "name" in parsed["available_columns"]
+        assert "goals" in parsed["available_columns"]
 
     def test_truncation_at_max_rows(self, mock_connection):
         values = ", ".join(f"('Player{i}', 'TST', {i}, 'all')" for i in range(MAX_ROWS + 10))

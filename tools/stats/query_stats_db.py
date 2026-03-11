@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from module.logger import get_logger
 from tools.stats.duckdb_connection import get_stats_connection
-from tools.stats.duckdb_schema import TOOL_DESCRIPTION
+from tools.stats.duckdb_schema import TABLES, TOOL_DESCRIPTION
 
 logger = get_logger(__name__)
 
@@ -69,5 +69,17 @@ def query_stats_db(sql: str, situation: Situation) -> str:
 
     except FileNotFoundError:
         raise
+    except duckdb.BinderException as exc:
+        conn = get_stats_connection()
+        referenced = [t for t in TABLES if t in sql.lower()]
+        schema_hints: list[str] = []
+        for table in referenced:
+            cols = [row[0] for row in conn.execute(f"DESCRIBE {table}").fetchall()]
+            schema_hints.append(f"{table} columns: {', '.join(cols)}")
+        hint = "\n".join(schema_hints)
+        return json.dumps({
+            "error": str(exc),
+            "available_columns": hint,
+        })
     except duckdb.Error:
         raise

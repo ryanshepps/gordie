@@ -2,6 +2,7 @@
 
 import json
 from typing import Any
+from urllib.parse import quote
 
 from langchain.tools import tool
 
@@ -154,9 +155,10 @@ def get_player_yahoo_info(
 
         for player_name in player_names:
             # Search for player by name
+            encoded_name = quote(player_name, safe="")
             url = (
                 f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_key}/players;"
-                f"search={player_name};sort=AR;count=5"
+                f"search={encoded_name};sort=AR;count=5"
             )
 
             logger.info(f"Looking up Yahoo info for: {player_name}")

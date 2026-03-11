@@ -5,47 +5,17 @@ from pathlib import Path
 MONEYPUCK_BASE_URL = "https://moneypuck.com/moneypuck/playerData/seasonSummary"
 SEASONS = list(range(2020, 2026))
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "moneypuck_stats.duckdb"
+TABLES = ["skaters", "goalies", "teams"]
 
-SKATER_COLUMNS = [
-    "playerId",
-    "season",
-    "name",
-    "team",
-    "position",
-    "situation",
-    "games_played",
-    "icetime",
-    "I_F_goals",
-    "I_F_primaryAssists",
-    "I_F_secondaryAssists",
-    "I_F_points",
-    "I_F_shotsOnGoal",
-    "I_F_xGoals",
-    "I_F_hits",
-    "I_F_takeaways",
-    "I_F_highDangerShots",
-    "I_F_highDangerxGoals",
-    "onIce_corsiPercentage",
-    "onIce_fenwickPercentage",
-    "OnIce_F_xGoals",
-    "OnIce_A_xGoals",
-]
-
-TOOL_DESCRIPTION = """\
+TOOL_DESCRIPTION = f"""\
 Query MoneyPuck NHL statistics stored in a local DuckDB database using SQL.
 
-Available tables: skaters, goalies, teams
-Seasons available: 2020-2025
+Available tables: {', '.join(TABLES)}
+Seasons available: {SEASONS[0]}-{SEASONS[-1]}
 
-Key skater columns:
-  playerId, season, name, team, position, situation,
-  games_played, icetime,
-  I_F_goals, I_F_primaryAssists, I_F_secondaryAssists, I_F_points,
-  I_F_shotsOnGoal, I_F_xGoals,
-  I_F_hits, I_F_takeaways,
-  I_F_highDangerShots, I_F_highDangerxGoals,
-  onIce_corsiPercentage, onIce_fenwickPercentage,
-  OnIce_F_xGoals, OnIce_A_xGoals
+IMPORTANT: Each table has a DIFFERENT schema. Do NOT assume columns from one
+table exist on another. If your query fails with a column-not-found error,
+the error message will include the valid columns — use those to fix your query.
 
 ## Data model
 
