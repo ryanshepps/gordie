@@ -84,7 +84,7 @@ def _add_error_response(state: AgentState, error_message: str) -> None:
 
 def _invoke_billing_response(
     state: AgentState, user_email: str, billing_context: str
-) -> Command[Literal["voice_rewrite", "response", "__end__"]]:
+) -> Command[Literal["data_quality", "response", "__end__"]]:
     """Handle billing-limited requests by letting Gordie respond with upgrade info."""
     try:
         channel = state.get("channel", "email")
@@ -107,7 +107,7 @@ def _invoke_billing_response(
         ai_msg = AIMessage(content=response_content)
         state["messages"] = [*list(state.get("messages", [])), ai_msg]
 
-        return Command(goto="voice_rewrite", update=state)
+        return Command(goto="data_quality", update=state)
     except Exception as e:
         logger.error(f"Error in billing response: {e}", exc_info=True)
         _add_error_response(
@@ -118,7 +118,7 @@ def _invoke_billing_response(
 
 def _invoke_supervisor(
     state: AgentState, user_email: str
-) -> Command[Literal["voice_rewrite", "response", "__end__"]]:
+) -> Command[Literal["data_quality", "response", "__end__"]]:
     """Invoke the supervisor agent and return the appropriate command."""
     try:
         validation_result = _validate(state)
@@ -151,7 +151,7 @@ def _invoke_supervisor(
                     state["response"] = response_content
                     state["messages"] = result_messages
                     logger.info(f"Supervisor response: {response_content[:200]}...")
-                    return Command(goto="voice_rewrite", update=state)
+                    return Command(goto="data_quality", update=state)
 
         _add_error_response(state, "I couldn't process your request. Could you please rephrase?")
         return Command(goto="response", update=state)
@@ -166,7 +166,7 @@ def _invoke_supervisor(
 
 def supervisor_node(
     state: AgentState,
-) -> Command[Literal["voice_rewrite", "response", "__end__"]]:
+) -> Command[Literal["data_quality", "response", "__end__"]]:
     """Supervisor node that routes user requests to appropriate sub-agents."""
     messages = state.get("messages", [])
     user_email = state.get("user_email") or ""
