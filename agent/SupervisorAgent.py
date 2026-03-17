@@ -14,6 +14,7 @@ from agent.checkpointer import checkpointer
 from agent.context_validator import ValidationResult, validate_context
 from agent.prompts.assemble import assemble_system_prompt
 from agent.subagents.available import available_players
+from agent.subagents.statistician import statistician
 from agent.subagents.trade import trade
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
@@ -48,6 +49,7 @@ def create_supervisor_agent(system_prompt: str):
     tools = [
         trade,
         available_players,
+        statistician,
         query_stats_db,
         onboard_user_team,
         search_past_conversations,

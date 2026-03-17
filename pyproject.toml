@@ -29,6 +29,8 @@ dependencies = [
     "logfire>=3.0.0",
     "opentelemetry-instrumentation-asgi>=0.45b0",
     "duckdb>=1.0.0",
+    "scipy>=1.14.0",
+    "numpy>=2.0.0",
 ]
 
 [tool.ruff]

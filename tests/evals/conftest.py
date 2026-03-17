@@ -199,6 +199,10 @@ def mock_yahoo_tools(
         "tools.available.search_available_players",
         "tools.yahoo.onboard_user_team",
         "tools.yahoo.get_user_leagues",
+        "tools.yahoo_stats.yahoo_scoring",
+        "tools.yahoo_stats.yahoo_roster",
+        "tools.yahoo_stats.yahoo_player",
+        "tools.yahoo_stats.yahoo_league",
     ]
 
     for module in yahoo_tool_modules:
