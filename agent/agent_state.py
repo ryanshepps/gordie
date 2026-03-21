@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
+from agent.response_models import TradeResponse
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,14 +35,14 @@ class AgentState(_AgentStateRequired, total=False):
 
     # Optional fields from langchain's AgentState
     jump_to: JumpTo | None  # Used by middleware for flow control
-    structured_response: Any  # Used by middleware for structured output
+    structured_response: TradeResponse
     # Custom fields
     user_email: str
     league_id: str | None
     team_id: str | None
     thread_id: str
     user_teams: list[dict[str, str]]  # List of all user's teams
-    channel: str  # "email" or "sms"
+    channel: str  # "email", "sms", or "cli"
     response: str | None
     route_to: str | None  # Target agent for routing (e.g., "onboarding")
     # Flow tracking fields
