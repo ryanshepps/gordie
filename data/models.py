@@ -10,7 +10,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
     func,
@@ -170,34 +169,6 @@ class ProcessedEmail(Base):
     message_id: Mapped[str] = mapped_column(String, primary_key=True)
     sender_email: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class NhlPlayerGameStats(Base):
-    __tablename__ = "nhl_player_game_stats"
-
-    nhl_api_player_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    nhl_api_game_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    game_date: Mapped[str] = mapped_column(String, nullable=False)
-    full_name: Mapped[str | None] = mapped_column(String)
-    first_name: Mapped[str | None] = mapped_column(String)
-    last_name: Mapped[str | None] = mapped_column(String)
-    goals: Mapped[int | None] = mapped_column(Integer)
-    assists: Mapped[int | None] = mapped_column(Integer)
-    points: Mapped[int | None] = mapped_column(Integer)
-    plus_minus: Mapped[int | None] = mapped_column(Integer)
-    pim: Mapped[int | None] = mapped_column(Integer)
-    hits: Mapped[int | None] = mapped_column(Integer)
-    power_play_goals: Mapped[int | None] = mapped_column(Integer)
-    sog: Mapped[int | None] = mapped_column(Integer)
-    faceoff_winning_pctg: Mapped[float | None] = mapped_column(Numeric(5, 2))
-    toi: Mapped[str | None] = mapped_column(String)
-    blocked_shots: Mapped[int | None] = mapped_column(Integer)
-    shifts: Mapped[int | None] = mapped_column(Integer)
-    giveaways: Mapped[int | None] = mapped_column(Integer)
-    takeaways: Mapped[int | None] = mapped_column(Integer)
-    corsi_for: Mapped[int | None] = mapped_column(Integer)
-    fenwick_for: Mapped[int | None] = mapped_column(Integer)
-    missed_shots: Mapped[int | None] = mapped_column(Integer)
 
 
 class UserSubscription(Base):
