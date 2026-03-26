@@ -67,7 +67,8 @@ class YahooUserTeamRepository(Repository):
                     yut.team_id,
                     yut.team_name,
                     yl.game_key,
-                    yl.league_name
+                    yl.league_name,
+                    yl.league_type
                 FROM yahoo_user_teams yut
                 JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
                 WHERE yut.user_email = :user_email
@@ -83,6 +84,7 @@ class YahooUserTeamRepository(Repository):
                 "team_name": str(row[2]),
                 "game_key": str(row[3]),
                 "league_name": str(row[4]),
+                "sport": str(row[5]),
             }
             for row in result
         ]

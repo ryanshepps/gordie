@@ -23,10 +23,18 @@ def _fetch_onboarded_teams(user_email: str) -> list[dict[str, str]]:
         repo.close()
 
 
+VALID_SPORTS: set[Sport] = {"nhl", "mlb", "nfl", "nba"}
+
+
 def _infer_sport(user_teams: list[dict[str, str]], league_id: str) -> Sport:
     for team in user_teams:
         if team.get("league_id") == league_id:
+            sport = team.get("sport", "nhl")
+            if sport in VALID_SPORTS:
+                return sport  # type: ignore[return-value]
+            logger.warning(f"Unknown sport '{sport}' for league {league_id}, defaulting to nhl")
             return "nhl"
+    logger.warning(f"No team found for league_id={league_id}, defaulting to nhl")
     return "nhl"
 
 

@@ -15,7 +15,7 @@ ContextStatus = Literal[
     "error",
 ]
 
-Sport = Literal["nhl"]
+Sport = Literal["nhl", "mlb", "nfl", "nba"]
 
 
 class ContextResult(TypedDict, total=False):

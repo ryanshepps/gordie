@@ -109,7 +109,7 @@ class TestValidated:
     def test_validated_context_returns_league_and_team(
         self, _mock_oauth, mock_fetch, _mock_resolve
     ):
-        teams = [{"league_id": "123", "team_id": "456", "game_key": "465"}]
+        teams = [{"league_id": "123", "team_id": "456", "game_key": "465", "sport": "nhl"}]
         mock_fetch.return_value = teams
         state = _make_state()
 
@@ -118,4 +118,34 @@ class TestValidated:
         assert result["context_status"] == "validated"
         assert result.get("league_id") == "123"
         assert result.get("team_id") == "456"
+        assert result.get("sport") == "nhl"
+
+    @patch("agent.context_node.resolve_team_context", return_value=("789", "101"))
+    @patch("agent.context_node._fetch_onboarded_teams")
+    @patch("agent.context_node.check_oauth_status", return_value=True)
+    def test_infers_sport_from_team_data(
+        self, _mock_oauth, mock_fetch, _mock_resolve
+    ):
+        teams = [{"league_id": "789", "team_id": "101", "game_key": "450", "sport": "mlb"}]
+        mock_fetch.return_value = teams
+        state = _make_state()
+
+        result = context_node(state)
+
+        assert result["context_status"] == "validated"
+        assert result.get("sport") == "mlb"
+
+    @patch("agent.context_node.resolve_team_context", return_value=("111", "222"))
+    @patch("agent.context_node._fetch_onboarded_teams")
+    @patch("agent.context_node.check_oauth_status", return_value=True)
+    def test_unknown_sport_falls_back_to_nhl(
+        self, _mock_oauth, mock_fetch, _mock_resolve
+    ):
+        teams = [{"league_id": "111", "team_id": "222", "game_key": "999", "sport": "curling"}]
+        mock_fetch.return_value = teams
+        state = _make_state()
+
+        result = context_node(state)
+
+        assert result["context_status"] == "validated"
         assert result.get("sport") == "nhl"
