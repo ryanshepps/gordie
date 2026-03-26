@@ -49,9 +49,8 @@ def _deserialize_from_storage(data: Any, serde: SerializerProtocol) -> Any:
             try:
                 bytes_data = base64.b64decode(b64_data)
                 return serde.loads_typed((format_type, bytes_data))
-            except Exception:
-                # If deserialization fails, return as-is
-                pass
+            except (ValueError, TypeError) as exc:
+                logger.warning("Checkpoint deserialization failed, returning raw data: %s", exc)
     return data
 
 
