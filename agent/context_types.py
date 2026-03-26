@@ -21,6 +21,7 @@ Sport = Literal["nhl", "mlb", "nfl", "nba"]
 class ContextResult(TypedDict, total=False):
     context_status: Required[ContextStatus]
     sport: Sport
+    sport_inferred_at: str
     league_id: str
     team_id: str
     oauth_url: str

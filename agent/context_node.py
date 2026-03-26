@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 from agent.agent_state import AgentState
 from agent.context_resolvers import (
@@ -9,6 +10,7 @@ from agent.context_resolvers import (
     resolve_team_context,
 )
 from agent.context_types import ContextResult, Sport
+from agent.sport_inference import infer_sport
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from tools.oauth.generate_oauth_link import generate_oauth_link
 
@@ -24,6 +26,16 @@ def _fetch_onboarded_teams(user_email: str) -> list[dict[str, str]]:
 
 
 VALID_SPORTS: set[Sport] = {"nhl", "mlb", "nfl", "nba"}
+
+
+def _extract_last_human_message(state: AgentState) -> str:
+    messages = state.get("messages", [])
+    for msg in reversed(messages):
+        if hasattr(msg, "type") and msg.type == "human":
+            return str(msg.content)
+        if isinstance(msg, dict) and msg.get("type") == "human":
+            return str(msg.get("content", ""))
+    return ""
 
 
 def _infer_sport(user_teams: list[dict[str, str]], league_id: str) -> Sport:
@@ -93,16 +105,37 @@ def context_node(state: AgentState) -> ContextResult:
         return _handle_no_teams(user_email)
 
     league_id, team_id = resolve_team_context(state, onboarded_teams)
-    if not league_id or not team_id:
+    if league_id and team_id:
+        sport = _infer_sport(onboarded_teams, league_id)
         return ContextResult(
-            context_status="team_ambiguous",
-            available_teams=onboarded_teams,
+            context_status="validated",
+            league_id=league_id,
+            team_id=team_id,
+            sport=sport,
+            sport_inferred_at=datetime.now(UTC).isoformat(),
         )
 
-    sport = _infer_sport(onboarded_teams, league_id)
+    message_text = _extract_last_human_message(state)
+    inferred_sport = infer_sport(
+        message_text=message_text,
+        user_teams=onboarded_teams,
+        current_sport=state.get("sport"),
+        sport_inferred_at=state.get("sport_inferred_at"),
+    )
+
+    if inferred_sport:
+        sport_teams = [t for t in onboarded_teams if t.get("sport") == inferred_sport]
+        if len(sport_teams) == 1:
+            team = sport_teams[0]
+            return ContextResult(
+                context_status="validated",
+                league_id=team["league_id"],
+                team_id=team["team_id"],
+                sport=inferred_sport,
+                sport_inferred_at=datetime.now(UTC).isoformat(),
+            )
+
     return ContextResult(
-        context_status="validated",
-        league_id=league_id,
-        team_id=team_id,
-        sport=sport,
+        context_status="team_ambiguous",
+        available_teams=onboarded_teams,
     )

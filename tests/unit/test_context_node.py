@@ -149,3 +149,74 @@ class TestValidated:
 
         assert result["context_status"] == "validated"
         assert result.get("sport") == "nhl"
+
+    @patch("agent.context_node.resolve_team_context", return_value=("123", "456"))
+    @patch("agent.context_node._fetch_onboarded_teams")
+    @patch("agent.context_node.check_oauth_status", return_value=True)
+    def test_validated_result_includes_sport_inferred_at(
+        self, _mock_oauth, mock_fetch, _mock_resolve
+    ):
+        teams = [{"league_id": "123", "team_id": "456", "game_key": "465", "sport": "nhl"}]
+        mock_fetch.return_value = teams
+        state = _make_state()
+
+        result = context_node(state)
+
+        assert result["context_status"] == "validated"
+        assert "sport_inferred_at" in result
+
+
+class TestSportInference:
+    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("agent.context_node._fetch_onboarded_teams")
+    @patch("agent.context_node.check_oauth_status", return_value=True)
+    def test_keyword_narrows_to_single_team(
+        self, _mock_oauth, mock_fetch, _mock_resolve
+    ):
+        teams = [
+            {"league_id": "1", "team_id": "10", "team_name": "A", "league_name": "L1", "sport": "nhl"},
+            {"league_id": "2", "team_id": "20", "team_name": "B", "league_name": "L2", "sport": "mlb"},
+        ]
+        mock_fetch.return_value = teams
+        state = _make_state(messages=[HumanMessage(content="how's my baseball team")])
+
+        result = context_node(state)
+
+        assert result["context_status"] == "validated"
+        assert result.get("sport") == "mlb"
+        assert result.get("league_id") == "2"
+        assert result.get("team_id") == "20"
+
+    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("agent.context_node._fetch_onboarded_teams")
+    @patch("agent.context_node.check_oauth_status", return_value=True)
+    def test_keyword_narrows_to_sport_but_multiple_teams_returns_ambiguous(
+        self, _mock_oauth, mock_fetch, _mock_resolve
+    ):
+        teams = [
+            {"league_id": "1", "team_id": "10", "team_name": "A", "league_name": "L1", "sport": "mlb"},
+            {"league_id": "2", "team_id": "20", "team_name": "B", "league_name": "L2", "sport": "mlb"},
+        ]
+        mock_fetch.return_value = teams
+        state = _make_state(messages=[HumanMessage(content="how's my baseball team")])
+
+        result = context_node(state)
+
+        assert result["context_status"] == "team_ambiguous"
+
+    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("agent.context_node._fetch_onboarded_teams")
+    @patch("agent.context_node.check_oauth_status", return_value=True)
+    def test_no_sport_signal_returns_ambiguous(
+        self, _mock_oauth, mock_fetch, _mock_resolve
+    ):
+        teams = [
+            {"league_id": "1", "team_id": "10", "team_name": "A", "league_name": "L1", "sport": "nhl"},
+            {"league_id": "2", "team_id": "20", "team_name": "B", "league_name": "L2", "sport": "mlb"},
+        ]
+        mock_fetch.return_value = teams
+        state = _make_state(messages=[HumanMessage(content="hello")])
+
+        result = context_node(state)
+
+        assert result["context_status"] == "team_ambiguous"

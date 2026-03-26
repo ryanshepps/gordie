@@ -61,3 +61,4 @@ class AgentState(_AgentStateRequired, total=False):
     original_message: str | None  # Original user message for quoting in replies
     billing_context: str | None  # Billing limit info injected into system prompt
     data_quality_retries: int  # Number of times data_quality has looped back to supervisor
+    sport_inferred_at: str | None

@@ -7,6 +7,9 @@ from agent.prompts.rules import RULES
 
 SPORT_DISPLAY_NAMES: dict[Sport, str] = {
     "nhl": "Hockey",
+    "mlb": "Baseball",
+    "nfl": "Football",
+    "nba": "Basketball",
 }
 
 
