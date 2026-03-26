@@ -73,7 +73,7 @@ def response_node(state: AgentState) -> Command[Literal["__end__"]]:
 
     if channel == "email":
         send_email_response(state, message_content)
-    else:
+    elif channel != "cli":
         logger.error(f"Unknown channel: {channel}")
 
     _store_conversation_memory(state, messages)
