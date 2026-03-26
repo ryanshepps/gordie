@@ -11,7 +11,7 @@ from data.repository import DatabaseRow, Repository
 class SubscriptionRepository(Repository):
     """Repository for managing user subscription records."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         super().__init__("user_subscriptions", session)
 
     def create_trialing_subscription(self, user_email: str) -> None:
@@ -109,7 +109,7 @@ class SubscriptionRepository(Repository):
 class UsageTrackingRepository(Repository):
     """Repository for tracking weekly question usage."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         super().__init__("usage_tracking", session)
 
     def get_weekly_usage(self, user_email: str, week_start: date) -> int:

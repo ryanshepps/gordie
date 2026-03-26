@@ -8,7 +8,7 @@ from data.repository import DatabaseRow, Repository
 class YahooLeagueRepository(Repository):
     """Repository for managing Yahoo league records."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         """Initialize Yahoo league repository.
 
         Args:

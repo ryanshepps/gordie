@@ -9,7 +9,7 @@ from data.repository import DatabaseRow, Repository
 class UserRepository(Repository):
     """Repository for managing user records."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         """Initialize user repository.
 
         Args:

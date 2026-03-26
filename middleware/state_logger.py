@@ -42,7 +42,7 @@ def _format_state(state: _BaseState) -> str:
 class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
     """Middleware that logs AgentState before and after model calls."""
 
-    def __init__(self, agent_name: str = "agent"):
+    def __init__(self, agent_name: str = "agent") -> None:
         """
         Initialize the middleware.
 

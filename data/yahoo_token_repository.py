@@ -10,7 +10,7 @@ from data.repository import DatabaseRow, Repository
 class YahooTokenRepository(Repository):
     """Repository for managing Yahoo OAuth token records."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         """Initialize Yahoo token repository.
 
         Args:

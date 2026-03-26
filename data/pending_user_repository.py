@@ -10,7 +10,7 @@ from data.repository import DatabaseRow, Repository
 class PendingUserRepository(Repository):
     """Repository for managing pending user records during SMS onboarding."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         super().__init__("pending_users", session)
 
     def add_pending_user(

@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class SmsThreadRepository:
     """Repository for managing SMS conversation threads."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         self._owns_session = session is None
         self.session = session or get_session()
 

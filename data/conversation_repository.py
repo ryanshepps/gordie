@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class ConversationRepository:
     """Repository for accessing conversation messages and checkpoints."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.session = get_session()
         self._pending_commits = 0
 

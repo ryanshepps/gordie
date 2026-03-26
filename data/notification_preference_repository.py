@@ -11,7 +11,7 @@ from data.repository import Repository
 class NotificationPreferenceRepository(Repository):
     """Repository for managing user notification preferences."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         """Initialize notification preference repository.
 
         Args:

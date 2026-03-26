@@ -138,7 +138,7 @@ def get_logger(
 class StderrToLogger:
     """Stream wrapper that redirects stderr writes to the logger."""
 
-    def __init__(self, logger: logging.Logger, log_level: int = logging.ERROR):
+    def __init__(self, logger: logging.Logger, log_level: int = logging.ERROR) -> None:
         self.logger = logger
         self.log_level = log_level
         self.buffer = ""

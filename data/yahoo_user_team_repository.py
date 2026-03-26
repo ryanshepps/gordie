@@ -9,7 +9,7 @@ from data.repository import DatabaseRow, Repository
 class YahooUserTeamRepository(Repository):
     """Repository for managing Yahoo user team records."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         """Initialize Yahoo user team repository.
 
         Args:

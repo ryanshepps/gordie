@@ -26,7 +26,7 @@ class SmsResult:
 class SmsService:
     """Service for sending SMS via Sinch REST API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.service_plan_id = os.getenv("SINCH_SERVICE_PLAN_ID")
         self.api_token = os.getenv("SINCH_API_TOKEN")
         self.from_number = os.getenv("SINCH_FROM_NUMBER")

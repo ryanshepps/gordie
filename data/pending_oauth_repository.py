@@ -11,7 +11,7 @@ from data.repository import DatabaseRow, Repository
 class PendingOAuthRepository(Repository):
     """Repository for managing pending OAuth flow records."""
 
-    def __init__(self, session: Session | None = None):
+    def __init__(self, session: Session | None = None) -> None:
         super().__init__("pending_oauth", session)
 
     def create(

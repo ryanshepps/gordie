@@ -28,7 +28,7 @@ class EmailResult:
 class EmailService:
     """Service for sending emails via Mailgun API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the EmailService with Mailgun credentials from environment.
 
