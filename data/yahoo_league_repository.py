@@ -1,10 +1,8 @@
 """Repository class for Yahoo league records."""
 
-from typing import Any
-
 from sqlalchemy.orm import Session
 
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class YahooLeagueRepository(Repository):
@@ -44,7 +42,7 @@ class YahooLeagueRepository(Repository):
             league_settings=league_settings,
         )
 
-    def get_league(self, league_id: str) -> tuple[Any, ...] | None:
+    def get_league(self, league_id: str) -> DatabaseRow | None:
         """Get a league by ID.
 
         Args:

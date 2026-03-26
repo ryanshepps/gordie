@@ -1,12 +1,10 @@
 """Repository class for Yahoo OAuth token records."""
 
-from typing import Any
-
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from data.database import get_session
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class YahooTokenRepository(Repository):
@@ -49,7 +47,7 @@ class YahooTokenRepository(Repository):
             token_type=token_type,
         )
 
-    def get_token(self, user_email: str) -> tuple[Any, ...] | None:
+    def get_token(self, user_email: str) -> DatabaseRow | None:
         """Get OAuth tokens for a user.
 
         Args:
@@ -61,7 +59,7 @@ class YahooTokenRepository(Repository):
         return self.get_by(user_email=user_email)
 
 
-def load_tokens_from_db(user_email: str) -> dict[str, Any] | None:
+def load_tokens_from_db(user_email: str) -> dict[str, str] | None:
     """
     Load OAuth tokens from database.
 
@@ -86,7 +84,7 @@ def load_tokens_from_db(user_email: str) -> dict[str, Any] | None:
         repo.close()
 
 
-def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, Any]) -> None:
+def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, str]) -> None:
     """Save OAuth tokens to database.
 
     Args:

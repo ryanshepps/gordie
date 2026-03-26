@@ -1,11 +1,9 @@
 """Repository class for user records."""
 
-from typing import Any
-
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class UserRepository(Repository):
@@ -36,7 +34,7 @@ class UserRepository(Repository):
         """
         self.insert(email=email, phone_number=phone_number)
 
-    def get_user(self, email: str) -> tuple[Any, ...] | None:
+    def get_user(self, email: str) -> DatabaseRow | None:
         """Get a user by email.
 
         Args:
@@ -47,7 +45,7 @@ class UserRepository(Repository):
         """
         return self.get_by(email=email)
 
-    def get_user_by_phone(self, phone_number: str) -> tuple[Any, ...] | None:
+    def get_user_by_phone(self, phone_number: str) -> DatabaseRow | None:
         """Get a user by phone number.
 
         Args:

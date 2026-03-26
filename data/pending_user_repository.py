@@ -1,11 +1,10 @@
 """Repository class for pending user records (pre-OAuth)."""
 
 import uuid
-from typing import Any
 
 from sqlalchemy.orm import Session
 
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class PendingUserRepository(Repository):
@@ -32,7 +31,7 @@ class PendingUserRepository(Repository):
         self.insert(id=pending_id, phone_number=phone_number, email=email)
         return pending_id
 
-    def get_pending_user_by_phone(self, phone_number: str) -> tuple[Any, ...] | None:
+    def get_pending_user_by_phone(self, phone_number: str) -> DatabaseRow | None:
         """Get a pending user by phone number.
 
         Args:
@@ -43,7 +42,7 @@ class PendingUserRepository(Repository):
         """
         return self.get_by(phone_number=phone_number)
 
-    def get_pending_user_by_email(self, email: str) -> tuple[Any, ...] | None:
+    def get_pending_user_by_email(self, email: str) -> DatabaseRow | None:
         """Get a pending user by email.
 
         Args:

@@ -1,12 +1,11 @@
 """Repository for user subscriptions and usage tracking."""
 
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class SubscriptionRepository(Repository):
@@ -25,7 +24,7 @@ class SubscriptionRepository(Repository):
             trial_ends_at=trial_ends_at.isoformat(),
         )
 
-    def get_subscription(self, user_email: str) -> tuple[Any, ...] | None:
+    def get_subscription(self, user_email: str) -> DatabaseRow | None:
         return self.get_by(user_email=user_email)
 
     def activate_subscription(
@@ -103,7 +102,7 @@ class SubscriptionRepository(Repository):
 
     def find_subscription_by_creem_id(
         self, creem_subscription_id: str
-    ) -> tuple[Any, ...] | None:
+    ) -> DatabaseRow | None:
         return self.get_by(creem_subscription_id=creem_subscription_id)
 
 

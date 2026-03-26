@@ -1,12 +1,11 @@
 """Repository class for pending OAuth flow records."""
 
 import uuid
-from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class PendingOAuthRepository(Repository):
@@ -46,7 +45,7 @@ class PendingOAuthRepository(Repository):
         )
         return pending_id
 
-    def get(self, pending_id: str) -> tuple[Any, ...] | None:
+    def get(self, pending_id: str) -> DatabaseRow | None:
         """Get a pending OAuth record by ID.
 
         Args:

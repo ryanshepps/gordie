@@ -1,11 +1,9 @@
 """Repository class for Yahoo user team records."""
 
-from typing import Any
-
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from data.repository import Repository
+from data.repository import DatabaseRow, Repository
 
 
 class YahooUserTeamRepository(Repository):
@@ -35,7 +33,7 @@ class YahooUserTeamRepository(Repository):
             team_name=team_name,
         )
 
-    def get_user_teams(self, user_email: str) -> list[tuple[Any, ...]]:
+    def get_user_teams(self, user_email: str) -> list[DatabaseRow]:
         """Get all teams for a user.
 
         Args:
@@ -89,7 +87,7 @@ class YahooUserTeamRepository(Repository):
             for row in result
         ]
 
-    def get_team(self, league_id: str, team_id: str) -> tuple[Any, ...] | None:
+    def get_team(self, league_id: str, team_id: str) -> DatabaseRow | None:
         """Get a specific team.
 
         Args:

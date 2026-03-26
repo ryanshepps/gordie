@@ -1,28 +1,26 @@
 """Generic repository base class for database operations."""
 
-from typing import Any, cast
+from datetime import datetime
 
 from sqlalchemy import text
+from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 
 from data.database import get_session
+
+FilterValue = str | int | float | bool | None | datetime
+DatabaseRow = Row[tuple[object, ...]]
 
 
 class Repository:
     """Base repository class for CRUD operations on any table."""
 
-    def __init__(self, table_name: str, session: Session | None = None):
-        """Initialize repository with table name and optional session.
-
-        Args:
-            table_name: Name of the table this repository manages
-            session: Optional SQLAlchemy session. If not provided, creates a new one.
-        """
+    def __init__(self, table_name: str, session: Session | None = None) -> None:
         self._owns_session = session is None
         self.session = session or get_session()
         self.table_name = table_name
 
-    def insert(self, **kwargs) -> None:
+    def insert(self, **kwargs: FilterValue) -> None:
         """Insert a record with any number of fields.
 
         Args:
@@ -40,65 +38,26 @@ class Repository:
         )
         self.session.commit()
 
-    def get_by(self, **filters: Any) -> tuple[Any, ...] | None:
-        """Get a single record by filter conditions.
-
-        Args:
-            **filters: Column names and values to filter by
-
-        Returns:
-            First matching record or None
-
-        Example:
-            repo.get_by(email='user@example.com')
-        """
+    def get_by(self, **filters: FilterValue) -> DatabaseRow | None:
         where_clause = " AND ".join([f"{k} = :{k}" for k in filters])
 
-        result = self.session.execute(
+        return self.session.execute(
             text(f"SELECT * FROM {self.table_name} WHERE {where_clause}"),
             filters,
         ).fetchone()
-        return cast(tuple[Any, ...] | None, result)
 
-    def get_all(self, **filters: Any) -> list[tuple[Any, ...]]:
-        """Get all records matching filter conditions.
-
-        Args:
-            **filters: Column names and values to filter by (optional)
-
-        Returns:
-            List of matching records
-
-        Example:
-            repo.get_all(user_email='user@example.com')
-            repo.get_all()  # Get all records
-        """
+    def get_all(self, **filters: FilterValue) -> list[DatabaseRow]:
         if filters:
             where_clause = " AND ".join([f"{k} = :{k}" for k in filters])
-            return cast(
-                list[tuple[Any, ...]],
-                list(
-                    self.session.execute(
-                        text(f"SELECT * FROM {self.table_name} WHERE {where_clause}"),
-                        filters,
-                    ).fetchall()
-                ),
+            return list(
+                self.session.execute(
+                    text(f"SELECT * FROM {self.table_name} WHERE {where_clause}"),
+                    filters,
+                ).fetchall()
             )
-        return cast(
-            list[tuple[Any, ...]],
-            list(self.session.execute(text(f"SELECT * FROM {self.table_name}")).fetchall()),
-        )
+        return list(self.session.execute(text(f"SELECT * FROM {self.table_name}")).fetchall())
 
-    def update(self, filters: dict[str, Any], **updates: Any) -> None:
-        """Update records matching filters.
-
-        Args:
-            filters: Dict of column names and values to identify records
-            **updates: Column names and new values to update
-
-        Example:
-            repo.update({'email': 'old@example.com'}, email='new@example.com')
-        """
+    def update(self, filters: dict[str, FilterValue], **updates: FilterValue) -> None:
         set_clause = ", ".join([f"{k} = :set_{k}" for k in updates])
         where_clause = " AND ".join([f"{k} = :where_{k}" for k in filters])
 
@@ -111,15 +70,7 @@ class Repository:
         )
         self.session.commit()
 
-    def delete(self, **filters) -> None:
-        """Delete records matching filters.
-
-        Args:
-            **filters: Column names and values to filter by
-
-        Example:
-            repo.delete(email='user@example.com')
-        """
+    def delete(self, **filters: FilterValue) -> None:
         where_clause = " AND ".join([f"{k} = :{k}" for k in filters])
 
         self.session.execute(
@@ -128,16 +79,7 @@ class Repository:
         )
         self.session.commit()
 
-    def upsert(self, conflict_columns: list[str], **values) -> None:
-        """Insert or update a record if it already exists.
-
-        Args:
-            conflict_columns: Columns that define uniqueness (for conflict detection)
-            **values: Column names and values to insert/update
-
-        Example:
-            repo.upsert(['email'], email='user@example.com', name='John')
-        """
+    def upsert(self, conflict_columns: list[str], **values: FilterValue) -> None:
         columns = ", ".join(values.keys())
         placeholders = ", ".join([f":{k}" for k in values])
         update_clause = ", ".join(

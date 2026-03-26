@@ -2,10 +2,11 @@
 
 import time
 from datetime import UTC, date, datetime, timedelta
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
 from langchain_openai import ChatOpenAI
 
+from data.repository import DatabaseRow
 from data.subscription_repository import SubscriptionRepository, UsageTrackingRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
@@ -55,7 +56,7 @@ def _current_week_start() -> date:
     return today - timedelta(days=today.weekday())
 
 
-def _resolve_billing_state(sub: tuple[Any, ...] | None) -> tuple[str, str]:
+def _resolve_billing_state(sub: DatabaseRow | None) -> tuple[str, str]:
     if not sub:
         return ("free", "expired")
 
