@@ -123,6 +123,20 @@ def serialize_matchup(matchup: object) -> SerializedDict:
     }
 
 
+def serialize_league_info(league_info: object) -> SerializedDict:
+    fields = [
+        "current_week", "start_week", "end_week", "start_date", "end_date",
+        "season", "name", "league_key", "league_id", "num_teams",
+        "scoring_type", "game_code", "url",
+    ]
+    result: SerializedDict = {}
+    for field in fields:
+        val = _getattr_safe(league_info, field)
+        if val is not None:
+            result[field] = val
+    return result
+
+
 def serialize_draft_pick(pick: object) -> SerializedDict:
     return {
         "pick": _getattr_safe(pick, "pick"),

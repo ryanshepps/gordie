@@ -9,6 +9,7 @@ from module.logger import get_logger
 from tools.yahoo_stats.serializer import (
     serialize_draft_pick,
     serialize_generic,
+    serialize_league_info,
     serialize_team,
     serialize_transaction,
 )
@@ -109,7 +110,7 @@ def yahoo_league(
 
         if method == "get_league_info":
             raw = query.get_league_info()
-            return json.dumps({"league_info": serialize_generic(raw)}, default=str)
+            return json.dumps({"league_info": serialize_league_info(raw)}, default=str)
 
         if method == "get_league_settings":
             raw = query.get_league_settings()

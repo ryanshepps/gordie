@@ -61,13 +61,33 @@ class TestYahooScoringDispatch:
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
 
+        team1 = MagicMock()
+        team1.team_key = "nhl.l.123.t.1"
+        team1.name = "Team A"
+        team1_points = MagicMock()
+        team1_points.total = 85.5
+        team1.team_points = team1_points
+        team1.team_projected_points = None
+
+        team2 = MagicMock()
+        team2.team_key = "nhl.l.123.t.2"
+        team2.name = "Team B"
+        team2_points = MagicMock()
+        team2_points.total = 72.0
+        team2.team_points = team2_points
+        team2.team_projected_points = None
+
         matchup = MagicMock()
         matchup.week = 5
         matchup.status = "postevent"
         matchup.winner_team_key = "nhl.l.123.t.1"
-        matchup.teams = []
+        matchup.teams = [team1, team2]
 
-        mock_instance.query.get_league_scoreboard_by_week.return_value = [matchup]
+        scoreboard = MagicMock()
+        scoreboard.matchups = [matchup]
+        scoreboard.week = 5
+
+        mock_instance.query.get_league_scoreboard_by_week.return_value = scoreboard
 
         result = yahoo_scoring.invoke({
             "user_email": "test@test.com",
@@ -79,6 +99,9 @@ class TestYahooScoringDispatch:
 
         assert "matchups" in parsed
         assert parsed["week"] == 5
+        assert len(parsed["matchups"]) == 1
+        assert len(parsed["matchups"][0]["teams"]) == 2
+        assert parsed["matchups"][0]["teams"][0]["points"] == 85.5
 
 
 class TestYahooRosterDispatch:

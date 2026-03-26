@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from tools.yahoo_stats.serializer import (
     serialize_draft_pick,
     serialize_generic,
+    serialize_league_info,
     serialize_matchup,
     serialize_player,
     serialize_team,
@@ -229,6 +230,56 @@ class TestSerializeTransaction:
         assert isinstance(players, list)
         assert len(players) == 1
         assert players[0]["player_key"] == "nhl.p.1234"
+
+
+class TestSerializeLeagueInfo:
+    def test_extracts_metadata_fields(self) -> None:
+        league = MagicMock()
+        league.current_week = 21
+        league.start_week = 1
+        league.end_week = 24
+        league.start_date = "2025-10-07"
+        league.end_date = "2026-04-13"
+        league.season = 2025
+        league.name = "Test League"
+        league.league_key = "465.l.26455"
+        league.league_id = "26455"
+        league.num_teams = 10
+        league.scoring_type = "head"
+        league.game_code = "nhl"
+        league.url = "https://hockey.fantasysports.yahoo.com/hockey/26455"
+        league.draft_results = [MagicMock() for _ in range(150)]
+
+        result = serialize_league_info(league)
+
+        assert result["current_week"] == 21
+        assert result["season"] == 2025
+        assert result["name"] == "Test League"
+        assert result["num_teams"] == 10
+        assert "draft_results" not in result
+
+    def test_omits_none_fields(self) -> None:
+        league = MagicMock()
+        league.current_week = 5
+        league.start_week = None
+        league.end_week = None
+        league.start_date = None
+        league.end_date = None
+        league.season = None
+        league.name = "Sparse League"
+        league.league_key = None
+        league.league_id = None
+        league.num_teams = None
+        league.scoring_type = None
+        league.game_code = None
+        league.url = None
+
+        result = serialize_league_info(league)
+
+        assert result["current_week"] == 5
+        assert result["name"] == "Sparse League"
+        assert "start_date" not in result
+        assert "league_key" not in result
 
 
 class TestSerializeGeneric:

@@ -86,7 +86,13 @@ def yahoo_scoring(
 
         if method == "get_league_scoreboard_by_week":
             raw = query.get_league_scoreboard_by_week(int(params["week"]))
-            matchups = raw if isinstance(raw, list) else [raw]
+            scoreboard_matchups = getattr(raw, "matchups", None)
+            if isinstance(scoreboard_matchups, list):
+                matchups = scoreboard_matchups
+            elif isinstance(raw, list):
+                matchups = raw
+            else:
+                matchups = [raw]
             data = [serialize_matchup(m) for m in matchups]
             return json.dumps({"matchups": data, "week": params["week"]}, default=str)
 
