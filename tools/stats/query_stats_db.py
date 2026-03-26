@@ -30,16 +30,20 @@ class QueryStatsDbInput(BaseModel):
     )
 
 
+SITUATION_FILTERED_TABLES = ["skaters", "goalies"]
+ALL_TABLES = [*SITUATION_FILTERED_TABLES, "teams"]
+
+
 def _inject_situation(sql: str, situation: str) -> str:
-    tables = ["skaters", "goalies", "teams"]
-    ctes = ", ".join(
+    ctes = [
         f"_{t} AS (SELECT * FROM {t} WHERE situation = '{situation}')"
-        for t in tables
-    )
+        for t in SITUATION_FILTERED_TABLES
+    ]
+    ctes.append("_teams AS (SELECT * FROM teams)")
     rewritten = sql
-    for t in tables:
+    for t in ALL_TABLES:
         rewritten = re.sub(rf"\b{t}\b", f"_{t}", rewritten)
-    return f"WITH {ctes} {rewritten}"
+    return f"WITH {', '.join(ctes)} {rewritten}"
 
 
 @tool(args_schema=QueryStatsDbInput, description=TOOL_DESCRIPTION)

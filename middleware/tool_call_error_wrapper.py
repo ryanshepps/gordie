@@ -9,6 +9,8 @@ from module.tracing import create_span, record_exception, set_span_ok
 
 logger = get_logger(__name__)
 
+MAX_TOOL_OUTPUT_CHARS = 40_000
+
 
 @wrap_tool_call
 def handle_tool_errors(request, handler):
@@ -32,6 +34,22 @@ def handle_tool_errors(request, handler):
             set_span_ok(span)
 
             result_content = getattr(result, "content", "")
+            if isinstance(result_content, str) and len(result_content) > MAX_TOOL_OUTPUT_CHARS:
+                original_len = len(result_content)
+                truncated_content = (
+                    result_content[:MAX_TOOL_OUTPUT_CHARS]
+                    + f"\n\n[TRUNCATED: output was {original_len:,} chars, capped at {MAX_TOOL_OUTPUT_CHARS:,}. "
+                    + "Narrow your query to get complete results.]"
+                )
+                result = ToolMessage(
+                    content=truncated_content,
+                    tool_call_id=request.tool_call["id"],
+                )
+                logger.warning(
+                    f"Tool output truncated: {tool_name} ({original_len:,} -> {MAX_TOOL_OUTPUT_CHARS:,} chars)",
+                    extra={"tool_name": tool_name, "original_chars": original_len},
+                )
+
             preview = result_content[:500] if isinstance(result_content, str) else str(result_content)[:500]
 
             logger.info(
