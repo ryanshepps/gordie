@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
+from agent.context_types import ContextStatus, Sport
 from agent.response_models import TradeResponse
 from module.logger import get_logger
 
@@ -41,8 +42,13 @@ class AgentState(_AgentStateRequired, total=False):
     league_id: str | None
     team_id: str | None
     thread_id: str
-    user_teams: list[dict[str, str]]  # List of all user's teams
-    channel: str  # "email", "sms", or "cli"
+    user_teams: list[dict[str, str]]
+    channel: str
+    context_status: ContextStatus
+    sport: Sport
+    oauth_url: str | None
+    available_teams: list[dict[str, str]]
+    context_error: str | None
     response: str | None
     route_to: str | None  # Target agent for routing (e.g., "onboarding")
     # Flow tracking fields

@@ -1,5 +1,3 @@
-"""Supervisor agent that coordinates sub-agents via tool calls."""
-
 import os
 from typing import Any, Literal, cast
 
@@ -11,7 +9,6 @@ from langgraph.types import Command
 
 from agent.agent_state import AgentState
 from agent.checkpointer import checkpointer
-from agent.context_validator import ValidationResult, validate_context
 from agent.prompts.assemble import assemble_system_prompt
 from agent.subagents.available import available_players
 from agent.subagents.statistician import statistician
@@ -33,11 +30,6 @@ logger = get_logger(__name__)
 
 
 def create_supervisor_agent(system_prompt: str):
-    """Create a new supervisor agent instance.
-
-    Args:
-        system_prompt: The fully assembled system prompt string.
-    """
     if not os.environ.get("OPENAI_API_KEY"):
         logger.error("OPENAI_API_KEY environment variable not set")
         raise ValueError("OPENAI_API_KEY environment variable not set")
@@ -69,15 +61,7 @@ def create_supervisor_agent(system_prompt: str):
     )
 
 
-def _validate(state: AgentState):
-    """Run context validation and return the result."""
-    from agent.memory_store import get_memory_store
-
-    return validate_context(state, get_memory_store())
-
-
 def _add_error_response(state: AgentState, error_message: str) -> None:
-    """Add an error message as an AIMessage to state messages."""
     messages = list(state.get("messages", []))
     messages.append(AIMessage(content=error_message))
     state["messages"] = messages
@@ -85,13 +69,10 @@ def _add_error_response(state: AgentState, error_message: str) -> None:
 
 
 def _invoke_billing_response(
-    state: AgentState, user_email: str, billing_context: str
+    state: AgentState, user_email: str
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
-    """Handle billing-limited requests by letting Gordie respond with upgrade info."""
     try:
-        channel = state.get("channel", "email")
-        validation_result = ValidationResult(system_message=billing_context)
-        system_prompt = assemble_system_prompt(validation_result, channel, user_email)
+        system_prompt = assemble_system_prompt(state)
 
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         user_messages = []
@@ -121,17 +102,8 @@ def _invoke_billing_response(
 def _invoke_supervisor(
     state: AgentState, user_email: str
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
-    """Invoke the supervisor agent and return the appropriate command."""
     try:
-        validation_result = _validate(state)
-
-        if validation_result.league_id:
-            state["league_id"] = validation_result.league_id
-        if validation_result.team_id:
-            state["team_id"] = validation_result.team_id
-
-        channel = state.get("channel", "email")
-        system_prompt = assemble_system_prompt(validation_result, channel, user_email)
+        system_prompt = assemble_system_prompt(state)
 
         input_state: dict[str, Any] = dict(state)
         input_state["messages"] = list(state.get("messages", []))
@@ -169,7 +141,6 @@ def _invoke_supervisor(
 def supervisor_node(
     state: AgentState,
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
-    """Supervisor node that routes user requests to appropriate sub-agents."""
     messages = state.get("messages", [])
     user_email = state.get("user_email") or ""
 
@@ -184,8 +155,7 @@ def supervisor_node(
 
     logger.info(f"Supervisor processing: {message_content}...")
 
-    billing_context = state.get("billing_context")
-    if billing_context:
-        return _invoke_billing_response(state, user_email, billing_context)
+    if state.get("context_status") == "billing_blocked":
+        return _invoke_billing_response(state, user_email)
 
     return _invoke_supervisor(state, user_email)
