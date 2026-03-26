@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
 
 from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
@@ -162,7 +161,7 @@ def _send_digest_sms(
         raise RuntimeError(f"SMS send failed: {result.error}")
 
 
-def _get_player_name(player: Any) -> str:
+def _get_player_name(player: object) -> str:
     """Extract player name from player object."""
     name_obj = getattr(player, "name", None)
     if name_obj and hasattr(name_obj, "full"):
@@ -250,8 +249,8 @@ def _fetch_and_enrich_free_agents(user_email: str, league_id: str) -> list[Enric
 
 
 def _categorize_roster_by_performance(
-    last_week_roster: Any,
-    current_roster: Any,
+    last_week_roster: list[object] | object,
+    current_roster: list[object] | object,
 ) -> RosterPerformance:
     """Categorize players into top performers, underperformers, and injured."""
     # Build injury status lookup from current roster
@@ -306,7 +305,7 @@ def _categorize_roster_by_performance(
     )
 
 
-def _extract_nhl_teams(roster: Any) -> list[str]:
+def _extract_nhl_teams(roster: list[object] | object) -> list[str]:
     """Extract unique NHL team abbreviations from roster."""
     teams: set[str] = set()
     players = roster if isinstance(roster, list) else [roster] if roster else []
@@ -317,7 +316,7 @@ def _extract_nhl_teams(roster: Any) -> list[str]:
     return list(teams)
 
 
-def _build_schedule_tips(roster: Any) -> list[ScheduleTip]:
+def _build_schedule_tips(roster: list[object] | object) -> list[ScheduleTip]:
     """Build schedule-based tips."""
     nhl_teams = _extract_nhl_teams(roster)
     if not nhl_teams:
