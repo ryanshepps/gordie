@@ -5,7 +5,7 @@ import uuid
 from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
 from agent.news.lineup_analyzer import analyze_lineup, parse_roster_position_configs
-from agent.news.news_digest import NewsDigest, RawNewsCollection
+from agent.news.news_digest import RawNewsCollection
 from agent.news.news_processor import _extract_roster_players, process_news_for_user
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.news.espn_client import fetch_injuries
@@ -188,59 +188,3 @@ def _send_news_sms(
         logger.error(f"Failed to send news digest SMS to {user_email}: {result.error}")
         raise RuntimeError(f"SMS send failed: {result.error}")
 
-
-def build_digest_content(digest: NewsDigest) -> str:
-    sections: list[str] = []
-
-    sections.append(
-        f"Hey there! Here's today's NHL news that affects your team "
-        f"**{digest.team_name}** in {digest.league_name}."
-    )
-    sections.append("")
-
-    if digest.injury_alerts:
-        sections.append("## Injury Updates")
-        sections.append("")
-        for alert in digest.injury_alerts:
-            sections.append(f"- **{alert.player_name}** ({alert.team}) - {alert.status}")
-            if alert.description:
-                sections.append(f"  - {alert.description}")
-            sections.append(f"  - *{alert.fantasy_impact}*")
-        sections.append("")
-
-    if digest.trade_alerts:
-        sections.append("## Trade News")
-        sections.append("")
-        for alert in digest.trade_alerts:
-            sections.append(
-                f"- **{alert.player_name}** traded from {alert.from_team} to {alert.to_team}"
-            )
-            sections.append(f"  - *{alert.fantasy_impact}*")
-        sections.append("")
-
-    if digest.matchup_alerts:
-        sections.append("## Favorable Matchups Today")
-        sections.append("")
-        sections.append(
-            "These players face teams with high goals-against averages today:"
-        )
-        sections.append("")
-        for alert in digest.matchup_alerts:
-            sections.append(
-                f"- **{alert.player_name}** vs {alert.opponent} "
-                f"({alert.opponent_goals_against_avg:.2f} GAA) - consider starting"
-            )
-        sections.append("")
-
-    if digest.bench_reminders:
-        sections.append("## Bench Alert")
-        sections.append("")
-        for player_name in digest.bench_reminders:
-            sections.append(f"- **{player_name}** has a game today but is on the bench")
-        sections.append("")
-
-    sections.append("Good luck today!")
-    sections.append("")
-    sections.append(f"*- Gordie* | {digest.generated_at.strftime('%B %d, %Y at %I:%M %p')}")
-
-    return "\n".join(sections)
