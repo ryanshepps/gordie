@@ -1,12 +1,10 @@
-"""Tests for the query_stats_db tool."""
-
 import json
 from unittest.mock import patch
 
 import duckdb
 import pytest
 
-from tools.stats.query_stats_db import MAX_ROWS, query_stats_db
+from tools.stats.query_stats_db import MAX_ROWS, query_hockey_stats_db
 
 
 @pytest.fixture
@@ -33,10 +31,10 @@ def mock_connection():
     conn.close()
 
 
-class TestQueryStatsDb:
+class TestQueryHockeyStatsDb:
     def test_returns_only_matching_situation(self, mock_connection):
-        result = query_stats_db.invoke(
-            {"sql": "SELECT name, goals FROM skaters ORDER BY goals DESC", "sport": "hockey", "situation": "all"}
+        result = query_hockey_stats_db.invoke(
+            {"sql": "SELECT name, goals FROM skaters ORDER BY goals DESC", "situation": "all"}
         )
         parsed = json.loads(result)
 
@@ -45,8 +43,8 @@ class TestQueryStatsDb:
         assert len(parsed["results"]) == 3
 
     def test_5on5_situation_filters_correctly(self, mock_connection):
-        result = query_stats_db.invoke(
-            {"sql": "SELECT name, goals FROM skaters", "sport": "hockey", "situation": "5on5"}
+        result = query_hockey_stats_db.invoke(
+            {"sql": "SELECT name, goals FROM skaters", "situation": "5on5"}
         )
         parsed = json.loads(result)
 
@@ -55,8 +53,8 @@ class TestQueryStatsDb:
         assert parsed["results"][0]["goals"] == 35
 
     def test_column_not_found_returns_available_columns(self, mock_connection):
-        result = query_stats_db.invoke(
-            {"sql": "SELECT nonexistent FROM skaters", "sport": "hockey", "situation": "all"}
+        result = query_hockey_stats_db.invoke(
+            {"sql": "SELECT nonexistent FROM skaters", "situation": "all"}
         )
         parsed = json.loads(result)
 
@@ -69,8 +67,8 @@ class TestQueryStatsDb:
         values = ", ".join(f"('Player{i}', 'TST', {i}, 'all')" for i in range(MAX_ROWS + 10))
         mock_connection.execute(f"INSERT INTO skaters VALUES {values}")
 
-        result = query_stats_db.invoke(
-            {"sql": "SELECT * FROM skaters", "sport": "hockey", "situation": "all"}
+        result = query_hockey_stats_db.invoke(
+            {"sql": "SELECT * FROM skaters", "situation": "all"}
         )
         parsed = json.loads(result)
 
@@ -85,4 +83,62 @@ class TestQueryStatsDb:
             ),
             pytest.raises(FileNotFoundError),
         ):
-            query_stats_db.invoke({"sql": "SELECT 1", "sport": "hockey", "situation": "all"})
+            query_hockey_stats_db.invoke({"sql": "SELECT 1", "situation": "all"})
+
+
+class TestQueryMlbStatsDb:
+    @pytest.fixture
+    def mlb_connection(self):
+        conn = duckdb.connect(":memory:")
+        conn.execute(
+            "CREATE TABLE mlb_batters (Name VARCHAR, Team VARCHAR, HR INTEGER, Season INTEGER)"
+        )
+        conn.execute(
+            "INSERT INTO mlb_batters VALUES "
+            "('Mike Trout', 'LAA', 30, 2024), "
+            "('Aaron Judge', 'NYY', 45, 2024)"
+        )
+        conn.execute(
+            "CREATE TABLE mlb_pitchers (Name VARCHAR, Team VARCHAR, ERA FLOAT, Season INTEGER)"
+        )
+        conn.execute(
+            "CREATE TABLE mlb_teams (Team VARCHAR, Season INTEGER)"
+        )
+        with patch("tools.stats.query_mlb_stats_db.get_mlb_stats_connection", return_value=conn):
+            yield conn
+        conn.close()
+
+    def test_queries_mlb_batters(self, mlb_connection):
+        from tools.stats.query_mlb_stats_db import query_mlb_stats_db
+
+        result = query_mlb_stats_db.invoke(
+            {"sql": "SELECT Name, HR FROM mlb_batters ORDER BY HR DESC"}
+        )
+        parsed = json.loads(result)
+
+        assert len(parsed["results"]) == 2
+        assert parsed["results"][0]["Name"] == "Aaron Judge"
+
+    def test_no_situation_injection(self, mlb_connection):
+        from tools.stats.query_mlb_stats_db import query_mlb_stats_db
+
+        result = query_mlb_stats_db.invoke(
+            {"sql": "SELECT Name FROM mlb_batters WHERE HR > 40"}
+        )
+        parsed = json.loads(result)
+
+        assert len(parsed["results"]) == 1
+        assert parsed["results"][0]["Name"] == "Aaron Judge"
+
+    def test_column_not_found_returns_mlb_columns(self, mlb_connection):
+        from tools.stats.query_mlb_stats_db import query_mlb_stats_db
+
+        result = query_mlb_stats_db.invoke(
+            {"sql": "SELECT nonexistent FROM mlb_batters"}
+        )
+        parsed = json.loads(result)
+
+        assert "error" in parsed
+        assert "available_columns" in parsed
+        assert "Name" in parsed["available_columns"]
+        assert "HR" in parsed["available_columns"]

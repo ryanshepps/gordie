@@ -476,7 +476,7 @@ def calculate_mlb_undervalued_score(
 ) -> str:
     """Calculate an undervalued score for an MLB player using pre-fetched stats.
 
-    This tool takes stats you already fetched via query_stats_db (with sport='baseball')
+    This tool takes stats you already fetched via query_mlb_stats_db
     and enriches them with Yahoo fantasy league rank, ownership info, and team schedule.
 
     Provide exactly one of batter_stats or pitcher_stats.
@@ -487,7 +487,7 @@ def calculate_mlb_undervalued_score(
     - 0-3: Fairly valued
     - < 0: OVERVALUED — avoid acquiring
 
-    You MUST first use query_stats_db to get the player's stats, then pass them here.
+    You MUST first use query_mlb_stats_db to get the player's stats, then pass them here.
     """
     if batter_stats is not None and pitcher_stats is not None:
         return json.dumps({"error": "Provide exactly one of batter_stats or pitcher_stats, not both"})

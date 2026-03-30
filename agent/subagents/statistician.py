@@ -9,7 +9,8 @@ from agent.prompts.sport_context import get_sport_context
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
 from tools.compute.execute_python import execute_python
-from tools.stats.query_stats_db import query_stats_db
+from tools.stats.query_mlb_stats_db import query_mlb_stats_db
+from tools.stats.query_stats_db import query_hockey_stats_db
 from tools.yahoo_stats.yahoo_league import yahoo_league
 from tools.yahoo_stats.yahoo_player import yahoo_player
 from tools.yahoo_stats.yahoo_roster import yahoo_roster
@@ -25,7 +26,7 @@ rigorous computation. You never approximate or guess — you fetch data and comp
 ## Workflow
 
 1. Understand the statistical question being asked.
-2. Determine what data is needed. Fetch it via Yahoo tools (and query_stats_db for advanced stats).
+2. Determine what data is needed. Fetch it via Yahoo tools (and query_hockey_stats_db or query_mlb_stats_db for advanced stats).
 3. Write and execute Python code via execute_python to compute the statistics.
 4. Present findings with specific numbers, context, and interpretation.
 
@@ -40,7 +41,7 @@ league-wide analysis.
 - Use yahoo_roster for per-player stats on a specific team's roster.
 - Use yahoo_player for individual player lookups by player_key.
 - Use yahoo_league for draft results, transactions, settings, and league metadata.
-- Use query_stats_db for advanced stats (sport-specific metrics provided in context).
+- Use query_hockey_stats_db or query_mlb_stats_db for advanced stats (sport-specific metrics provided in context).
 
 ## Statistical Capabilities
 
@@ -90,7 +91,8 @@ agent = create_subagent(
         yahoo_player,
         yahoo_league,
         execute_python,
-        query_stats_db,
+        query_hockey_stats_db,
+        query_mlb_stats_db,
     ],
     response_format=None,
 )

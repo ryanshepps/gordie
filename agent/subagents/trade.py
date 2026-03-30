@@ -12,7 +12,8 @@ from module.logger import get_logger
 from tools.player_comparison.calculate_undervalued_score import (
     calculate_undervalued_score,
 )
-from tools.stats.query_stats_db import query_stats_db
+from tools.stats.query_mlb_stats_db import query_mlb_stats_db
+from tools.stats.query_stats_db import query_hockey_stats_db
 from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
 from tools.yahoo.get_league_teams import get_league_teams
 from tools.yahoo.get_team_roster import get_team_roster
@@ -48,8 +49,8 @@ but have BETTER advanced stats indicating they'll improve:
    - For "trading_away": look for players with WORSE rank but BETTER underlying stats
    - For "trading_for": look for similarly-ranked players with better upside indicators
 
-3. Get stats for ALL players using query_stats_db, then calculate_undervalued_score:
-   - Use query_stats_db with SQL to fetch player stats
+3. Get stats for ALL players using query_hockey_stats_db or query_mlb_stats_db, then calculate_undervalued_score:
+   - Use the appropriate stats tool with SQL to fetch player stats
    - Pass the fetched stats to calculate_undervalued_score for Yahoo rank, schedule, and scoring
    - IMPORTANT: Each player gets an undervalued_score and undervalued_reasons
 
@@ -87,7 +88,8 @@ agent = create_subagent(
     tools=[
         get_team_roster,
         get_league_teams,
-        query_stats_db,
+        query_hockey_stats_db,
+        query_mlb_stats_db,
         calculate_undervalued_score,
         find_similar_ranked_players,
     ],
