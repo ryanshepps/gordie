@@ -103,7 +103,7 @@ def _extract_roster_players(roster: Sequence[YahooPlayer]) -> list[RosterPlayer]
         players.append(
             RosterPlayer(
                 name=name,
-                nhl_team=nhl_team,
+                team=nhl_team,
                 roster_slot=roster_slot,
                 position=position,
             )
@@ -156,7 +156,7 @@ def _match_injury_alerts(
             if _names_match(roster_name, injury.player_name):
                 roster_player = roster_by_name.get(roster_name)
                 has_game_today = (
-                    roster_player.nhl_team in teams_playing_today if roster_player else False
+                    roster_player.team in teams_playing_today if roster_player else False
                 )
                 is_new = (
                     roster_name not in previous_injury_states
@@ -234,7 +234,8 @@ def _match_matchup_alerts(
                     UserMatchupAlert(
                         player_name=matchup.player_name,
                         opponent=matchup.opponent,
-                        opponent_goals_against_avg=matchup.opponent_goals_against_avg,
+                        opponent_weakness_metric=matchup.opponent_weakness_metric,
+                        metric_label=matchup.metric_label,
                         fantasy_impact=fantasy_impact,
                     )
                 )
@@ -280,6 +281,6 @@ def _generate_trade_impact(trade: TradeAlert) -> str:
 def _generate_matchup_impact(matchup: MatchupAlert) -> str:
     return (
         f"Favorable matchup against {matchup.opponent} "
-        f"({matchup.opponent_goals_against_avg:.2f} GAA). "
+        f"({matchup.opponent_weakness_metric:.2f} {matchup.metric_label}). "
         "Consider starting if available."
     )

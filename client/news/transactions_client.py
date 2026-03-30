@@ -13,6 +13,7 @@ from datetime import datetime
 import requests
 
 from agent.news.news_digest import TradeAlert
+from client.teams.nhl_teams import nhl_team_abbr
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -31,42 +32,6 @@ TRADE_PATTERNS = [
     r"(?P<to>[\w\s]+)\s+acquire\s+(?P<player>[\w\s\.\-']+)\s+from\s+(?P<from>[\w\s]+)",
 ]
 
-# NHL team name normalization
-TEAM_ABBREVIATIONS = {
-    "anaheim ducks": "ANA",
-    "arizona coyotes": "ARI",
-    "utah hockey club": "UTA",
-    "boston bruins": "BOS",
-    "buffalo sabres": "BUF",
-    "calgary flames": "CGY",
-    "carolina hurricanes": "CAR",
-    "chicago blackhawks": "CHI",
-    "colorado avalanche": "COL",
-    "columbus blue jackets": "CBJ",
-    "dallas stars": "DAL",
-    "detroit red wings": "DET",
-    "edmonton oilers": "EDM",
-    "florida panthers": "FLA",
-    "los angeles kings": "LAK",
-    "minnesota wild": "MIN",
-    "montreal canadiens": "MTL",
-    "nashville predators": "NSH",
-    "new jersey devils": "NJD",
-    "new york islanders": "NYI",
-    "new york rangers": "NYR",
-    "ottawa senators": "OTT",
-    "philadelphia flyers": "PHI",
-    "pittsburgh penguins": "PIT",
-    "san jose sharks": "SJS",
-    "seattle kraken": "SEA",
-    "st. louis blues": "STL",
-    "tampa bay lightning": "TBL",
-    "toronto maple leafs": "TOR",
-    "vancouver canucks": "VAN",
-    "vegas golden knights": "VGK",
-    "washington capitals": "WSH",
-    "winnipeg jets": "WPG",
-}
 
 
 def fetch_trades() -> list[TradeAlert]:
@@ -184,31 +149,7 @@ def _extract_trade_alert(title: str, description: str, pub_date: str) -> TradeAl
 
 
 def _normalize_team(team_name: str) -> str:
-    """Normalize team name to abbreviation.
-
-    Args:
-        team_name: Raw team name from RSS
-
-    Returns:
-        Team abbreviation (e.g., "TOR") or cleaned name if not found
-    """
-    normalized = team_name.lower().strip()
-
-    # Check direct match
-    if normalized in TEAM_ABBREVIATIONS:
-        return TEAM_ABBREVIATIONS[normalized]
-
-    # Check if it's already an abbreviation
-    if team_name.upper() in TEAM_ABBREVIATIONS.values():
-        return team_name.upper()
-
-    # Check partial match
-    for full_name, abbr in TEAM_ABBREVIATIONS.items():
-        if normalized in full_name or full_name in normalized:
-            return abbr
-
-    # Return cleaned version if no match
-    return team_name.upper()[:3]
+    return nhl_team_abbr(team_name)
 
 
 def _parse_date(pub_date: str) -> str:

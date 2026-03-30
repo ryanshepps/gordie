@@ -1,24 +1,25 @@
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 
 from agent.channels.text_utils import strip_markdown
+from agent.context_types import Sport
 from agent.digest_writer import DigestType, write_digest_content
 from agent.news.lineup_analyzer import analyze_lineup, parse_roster_position_configs
 from agent.news.news_digest import RawNewsCollection
 from agent.news.news_processor import _extract_roster_players, process_news_for_user
 from agent.prompts.sport_context import get_digest_label
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
-from client.news.espn_client import fetch_injuries
-from client.news.matchup_client import fetch_matchups
-from client.news.schedule_client import fetch_teams_playing_today
-from client.news.transactions_client import fetch_trades
+from client.news.sport_clients import get_news_clients
 from data.digest_injury_state_repository import DigestInjuryStateRepository
+from data.notification_preference_repository import NotificationPreferenceRepository
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
+from module.tracing import create_span
 from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
-from scheduled.job_runner import run_per_user_job
+from scheduled.job_runner import JobResult, _record_digest_delivery, is_user_eligible_for_digest
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
 from server.sms_service import SmsService
@@ -28,36 +29,94 @@ logger = get_logger(__name__)
 
 
 def run_news_digest() -> None:
-    raw_news = _fetch_all_news()
+    repo = NotificationPreferenceRepository()
+    try:
+        user_leagues = repo.get_all_enabled_for_type("news_digest")
+    finally:
+        repo.close()
+
+    if not user_leagues:
+        logger.info("No users opted in for news_digest")
+        return
+
+    grouped = _group_by_sport(user_leagues)
+
+    result = JobResult()
+    for sport, pairs in grouped.items():
+        _process_sport_group(sport, pairs, result)
+
+    logger.info(
+        f"news_digest complete: {result.success} sent, "
+        f"{result.skipped} skipped, {result.failed} failed"
+    )
+
+
+def _group_by_sport(
+    user_leagues: list[tuple[str, str]],
+) -> dict[Sport, list[tuple[str, str]]]:
+    league_repo = YahooLeagueRepository()
+    try:
+        grouped: dict[Sport, list[tuple[str, str]]] = defaultdict(list)
+        for user_email, league_id in user_leagues:
+            league = league_repo.get_league(league_id)
+            if not league:
+                continue
+            sport: Sport = league[3] or "nhl"
+            grouped[sport].append((user_email, league_id))
+        return dict(grouped)
+    finally:
+        league_repo.close()
+
+
+def _process_sport_group(
+    sport: Sport,
+    pairs: list[tuple[str, str]],
+    result: JobResult,
+) -> None:
+    try:
+        clients = get_news_clients(sport)
+    except ValueError:
+        logger.warning(f"No news clients for sport {sport}, skipping {len(pairs)} users")
+        result.skipped += len(pairs)
+        return
+
+    raw_news = RawNewsCollection(
+        injuries=clients.fetch_injuries(),
+        trades=clients.fetch_trades(),
+        matchups=clients.fetch_matchups(),
+    )
 
     if not raw_news.injuries and not raw_news.trades and not raw_news.matchups:
-        logger.info("No news items found from any source, skipping digest")
+        logger.info(f"No {sport} news items found, skipping {len(pairs)} users")
+        result.skipped += len(pairs)
         return
 
     logger.info(
-        f"Fetched raw news: {len(raw_news.injuries)} injuries, "
+        f"Fetched {sport} news: {len(raw_news.injuries)} injuries, "
         f"{len(raw_news.trades)} trades, {len(raw_news.matchups)} matchups"
     )
 
-    teams_playing = fetch_teams_playing_today()
+    teams_playing = clients.fetch_teams_playing_today()
 
-    run_per_user_job(
-        job_name="news_digest",
-        notification_type="news_digest",
-        handler=lambda email, league: _send_user_digest(raw_news, email, league, teams_playing),
-    )
+    for user_email, league_id in pairs:
+        if not is_user_eligible_for_digest(user_email):
+            result.skipped += 1
+            continue
 
-
-def _fetch_all_news() -> RawNewsCollection:
-    injuries = fetch_injuries()
-    trades = fetch_trades()
-    matchups = fetch_matchups()
-
-    return RawNewsCollection(
-        injuries=injuries,
-        trades=trades,
-        matchups=matchups,
-    )
+        with create_span(
+            "news_digest.user",
+            {"user.email": user_email, "league.id": league_id},
+        ):
+            try:
+                sent = _send_user_digest(raw_news, user_email, league_id, teams_playing, sport)
+                if sent:
+                    result.success += 1
+                    _record_digest_delivery(user_email)
+                else:
+                    result.skipped += 1
+            except Exception as e:
+                result.failed += 1
+                logger.error(f"news_digest failed for {user_email}/{league_id}: {e}")
 
 
 def _send_user_digest(
@@ -65,6 +124,7 @@ def _send_user_digest(
     user_email: str,
     league_id: str,
     teams_playing_today: set[str],
+    sport: Sport = "nhl",
 ) -> bool:
     league_repo = YahooLeagueRepository()
     try:
@@ -73,7 +133,6 @@ def _send_user_digest(
             logger.warning(f"League {league_id} not found, skipping digest for {user_email}")
             return False
         league_name = league[2]
-        sport = league[3]
         league_settings_json = league[4]
     finally:
         league_repo.close()
@@ -89,7 +148,9 @@ def _send_user_digest(
     finally:
         team_repo.close()
 
-    yahoo_client = AuthenticatedYahooClient(user_email=user_email, league_id=int(league_id))
+    yahoo_client = AuthenticatedYahooClient(
+        user_email=user_email, league_id=int(league_id), game_code=sport,
+    )
     current_roster = yahoo_client.query.get_team_roster_player_stats(team_id)
 
     roster_list = (
@@ -190,4 +251,3 @@ def _send_news_sms(
     else:
         logger.error(f"Failed to send news digest SMS to {user_email}: {result.error}")
         raise RuntimeError(f"SMS send failed: {result.error}")
-

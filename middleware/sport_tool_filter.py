@@ -5,8 +5,18 @@ from langchain.agents.middleware import wrap_model_call
 from agent.context_types import Sport
 
 SPORT_TOOLS: dict[Sport, set[str]] = {
-    "nhl": {"query_hockey_stats_db", "calculate_undervalued_score"},
-    "mlb": {"query_mlb_stats_db", "calculate_mlb_undervalued_score"},
+    "nhl": {
+        "query_hockey_stats_db",
+        "calculate_undervalued_score",
+        "get_team_schedule",
+        "fuzzy_resolve_nhl_api_player_ids",
+    },
+    "mlb": {
+        "query_mlb_stats_db",
+        "calculate_mlb_undervalued_score",
+        "get_mlb_team_schedule",
+        "fuzzy_resolve_mlb_player_ids",
+    },
 }
 
 ALL_SPORT_TOOLS = {name for names in SPORT_TOOLS.values() for name in names}

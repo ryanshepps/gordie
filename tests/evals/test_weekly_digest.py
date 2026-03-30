@@ -508,22 +508,22 @@ class TestDigestContent:
             roster_performance=RosterPerformance(
                 top_performers=[
                     PlayerPerformance(
-                        name="Connor McDavid", position="C", nhl_team="EDM", points=25.5
+                        name="Connor McDavid", position="C", team="EDM", points=25.5
                     ),
                     PlayerPerformance(
-                        name="Leon Draisaitl", position="C", nhl_team="EDM", points=22.0
+                        name="Leon Draisaitl", position="C", team="EDM", points=22.0
                     ),
                 ],
                 underperformers=[
                     PlayerPerformance(
-                        name="Bench Player", position="RW", nhl_team="EDM", points=2.0
+                        name="Bench Player", position="RW", team="EDM", points=2.0
                     ),
                 ],
                 injured=[
                     PlayerPerformance(
                         name="Zach Hyman",
                         position="LW",
-                        nhl_team="EDM",
+                        team="EDM",
                         points=0.0,
                         injury="Injured Reserve",
                     ),

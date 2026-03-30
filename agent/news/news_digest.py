@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 class RosterPlayer(BaseModel):
     name: str
-    nhl_team: str
+    team: str
     roster_slot: str
     position: str
 
@@ -48,7 +48,8 @@ class MatchupAlert(BaseAlert):
     """Alert for favorable game-day matchups."""
 
     opponent: str
-    opponent_goals_against_avg: float
+    opponent_weakness_metric: float
+    metric_label: str
 
 
 # =============================================================================

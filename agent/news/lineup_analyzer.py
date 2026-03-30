@@ -35,7 +35,7 @@ def analyze_lineup(
 
     playing_and_available = [
         p for p in roster_players
-        if p.nhl_team in teams_playing_today and p.roster_slot not in IR_SLOTS
+        if p.team in teams_playing_today and p.roster_slot not in IR_SLOTS
     ]
 
     position_conflicts: dict[str, list[str]] = {}
@@ -52,7 +52,7 @@ def analyze_lineup(
 
     benched_with_games: list[str] = []
     for player in roster_players:
-        if player.nhl_team not in teams_playing_today:
+        if player.team not in teams_playing_today:
             continue
         if player.roster_slot not in BENCH_SLOTS:
             continue

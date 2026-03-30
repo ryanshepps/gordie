@@ -23,11 +23,11 @@ class FakePlayer:
 
 def _make_roster_player(
     name: str,
-    nhl_team: str = "EDM",
+    team: str = "EDM",
     roster_slot: str = "C",
     position: str = "C",
 ) -> RosterPlayer:
-    return RosterPlayer(name=name, nhl_team=nhl_team, roster_slot=roster_slot, position=position)
+    return RosterPlayer(name=name, team=team, roster_slot=roster_slot, position=position)
 
 
 def _standard_roster_configs() -> list[RosterPositionConfig]:
@@ -218,7 +218,7 @@ class TestMatchupGameDayFiltering:
     def test_matchup_alerts_suppressed_when_no_lineup_decisions(self):
         raw_news = RawNewsCollection(
             matchups=[
-                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_goals_against_avg=3.5)
+                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_weakness_metric=3.5, metric_label="GAA")
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -238,7 +238,7 @@ class TestMatchupGameDayFiltering:
     def test_matchup_alerts_included_when_position_conflicts_exist(self):
         raw_news = RawNewsCollection(
             matchups=[
-                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_goals_against_avg=3.5)
+                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_weakness_metric=3.5, metric_label="GAA")
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -261,7 +261,7 @@ class TestMatchupGameDayFiltering:
     def test_matchup_alerts_included_when_no_lineup_analysis_provided(self):
         raw_news = RawNewsCollection(
             matchups=[
-                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_goals_against_avg=3.5)
+                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_weakness_metric=3.5, metric_label="GAA")
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]

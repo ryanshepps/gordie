@@ -96,7 +96,8 @@ def fetch_matchups_for_date(date_str: str) -> list[MatchupAlert]:
                         MatchupAlert(
                             player_name=player_name,
                             opponent=home_abbrev,
-                            opponent_goals_against_avg=home_gaa,
+                            opponent_weakness_metric=home_gaa,
+                            metric_label="GAA",
                         )
                     )
 
@@ -108,7 +109,8 @@ def fetch_matchups_for_date(date_str: str) -> list[MatchupAlert]:
                         MatchupAlert(
                             player_name=player_name,
                             opponent=away_abbrev,
-                            opponent_goals_against_avg=away_gaa,
+                            opponent_weakness_metric=away_gaa,
+                            metric_label="GAA",
                         )
                     )
 

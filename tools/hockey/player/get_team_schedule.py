@@ -10,49 +10,12 @@ from pydantic import BaseModel, Field
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from client.teams.nhl_teams import NHL_TEAMS
 from module.logger import get_logger
 
 logger = get_logger(__name__)
 
-# NHL API base URL
 NHL_API_BASE = "https://api-web.nhle.com"
-
-# NHL team abbreviations
-NHL_TEAMS = {
-    "ANA": "Anaheim Ducks",
-    "ARI": "Arizona Coyotes",
-    "BOS": "Boston Bruins",
-    "BUF": "Buffalo Sabres",
-    "CAR": "Carolina Hurricanes",
-    "CBJ": "Columbus Blue Jackets",
-    "CGY": "Calgary Flames",
-    "CHI": "Chicago Blackhawks",
-    "COL": "Colorado Avalanche",
-    "DAL": "Dallas Stars",
-    "DET": "Detroit Red Wings",
-    "EDM": "Edmonton Oilers",
-    "FLA": "Florida Panthers",
-    "LAK": "Los Angeles Kings",
-    "MIN": "Minnesota Wild",
-    "MTL": "Montreal Canadiens",
-    "NJD": "New Jersey Devils",
-    "NSH": "Nashville Predators",
-    "NYI": "New York Islanders",
-    "NYR": "New York Rangers",
-    "OTT": "Ottawa Senators",
-    "PHI": "Philadelphia Flyers",
-    "PIT": "Pittsburgh Penguins",
-    "SEA": "Seattle Kraken",
-    "SJS": "San Jose Sharks",
-    "STL": "St. Louis Blues",
-    "TBL": "Tampa Bay Lightning",
-    "TOR": "Toronto Maple Leafs",
-    "UTA": "Utah Hockey Club",
-    "VAN": "Vancouver Canucks",
-    "VGK": "Vegas Golden Knights",
-    "WPG": "Winnipeg Jets",
-    "WSH": "Washington Capitals",
-}
 
 
 def _create_session() -> requests.Session:

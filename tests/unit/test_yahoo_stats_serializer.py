@@ -34,7 +34,7 @@ class TestSerializePlayer:
         assert result["name"] == "Connor McDavid"
         assert result["player_key"] == "nhl.p.6743"
         assert result["position"] == "C"
-        assert result["nhl_team"] == "EDM"
+        assert result["team"] == "EDM"
         assert result["fantasy_points"] is None
 
     def test_player_with_stats(self) -> None:

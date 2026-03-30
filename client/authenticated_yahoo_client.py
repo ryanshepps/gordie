@@ -31,6 +31,7 @@ class AuthenticatedYahooClient:
         user_email: str,
         league_id: int | None = None,
         access_token_json: str | None = None,
+        game_code: str = "nhl",
     ):
         """
         Initialize Yahoo Fantasy Sports client with robust token handling.
@@ -61,6 +62,7 @@ class AuthenticatedYahooClient:
         if missing:
             raise ValueError(f"Missing required credentials: {', '.join(missing)}")
 
+        self.game_code = game_code
         self.access_token_json = self._fetch_tokens_from_db(user_email)
         self._query = None
 
@@ -170,7 +172,7 @@ class AuthenticatedYahooClient:
 
         query = YahooFantasySportsQuery(
             league_id=str(query_league_id),
-            game_code="nhl",
+            game_code=self.game_code,
             game_id=None,
             yahoo_consumer_key=self.consumer_key,
             yahoo_consumer_secret=self.consumer_secret,
@@ -261,7 +263,7 @@ class AuthenticatedYahooClient:
 
             query = YahooFantasySportsQuery(
                 league_id=str(query_league_id),
-                game_code="nhl",
+                game_code=self.game_code,
                 game_id=None,
                 yahoo_consumer_key=self.consumer_key,
                 yahoo_consumer_secret=self.consumer_secret,

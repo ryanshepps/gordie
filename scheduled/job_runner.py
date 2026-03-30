@@ -36,6 +36,12 @@ class JobResult:
     skipped: int = 0
 
 
+def is_user_eligible_for_digest(user_email: str) -> bool:
+    from server.tier_enforcement import DIGEST_ALLOWED_TIERS, get_user_tier
+
+    return get_user_tier(user_email) in DIGEST_ALLOWED_TIERS
+
+
 def run_per_user_job(
     job_name: str,
     notification_type: str,

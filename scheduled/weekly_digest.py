@@ -291,7 +291,7 @@ def _categorize_roster_by_performance(
             PlayerPerformance(
                 name=name,
                 position=position,
-                nhl_team=nhl_team,
+                team=nhl_team,
                 points=points,
                 injury=injury_status.get(name),
             )

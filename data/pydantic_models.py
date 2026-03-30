@@ -65,7 +65,7 @@ class PlayerPerformance(BaseModel):
 
     name: str
     position: str
-    nhl_team: str
+    team: str
     points: float
     injury: str | None = None
 
