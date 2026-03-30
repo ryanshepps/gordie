@@ -124,6 +124,17 @@ stats_db_last_refresh_timestamp = Gauge(
     "Unix timestamp of last successful stats DB refresh",
 )
 
+mlb_stats_db_refresh_total = Counter(
+    "fantasy_agent_mlb_stats_db_refresh_total",
+    "Total MLB stats DB refresh attempts",
+    ["status"],
+)
+
+mlb_stats_db_last_refresh_timestamp = Gauge(
+    "fantasy_agent_mlb_stats_db_last_refresh_timestamp",
+    "Unix timestamp of last successful MLB stats DB refresh",
+)
+
 # Database Metrics
 database_queries_total = Counter(
     "fantasy_agent_database_queries_total",

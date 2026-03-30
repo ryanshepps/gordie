@@ -98,6 +98,68 @@ class PlayerStats(BaseModel):
         return v
 
 
+class BatterPlayerStats(BaseModel):
+    """Comprehensive stats for an MLB batter.
+
+    These stats MUST come from query_stats_db + calculate_mlb_undervalued_score - do not fabricate values.
+    """
+
+    name: str = Field(description="Player's full name")
+    team: str = Field(description="Team abbreviation")
+    position: str = Field(description="Player position (1B, 2B, SS, 3B, OF, C, DH)")
+
+    yahoo_rank: int | None = Field(default=None, description="Yahoo fantasy season rank")
+
+    games_played: int = Field(description="Games played", ge=1)
+    batting_avg: float = Field(description="Batting average", ge=0, le=0.500)
+    hr: int = Field(description="Home runs", ge=0)
+    rbi: int = Field(description="Runs batted in", ge=0)
+    runs: int = Field(description="Runs scored", ge=0)
+    sb: int = Field(description="Stolen bases", ge=0)
+    ops: float = Field(description="OPS", ge=0, le=1.700)
+    woba: float = Field(description="Weighted on-base average", ge=0, le=0.600)
+    xwoba: float = Field(description="Expected wOBA from Statcast", ge=0, le=0.600)
+    barrel_pct: float = Field(description="Barrel percentage", ge=0, le=30)
+    hard_hit_pct: float = Field(description="Hard hit percentage", ge=0, le=70)
+
+    games_remaining_this_week: int | None = Field(default=None, description="Games remaining this week")
+    games_next_week: int | None = Field(default=None, description="Games next week")
+
+    undervalued_score: float | None = Field(default=None, description="Undervalued score")
+    undervalued_reasons: list[str] = Field(default_factory=list, description="Undervalued reasons")
+
+
+class PitcherPlayerStats(BaseModel):
+    """Comprehensive stats for an MLB pitcher.
+
+    These stats MUST come from query_stats_db + calculate_mlb_undervalued_score - do not fabricate values.
+    """
+
+    name: str = Field(description="Player's full name")
+    team: str = Field(description="Team abbreviation")
+    position: str = Field(description="Pitcher role: SP or RP")
+
+    yahoo_rank: int | None = Field(default=None, description="Yahoo fantasy season rank")
+
+    games_played: int = Field(description="Games played", ge=1)
+    era: float = Field(description="ERA", ge=0, le=15)
+    xera: float = Field(description="Expected ERA", ge=0, le=15)
+    fip: float = Field(description="FIP", ge=0, le=15)
+    xfip: float = Field(description="Expected FIP", ge=0, le=15)
+    whip: float = Field(description="WHIP", ge=0, le=3)
+    k_pct: float = Field(description="Strikeout percentage", ge=0, le=50)
+    bb_pct: float = Field(description="Walk percentage", ge=0, le=25)
+    innings_pitched: float = Field(description="Innings pitched", ge=0)
+    wins: int = Field(description="Wins", ge=0)
+    saves: int = Field(description="Saves", ge=0)
+
+    games_remaining_this_week: int | None = Field(default=None, description="Games remaining this week")
+    games_next_week: int | None = Field(default=None, description="Games next week")
+
+    undervalued_score: float | None = Field(default=None, description="Undervalued score")
+    undervalued_reasons: list[str] = Field(default_factory=list, description="Undervalued reasons")
+
+
 class TradeTarget(BaseModel):
     """A trade target with pitch.
 
@@ -150,6 +212,23 @@ class TradeTarget(BaseModel):
             "points",
             "goals",
             "assists",
+            "xwoba",
+            "woba",
+            "barrel",
+            "hard hit",
+            "ops",
+            "obp",
+            "slg",
+            "era",
+            "xera",
+            "fip",
+            "xfip",
+            "whip",
+            "strikeout",
+            "batting average",
+            "home run",
+            "rbi",
+            "stolen base",
         ]
         v_lower = v.lower()
         if not any(kw in v_lower for kw in stat_keywords):
@@ -185,6 +264,17 @@ class TradeTarget(BaseModel):
                 "goals",
                 "assists",
                 "ppg",
+                "xwoba",
+                "woba",
+                "barrel",
+                "ops",
+                "era",
+                "xera",
+                "fip",
+                "whip",
+                "strikeout",
+                "home run",
+                "rbi",
             ]
         )
         mentions_only_rank = any(phrase in v_lower for phrase in weak_phrases) and not has_stats
@@ -267,6 +357,15 @@ class TradeResponse(BaseModel):
             "schedule",
             "games",
             "line",
+            "xwoba",
+            "woba",
+            "barrel",
+            "ops",
+            "era",
+            "xera",
+            "fip",
+            "whip",
+            "strikeout",
         ]
         v_lower = v.lower()
         if not any(kw in v_lower for kw in stat_keywords):

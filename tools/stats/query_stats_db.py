@@ -11,22 +11,34 @@ from pydantic import BaseModel, Field
 from module.logger import get_logger
 from tools.stats.duckdb_connection import get_stats_connection
 from tools.stats.duckdb_schema import TABLES, TOOL_DESCRIPTION
+from tools.stats.mlb_connection import get_mlb_stats_connection
+from tools.stats.mlb_schema import MLB_TABLES, MLB_TOOL_DESCRIPTION
 
 logger = get_logger(__name__)
 
 MAX_ROWS = 50
 
+Sport = Literal["hockey", "baseball"]
 Situation = Literal["all", "5on5", "5on4", "4on5"]
+
+COMBINED_TOOL_DESCRIPTION = (
+    "# Hockey Stats\n\n"
+    + TOOL_DESCRIPTION
+    + "\n\n---\n\n# Baseball Stats\n\n"
+    + MLB_TOOL_DESCRIPTION
+)
 
 
 class QueryStatsDbInput(BaseModel):
     sql: str = Field(description="DuckDB SQL query to execute against the stats database")
+    sport: Sport = Field(description="Which sport's stats database to query: 'hockey' or 'baseball'")
     situation: Situation = Field(
+        default="all",
         description=(
-            "Situation filter applied to every table scan. "
+            "Hockey only — ignored for baseball. "
             "'all' for totals, '5on5' for even-strength, "
             "'5on4' for power play, '4on5' for penalty kill."
-        )
+        ),
     )
 
 
@@ -46,12 +58,18 @@ def _inject_situation(sql: str, situation: str) -> str:
     return f"WITH {', '.join(ctes)} {rewritten}"
 
 
-@tool(args_schema=QueryStatsDbInput, description=TOOL_DESCRIPTION)
-def query_stats_db(sql: str, situation: Situation) -> str:
-    """Execute a SQL query against the MoneyPuck stats DuckDB database."""
+@tool(args_schema=QueryStatsDbInput, description=COMBINED_TOOL_DESCRIPTION)
+def query_stats_db(sql: str, sport: Sport, situation: Situation = "all") -> str:
+    """Execute a SQL query against the stats DuckDB database."""
+    tables = MLB_TABLES if sport == "baseball" else TABLES
     try:
-        conn = get_stats_connection()
-        wrapped_sql = _inject_situation(sql, situation)
+        if sport == "baseball":
+            conn = get_mlb_stats_connection()
+            wrapped_sql = sql
+        else:
+            conn = get_stats_connection()
+            wrapped_sql = _inject_situation(sql, situation)
+
         result = conn.execute(wrapped_sql)
 
         columns = [desc[0] for desc in result.description]
@@ -74,8 +92,8 @@ def query_stats_db(sql: str, situation: Situation) -> str:
     except FileNotFoundError:
         raise
     except duckdb.BinderException as exc:
-        conn = get_stats_connection()
-        referenced = [t for t in TABLES if t in sql.lower()]
+        conn = get_mlb_stats_connection() if sport == "baseball" else get_stats_connection()
+        referenced = [t for t in tables if t in sql.lower()]
         schema_hints: list[str] = []
         for table in referenced:
             cols = [row[0] for row in conn.execute(f"DESCRIBE {table}").fetchall()]

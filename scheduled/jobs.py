@@ -133,6 +133,7 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         scheduler: APScheduler BackgroundScheduler instance
     """
     from agent.news.send_news_digest import run_news_digest
+    from scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
     from scheduled.refresh_stats_db import refresh_stats_db
     from scheduled.weekly_digest import run_weekly_digest
 
@@ -146,6 +147,17 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         misfire_grace_time=3600,
     )
     logger.info("Registered scheduled job: refresh_stats_db (daily at 7:00 AM UTC)")
+
+    scheduler.add_job(
+        func=refresh_mlb_stats_db,
+        trigger="cron",
+        hour=7,
+        minute=30,
+        id="refresh_mlb_stats_db",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    logger.info("Registered scheduled job: refresh_mlb_stats_db (daily at 7:30 AM UTC)")
 
     scheduler.add_job(
         func=run_weekly_digest,

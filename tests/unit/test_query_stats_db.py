@@ -36,7 +36,7 @@ def mock_connection():
 class TestQueryStatsDb:
     def test_returns_only_matching_situation(self, mock_connection):
         result = query_stats_db.invoke(
-            {"sql": "SELECT name, goals FROM skaters ORDER BY goals DESC", "situation": "all"}
+            {"sql": "SELECT name, goals FROM skaters ORDER BY goals DESC", "sport": "hockey", "situation": "all"}
         )
         parsed = json.loads(result)
 
@@ -46,7 +46,7 @@ class TestQueryStatsDb:
 
     def test_5on5_situation_filters_correctly(self, mock_connection):
         result = query_stats_db.invoke(
-            {"sql": "SELECT name, goals FROM skaters", "situation": "5on5"}
+            {"sql": "SELECT name, goals FROM skaters", "sport": "hockey", "situation": "5on5"}
         )
         parsed = json.loads(result)
 
@@ -56,7 +56,7 @@ class TestQueryStatsDb:
 
     def test_column_not_found_returns_available_columns(self, mock_connection):
         result = query_stats_db.invoke(
-            {"sql": "SELECT nonexistent FROM skaters", "situation": "all"}
+            {"sql": "SELECT nonexistent FROM skaters", "sport": "hockey", "situation": "all"}
         )
         parsed = json.loads(result)
 
@@ -70,7 +70,7 @@ class TestQueryStatsDb:
         mock_connection.execute(f"INSERT INTO skaters VALUES {values}")
 
         result = query_stats_db.invoke(
-            {"sql": "SELECT * FROM skaters", "situation": "all"}
+            {"sql": "SELECT * FROM skaters", "sport": "hockey", "situation": "all"}
         )
         parsed = json.loads(result)
 
@@ -85,4 +85,4 @@ class TestQueryStatsDb:
             ),
             pytest.raises(FileNotFoundError),
         ):
-            query_stats_db.invoke({"sql": "SELECT 1", "situation": "all"})
+            query_stats_db.invoke({"sql": "SELECT 1", "sport": "hockey", "situation": "all"})
