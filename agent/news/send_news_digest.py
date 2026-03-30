@@ -7,6 +7,7 @@ from agent.digest_writer import DigestType, write_digest_content
 from agent.news.lineup_analyzer import analyze_lineup, parse_roster_position_configs
 from agent.news.news_digest import RawNewsCollection
 from agent.news.news_processor import _extract_roster_players, process_news_for_user
+from agent.prompts.sport_context import get_digest_label
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.news.espn_client import fetch_injuries
 from client.news.matchup_client import fetch_matchups
@@ -72,6 +73,7 @@ def _send_user_digest(
             logger.warning(f"League {league_id} not found, skipping digest for {user_email}")
             return False
         league_name = league[2]
+        sport = league[3]
         league_settings_json = league[4]
     finally:
         league_repo.close()
@@ -128,10 +130,11 @@ def _send_user_digest(
     channel_key = "sms" if isinstance(channel, SmsDelivery) else "email"
     content = write_digest_content(digest, DigestType.NEWS, channel_key)
 
+    digest_label = get_digest_label(sport)
     if isinstance(channel, SmsDelivery):
         _send_news_sms(content, channel.phone_number, user_email, league_name)
     else:
-        _send_news_email(content, user_email, league_name)
+        _send_news_email(content, user_email, league_name, digest_label)
 
     current_injury_states = {
         alert.player_name.lower(): alert.status for alert in digest.injury_alerts
@@ -146,7 +149,7 @@ def _send_user_digest(
     return True
 
 
-def _send_news_email(content: str, user_email: str, league_name: str) -> None:
+def _send_news_email(content: str, user_email: str, league_name: str, digest_label: str = "NHL") -> None:
     email_content = format_email(
         content=content,
         footer_type=FooterType.UNSUBSCRIBE,
@@ -155,7 +158,7 @@ def _send_news_email(content: str, user_email: str, league_name: str) -> None:
     email_service = EmailService()
     result = email_service.send_email(
         to_email=user_email,
-        subject=f"Daily NHL News - {league_name}",
+        subject=f"Daily {digest_label} News - {league_name}",
         text_body=email_content.text_body,
         html_body=email_content.html_body,
     )
@@ -167,7 +170,7 @@ def _send_news_email(content: str, user_email: str, league_name: str) -> None:
                 message_id=result.message_id,
                 thread_id=thread_id,
                 user_email=user_email,
-                subject=f"Daily NHL News - {league_name}",
+                subject=f"Daily {digest_label} News - {league_name}",
             )
         logger.info(f"Sent news digest to {user_email} for league {league_name}")
     else:

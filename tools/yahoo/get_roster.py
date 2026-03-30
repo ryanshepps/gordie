@@ -1,4 +1,4 @@
-"""Tool to get your current fantasy hockey roster."""
+"""Tool to get your current fantasy roster."""
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field, field_validator
@@ -42,7 +42,7 @@ class GetRosterInput(BaseModel):
 @tool(args_schema=GetRosterInput)
 def get_roster(user_email: str, league_id: str, team_id: str) -> str:
     """
-    Get the current roster for a fantasy hockey team with player stats and positions.
+    Get the current roster for a fantasy team with player stats and positions.
 
     Args:
         user_email: User's email address (used to look up OAuth tokens in database)

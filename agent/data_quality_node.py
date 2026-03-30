@@ -28,7 +28,7 @@ def _get_llm() -> ChatOpenAI:
     return _llm_instance
 
 _SYSTEM_PROMPT = """\
-You are a data-quality reviewer for a fantasy hockey AI assistant.
+You are a data-quality reviewer for a fantasy sports AI assistant.
 
 You will receive the assistant's draft response. Check it against every rule below.
 If ANY rule is violated, respond with a JSON object:

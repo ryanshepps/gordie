@@ -1,9 +1,11 @@
-"""Statistician sub-agent for rigorous statistical analysis of fantasy hockey data."""
+"""Statistician sub-agent for rigorous statistical analysis of fantasy sports data."""
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from langchain.tools import InjectedState, tool
 
+from agent.context_types import Sport
+from agent.prompts.sport_context import get_sport_context
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
 from tools.compute.execute_python import execute_python
@@ -17,14 +19,13 @@ logger = get_logger(__name__)
 
 
 _statistician_task = """
-You are a fantasy hockey statistician. You answer ANY statistical question using real data and \
+You are a fantasy sports statistician. You answer ANY statistical question using real data and \
 rigorous computation. You never approximate or guess — you fetch data and compute.
 
 ## Workflow
 
 1. Understand the statistical question being asked.
-2. Determine what data is needed. Fetch it via Yahoo tools (and query_stats_db for MoneyPuck \
-advanced stats like xGoals, Corsi, Fenwick).
+2. Determine what data is needed. Fetch it via Yahoo tools (and query_stats_db for advanced stats).
 3. Write and execute Python code via execute_python to compute the statistics.
 4. Present findings with specific numbers, context, and interpretation.
 
@@ -39,7 +40,7 @@ league-wide analysis.
 - Use yahoo_roster for per-player stats on a specific team's roster.
 - Use yahoo_player for individual player lookups by player_key.
 - Use yahoo_league for draft results, transactions, settings, and league metadata.
-- Use query_stats_db for MoneyPuck advanced stats (xGoals, Corsi, Fenwick, TOI, etc.).
+- Use query_stats_db for advanced stats (sport-specific metrics provided in context).
 
 ## Statistical Capabilities
 
@@ -103,7 +104,7 @@ def statistician(
     team_id: str,
     state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
-    """Perform statistical analysis on fantasy hockey league data.
+    """Perform statistical analysis on fantasy league data.
 
     Use this tool for questions involving:
     - Consistency analysis (weekly scoring variance, coefficient of variation)
@@ -127,6 +128,7 @@ def statistician(
     """
     logger.info(f"Statistician sub-agent invoked with request: {request}")
 
+    sport = cast(Sport | None, state.get("sport")) if state else None
     result = invoke_subagent(
         agent=agent,
         request=request,
@@ -134,6 +136,7 @@ def statistician(
             f"User email: {user_email}",
             f"League ID: {league_id}",
             f"Team ID: {team_id}",
+            get_sport_context(sport),
         ],
     )
 

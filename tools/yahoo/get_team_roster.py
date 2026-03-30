@@ -1,4 +1,4 @@
-"""Tool to get any team's roster in a fantasy hockey league."""
+"""Tool to get any team's roster in a fantasy league."""
 
 import json
 
@@ -17,7 +17,7 @@ def get_team_roster(
     team_id: str,
 ) -> str:
     """
-    Get the roster for any team in the fantasy hockey league.
+    Get the roster for any team in the fantasy league.
 
     Use this to scout other teams' rosters when looking for trade targets.
     Unlike get_roster (which only gets your own roster), this can fetch

@@ -375,7 +375,7 @@ def get_player_line_info(player_ids: list[int]) -> str:
     - Who their primary linemates are (wingers for centers, or defense partners)
     - Shared ice time percentages with linemates
 
-    This is useful for fantasy hockey to understand a player's role and whether they
+    This is useful for fantasy to understand a player's role and whether they
     play with high-quality linemates who can help drive production.
 
     Args:

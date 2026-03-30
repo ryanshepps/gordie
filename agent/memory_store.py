@@ -1,4 +1,4 @@
-"""Memory store singleton for the fantasy hockey assistant.
+"""Memory store singleton for the fantasy sports assistant.
 
 This module handles conversation memory storage and summarization.
 """
@@ -205,7 +205,7 @@ def summarize_and_store_conversation(
         model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         structured_llm = model.with_structured_output(ConversationSummary)
 
-        prompt = f"""Analyze this fantasy hockey conversation and extract key information.
+        prompt = f"""Analyze this fantasy sports conversation and extract key information.
 
 Conversation:
 {conversation_text}

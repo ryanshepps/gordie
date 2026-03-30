@@ -1,23 +1,10 @@
 from agent.agent_state import AgentState
 from agent.context_resolvers import format_teams_for_display
-from agent.context_types import ContextStatus, Sport
+from agent.context_types import ContextStatus
 from agent.prompts.analyst_identity import ANALYST_IDENTITY
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.rules import RULES
-
-SPORT_DISPLAY_NAMES: dict[Sport, str] = {
-    "nhl": "Hockey",
-    "mlb": "Baseball",
-    "nfl": "Football",
-    "nba": "Basketball",
-}
-
-
-def _sport_label(state: AgentState) -> str:
-    sport = state.get("sport")
-    if sport and sport in SPORT_DISPLAY_NAMES:
-        return f"Fantasy {SPORT_DISPLAY_NAMES[sport]}"
-    return "Fantasy"
+from agent.prompts.sport_context import get_sport_context, get_sport_label
 
 
 def _build_context_section(state: AgentState) -> str:
@@ -116,7 +103,7 @@ Ask them to clarify which team they're referring to.
 Do NOT proceed with their request until you know which team.""")
 
     elif context_status == "auto_onboarded":
-        sport_label = _sport_label(state)
+        sport_label = get_sport_label(state.get("sport"))
         league_id = state.get("league_id", "")
         team_id = state.get("team_id", "")
         parts.append(f"""TEAM AUTO-ONBOARDED
@@ -155,7 +142,9 @@ Do NOT proceed with their request.""")
 
 def assemble_system_prompt(state: AgentState) -> str:
     channel = state.get("channel", "email")
+    sport = state.get("sport")
     channel_guidelines = get_channel_guidelines(channel)
     context_section = _build_context_section(state)
+    sport_context = get_sport_context(sport)
 
-    return f"{ANALYST_IDENTITY}\n{RULES}\n{channel_guidelines}\n\n{context_section}"
+    return f"{ANALYST_IDENTITY}\n{RULES}\n{channel_guidelines}\n\n{context_section}\n\n{sport_context}"

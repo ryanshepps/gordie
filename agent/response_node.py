@@ -1,4 +1,4 @@
-"""Response node for the fantasy hockey assistant graph.
+"""Response node for the fantasy sports assistant graph.
 
 Dispatches responses to the appropriate channel (email, SMS, web).
 """

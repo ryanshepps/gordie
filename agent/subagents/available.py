@@ -1,9 +1,11 @@
-"""Available players sub-agent for finding streaming/pickup opportunities."""
+"""Available players sub-agent for finding streaming and pickup opportunities."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from langchain.tools import InjectedState, tool
 
+from agent.context_types import Sport
+from agent.prompts.sport_context import get_sport_context
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
 from tools.available.search_available_players import search_available_players
@@ -17,7 +19,7 @@ logger = get_logger(__name__)
 
 
 _available_players_task = """
-You help users find available players to pick up in fantasy hockey.
+You help users find available players to pick up in their fantasy league.
 
 ## Approach
 
@@ -45,13 +47,7 @@ You help users find available players to pick up in fantasy hockey.
 
 ## Key Stats to Reference
 
-When making recommendations, cite specific stats:
-- **Points/Goals**: Raw production
-- **xGoals vs Goals**: Positive GAE = overperforming (may regress), Negative = underperforming (may improve)
-- **Fenwick%**: Possession quality (>52% is good, >55% is elite)
-- **TOI**: Ice time shows trust from coach
-- **Line number**: 1st line = best linemates/opportunities
-- **Schedule**: More games this week = more chances to score
+When making recommendations, cite the sport-specific advanced metrics provided in context. Always reference schedule and opportunity metrics alongside raw production.
 
 ## Accuracy Rules
 
@@ -87,7 +83,7 @@ def available_players(
     team_id: str,
     state: Annotated[dict[str, Any], InjectedState] | None = None,
 ):
-    """Analyze available players and recommend pickups for fantasy hockey.
+    """Analyze available players and recommend pickups for a fantasy league.
 
     Use this tool for:
     - Finding available player pickups (free agents + waivers)
@@ -108,6 +104,7 @@ def available_players(
     """
     logger.info(f"Available players sub-agent invoked with request: {request}")
 
+    sport = cast(Sport | None, state.get("sport")) if state else None
     result = invoke_subagent(
         agent=agent,
         request=request,
@@ -115,6 +112,7 @@ def available_players(
             f"User email: {user_email}",
             f"League ID: {league_id}",
             f"Team ID: {team_id}",
+            get_sport_context(sport),
         ],
     )
 

@@ -1,4 +1,4 @@
-"""Tool to search for available players (free agents and waivers) in a fantasy hockey league."""
+"""Tool to search for available players (free agents and waivers) in a fantasy league."""
 
 import json
 
@@ -74,7 +74,7 @@ def search_available_players(
     count: int = 25,
 ) -> str:
     """
-    Search for available players (free agents and/or waivers) in a fantasy hockey league.
+    Search for available players (free agents and/or waivers) in a fantasy league.
 
     Returns basic player info: name, team, position, ownership %, availability type.
     Use query_stats_db to fetch detailed statistics for specific players.

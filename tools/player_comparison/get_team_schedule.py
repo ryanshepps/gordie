@@ -243,7 +243,7 @@ def get_team_schedule(team_abbrevs: list[str]) -> str:
     """
     Get the number of games each NHL team has for the remainder of this week and next week.
 
-    This is useful for fantasy hockey decisions - players on teams with more games
+    This is useful for fantasy decisions - players on teams with more games
     have more opportunities to accumulate points. This tool fetches the schedule
     from the official NHL API.
 

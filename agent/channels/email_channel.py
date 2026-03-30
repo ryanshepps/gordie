@@ -20,11 +20,11 @@ def _determine_subject(original_subject: str | None, message_content: str) -> st
     message_lower = message_content.lower()
     comparison_keywords = ["comparison", "vs", "recommend"]
     if any(kw in message_lower for kw in comparison_keywords):
-        return "Fantasy Hockey Player Comparison"
+        return "Fantasy Sports Player Comparison"
     onboard_keywords = ["onboard", "connect", "authenticate"]
     if any(kw in message_lower for kw in onboard_keywords):
-        return "Fantasy Hockey Team Setup"
-    return "Fantasy Hockey Assistant Response"
+        return "Fantasy Sports Team Setup"
+    return "Fantasy Sports Assistant Response"
 
 
 def send_email_response(state: AgentState, message_content: str) -> None:

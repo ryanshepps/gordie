@@ -1,4 +1,4 @@
-"""Weekly digest job for sending personalized fantasy hockey updates."""
+"""Weekly digest job for sending personalized fantasy sports updates."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import uuid
 from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
 from agent.email_enrichment import enrich_email_with_player_stats
+from agent.prompts.sport_context import get_sport_label
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.moneypuck_cli import get_player_stats_by_names
 from data.pydantic_models import (
@@ -62,8 +63,8 @@ def send_digest(user_email: str, league_id: str) -> None:
         if not league:
             logger.warning(f"League {league_id} not found, skipping digest for {user_email}")
             return
-        # Column order: league_id, game_key, league_name, league_type, league_settings, created_at
         league_name = league[2]
+        sport = league[3]
     finally:
         league_repo.close()
 
@@ -107,14 +108,19 @@ def send_digest(user_email: str, league_id: str) -> None:
     channel_key = "sms" if isinstance(channel, SmsDelivery) else "email"
     content = write_digest_content(digest_data, DigestType.WEEKLY, channel_key)
 
+    sport_label = get_sport_label(sport)
     if isinstance(channel, SmsDelivery):
         _send_digest_sms(content, channel.phone_number, user_email, league_name)
     else:
-        _send_digest_email(content, user_email, league_name, league_id)
+        _send_digest_email(content, user_email, league_name, league_id, sport_label)
 
 
 def _send_digest_email(
-    content: str, user_email: str, league_name: str, league_id: str
+    content: str,
+    user_email: str,
+    league_name: str,
+    league_id: str,
+    sport_label: str = "Fantasy Hockey",
 ) -> None:
     _, html_stats = enrich_email_with_player_stats(content, user_email, league_id)
 
@@ -127,7 +133,7 @@ def _send_digest_email(
     email_service = EmailService()
     result = email_service.send_email(
         to_email=user_email,
-        subject=f"Weekly Fantasy Hockey Digest - {league_name}",
+        subject=f"Weekly {sport_label} Digest - {league_name}",
         text_body=email_content.text_body,
         html_body=email_content.html_body,
     )
@@ -139,7 +145,7 @@ def _send_digest_email(
                 message_id=result.message_id,
                 thread_id=thread_id,
                 user_email=user_email,
-                subject=f"Weekly Fantasy Hockey Digest - {league_name}",
+                subject=f"Weekly {sport_label} Digest - {league_name}",
             )
         logger.info(f"Sent weekly digest to {user_email} for league {league_name}")
     else:

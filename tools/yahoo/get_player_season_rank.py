@@ -1,4 +1,4 @@
-"""Tool to get a player's current season rank in a fantasy hockey league."""
+"""Tool to get a player's current season rank in a fantasy league."""
 
 import json
 from urllib.parse import quote
@@ -83,7 +83,7 @@ def get_player_season_rank(
     player_name: str,
 ) -> str:
     """
-    Get a player's current season rank in a fantasy hockey league.
+    Get a player's current season rank in a fantasy league.
 
     This tool searches for a player by name and returns their current season
     ranking based on fantasy points (AR = Actual Rank). The rank represents

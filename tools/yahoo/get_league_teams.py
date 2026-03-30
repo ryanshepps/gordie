@@ -1,4 +1,4 @@
-"""Tool to get all teams in a fantasy hockey league with their managers."""
+"""Tool to get all teams in a fantasy league with their managers."""
 
 import json
 
@@ -16,7 +16,7 @@ def get_league_teams(
     league_id: str,
 ) -> str:
     """
-    Get all teams in a fantasy hockey league with their managers.
+    Get all teams in a fantasy league with their managers.
 
     Use this to find out who manages each team in the league, which is essential
     for proposing trades to specific managers.

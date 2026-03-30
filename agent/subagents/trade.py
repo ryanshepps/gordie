@@ -1,9 +1,11 @@
 """Trade sub-agent for finding players to trade for"""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from langchain.tools import InjectedState, tool
 
+from agent.context_types import Sport
+from agent.prompts.sport_context import get_sport_context
 from agent.response_models import TradeResponse
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
@@ -30,9 +32,9 @@ NEVER recommend players who are OBVIOUSLY BETTER than the subject player:
 
 The goal is finding UNDERVALUED players - players who LOOK worse (lower rank, fewer points)
 but have BETTER advanced stats indicating they'll improve:
-- Negative Goals Above Expected (shooting unlucky, will regress UP)
-- Strong Fenwick/Corsi % (good possession, opportunities will come)
-- High ice time / top line deployment (getting opportunities)
+- Underperforming expected metrics (unlucky, will regress UP)
+- Strong underlying efficiency or opportunity metrics
+- High usage / deployment (getting opportunities)
 - Favorable schedule (more games = more chances)
 
 ## Workflow
@@ -47,7 +49,7 @@ but have BETTER advanced stats indicating they'll improve:
    - For "trading_for": look for similarly-ranked players with better upside indicators
 
 3. Get stats for ALL players using query_stats_db, then calculate_undervalued_score:
-   - Use query_stats_db with SQL to fetch player stats from the skaters table
+   - Use query_stats_db with SQL to fetch player stats
    - Pass the fetched stats to calculate_undervalued_score for Yahoo rank, schedule, and scoring
    - IMPORTANT: Each player gets an undervalued_score and undervalued_reasons
 
@@ -55,7 +57,7 @@ but have BETTER advanced stats indicating they'll improve:
    - EXCLUDE any player ranked 10+ spots better than subject player
    - EXCLUDE elite players (rank 1-20) unless subject is also elite
    - PRIORITIZE players with HIGHER undervalued_score than subject player
-   - PRIORITIZE players with NEGATIVE goals_above_expected (will regress UP)
+   - PRIORITIZE players underperforming their expected metrics (will regress UP)
 
 5. Use undervalued_score to prioritize targets:
    - Score > 5: Highly undervalued - STRONG BUY, prioritize these targets
@@ -74,7 +76,7 @@ but have BETTER advanced stats indicating they'll improve:
    the target is obtainable (they look bad on surface but have hidden value).
 
 Return TradeResponse with complete player_stats for subject + all targets, and trade_targets
-with detailed pitches and reasoning. The summary MUST cite specific advanced stats (xGoals, Fenwick%, schedule, line info) - summaries using only rank will be rejected.
+with detailed pitches and reasoning. The summary MUST cite specific advanced stats from the sport context - summaries using only rank will be rejected.
 
 User: {user_email} | League: {league_id} | Team: {team_id}
 """
@@ -101,17 +103,17 @@ def trade(
     team_id: str,
     state: Annotated[dict[str, Any], InjectedState] | None = None,
 ):
-    """Analyze trade opportunities and find trade targets using advanced hockey statistics.
+    """Analyze trade opportunities and find trade targets using advanced statistics.
 
     Use this tool for:
     - Trade suggestions and finding trade targets on other teams
-    - Player comparisons for trade decisions (uses xGoals, Fenwick%, Corsi%, TOI)
-    - Identifying undervalued players based on advanced analytics
+    - Player comparisons for trade decisions using advanced analytics
+    - Identifying undervalued players based on advanced metrics
     - Finding trade partners when user has roster imbalances
     - Questions like "who should I trade", "trade targets", "help me trade"
 
-    This tool performs comprehensive analysis including MoneyPuck advanced stats,
-    schedule analysis, linemate information, and undervalued player scoring.
+    This tool performs comprehensive analysis including advanced stats,
+    schedule analysis, and undervalued player scoring.
 
     Args:
         request (str): The user's trade request in natural language.
@@ -125,6 +127,7 @@ def trade(
     """
     logger.info(f"Trade sub-agent invoked with request: {request}")
 
+    sport = cast(Sport | None, state.get("sport")) if state else None
     result = invoke_subagent(
         agent=agent,
         request=request,
@@ -132,6 +135,7 @@ def trade(
             f"User email: {user_email}",
             f"League ID: {league_id}",
             f"Team ID: {team_id}",
+            get_sport_context(sport),
         ],
     )
 

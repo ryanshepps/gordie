@@ -16,8 +16,8 @@ logger = get_logger(__name__)
 MessageIntent = Literal["analysis", "general"]
 
 _INTENT_SYSTEM_PROMPT = (
-    "You classify fantasy hockey messages. Respond with exactly one word.\n\n"
-    "Respond 'analysis' if the message asks for fantasy hockey advice, player stats, "
+    "You classify fantasy sports messages. Respond with exactly one word.\n\n"
+    "Respond 'analysis' if the message asks for fantasy sports advice, player stats, "
     "trade evaluation, roster help, waiver/pickup recommendations, matchup questions, "
     "or any team-specific processing.\n\n"
     "Respond 'general' if the message is about billing, subscriptions, upgrading, "

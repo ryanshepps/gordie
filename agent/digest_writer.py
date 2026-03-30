@@ -23,12 +23,12 @@ class DigestType(Enum):
 
 WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
     (DigestType.WEEKLY, "email"): (
-        "Write like you're texting your fantasy hockey buddy after watching a week of games. "
+        "Write like you're texting your fantasy sports buddy after watching a week of games. "
         "Cover matchup, top/bottom performers, injuries, free agent tips, schedule advice. "
         "Keep it under 600 words."
     ),
     (DigestType.WEEKLY, "sms"): (
-        "Write like you're texting your fantasy hockey buddy after watching a week of games. "
+        "Write like you're texting your fantasy sports buddy after watching a week of games. "
         "Cover the most important highlights: matchup, top performers, key injuries. "
         "No markdown. Keep it under 200 words."
     ),
