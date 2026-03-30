@@ -12,6 +12,9 @@ from module.logger import get_logger
 from tools.player_comparison.calculate_undervalued_score import (
     calculate_undervalued_score,
 )
+from tools.player_comparison.calculate_undervalued_score_mlb import (
+    calculate_mlb_undervalued_score,
+)
 from tools.stats.query_mlb_stats_db import query_mlb_stats_db
 from tools.stats.query_stats_db import query_hockey_stats_db
 from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
@@ -91,6 +94,7 @@ agent = create_subagent(
         query_hockey_stats_db,
         query_mlb_stats_db,
         calculate_undervalued_score,
+        calculate_mlb_undervalued_score,
         find_similar_ranked_players,
     ],
     response_format=TradeResponse,

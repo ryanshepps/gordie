@@ -13,6 +13,7 @@ from agent.prompts.assemble import assemble_system_prompt
 from agent.subagents.available import available_players
 from agent.subagents.statistician import statistician
 from agent.subagents.trade import trade
+from middleware.sport_tool_filter import sport_tool_filter
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
@@ -56,7 +57,7 @@ def create_supervisor_agent(system_prompt: str):
     return create_agent(
         model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
         tools=tools,
-        middleware=[StateLoggingMiddleware("supervisor"), handle_tool_errors],
+        middleware=[StateLoggingMiddleware("supervisor"), sport_tool_filter, handle_tool_errors],
         system_prompt=system_prompt,
         checkpointer=checkpointer,
         state_schema=AgentState,  # type: ignore[arg-type]

@@ -11,3 +11,4 @@ data/agent_conversations.db
 .cloudflared
 
 *.log
+.gstack/

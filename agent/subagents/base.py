@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from agent.agent_state import AgentState
 from agent.checkpointer import checkpointer
+from middleware.sport_tool_filter import sport_tool_filter
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.logger import get_logger
@@ -37,7 +38,7 @@ def create_subagent(
     agent_kwargs: dict[str, Any] = {
         "model": llm,
         "tools": tools,
-        "middleware": [StateLoggingMiddleware(name), handle_tool_errors],
+        "middleware": [StateLoggingMiddleware(name), sport_tool_filter, handle_tool_errors],
         "system_prompt": SystemMessage(content=system_prompt),
         "checkpointer": checkpointer,
         "state_schema": AgentState,
