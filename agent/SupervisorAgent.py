@@ -20,10 +20,10 @@ from module.logger import get_logger
 from tools.billing.generate_checkout_link import generate_checkout_link
 from tools.billing.generate_portal_link import generate_portal_link
 from tools.billing.get_subscription_status import get_subscription_status
+from tools.hockey.stats.query_stats_db import query_hockey_stats_db
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
+from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from tools.notifications.manage_notifications import manage_notifications
-from tools.stats.query_mlb_stats_db import query_mlb_stats_db
-from tools.stats.query_stats_db import query_hockey_stats_db
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 END_NODE: Literal["__end__"] = "__end__"

@@ -9,8 +9,8 @@ from agent.prompts.sport_context import get_sport_context
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
 from tools.compute.execute_python import execute_python
-from tools.stats.query_mlb_stats_db import query_mlb_stats_db
-from tools.stats.query_stats_db import query_hockey_stats_db
+from tools.hockey.stats.query_stats_db import query_hockey_stats_db
+from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from tools.yahoo_stats.yahoo_league import yahoo_league
 from tools.yahoo_stats.yahoo_player import yahoo_player
 from tools.yahoo_stats.yahoo_roster import yahoo_roster

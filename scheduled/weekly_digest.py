@@ -28,7 +28,7 @@ from server.email_service import EmailService
 from server.sms_service import SmsService
 from server.thread_manager import save_message_id_mapping
 from tools.available.search_available_players import search_available_players
-from tools.player_comparison.get_team_schedule import get_team_schedule
+from tools.hockey.player.get_team_schedule import get_team_schedule
 from tools.yahoo.get_team_matchups import get_current_matchup
 
 logger = get_logger(__name__)

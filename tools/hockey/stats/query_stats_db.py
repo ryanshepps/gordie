@@ -7,8 +7,8 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
-from tools.stats.duckdb_connection import get_stats_connection
-from tools.stats.duckdb_schema import TABLES, TOOL_DESCRIPTION
+from tools.hockey.stats.duckdb_connection import get_stats_connection
+from tools.hockey.stats.duckdb_schema import TABLES, TOOL_DESCRIPTION
 
 logger = get_logger(__name__)
 

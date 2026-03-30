@@ -10,8 +10,8 @@ import requests
 
 from module.logger import get_logger
 from module.metrics import stats_db_last_refresh_timestamp, stats_db_refresh_total
-from tools.stats.duckdb_connection import reset_stats_connection
-from tools.stats.duckdb_schema import DB_PATH, MONEYPUCK_BASE_URL, SEASONS
+from tools.hockey.stats.duckdb_connection import reset_stats_connection
+from tools.hockey.stats.duckdb_schema import DB_PATH, MONEYPUCK_BASE_URL, SEASONS
 
 logger = get_logger(__name__)
 

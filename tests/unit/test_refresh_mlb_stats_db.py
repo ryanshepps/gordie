@@ -27,7 +27,7 @@ def _fake_team_pitching(season: int, **_kwargs: object) -> pd.DataFrame:
 def isolate_db(tmp_path, monkeypatch):
     test_db_path = tmp_path / "mlb_stats.duckdb"
     monkeypatch.setattr("scheduled.refresh_mlb_stats_db.MLB_DB_PATH", test_db_path)
-    monkeypatch.setattr("tools.stats.mlb_connection.MLB_DB_PATH", test_db_path)
+    monkeypatch.setattr("tools.mlb.stats.mlb_connection.MLB_DB_PATH", test_db_path)
     return test_db_path
 
 

@@ -9,8 +9,8 @@ from pybaseball import batting_stats, pitching_stats, team_batting, team_pitchin
 
 from module.logger import get_logger
 from module.metrics import mlb_stats_db_last_refresh_timestamp, mlb_stats_db_refresh_total
-from tools.stats.mlb_connection import reset_mlb_stats_connection
-from tools.stats.mlb_schema import MLB_DB_PATH, MLB_SEASONS
+from tools.mlb.stats.mlb_connection import reset_mlb_stats_connection
+from tools.mlb.stats.mlb_schema import MLB_DB_PATH, MLB_SEASONS
 
 logger = get_logger(__name__)
 

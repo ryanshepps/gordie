@@ -4,7 +4,7 @@ import threading
 
 import duckdb
 
-from tools.stats.duckdb_schema import DB_PATH
+from tools.hockey.stats.duckdb_schema import DB_PATH
 
 _connection: duckdb.DuckDBPyConnection | None = None
 _lock = threading.Lock()

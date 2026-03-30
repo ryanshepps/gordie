@@ -6,10 +6,10 @@ from typing import Any
 from langchain.tools import tool
 
 from module.logger import get_logger
-from tools.player_comparison.fuzzy_resolve_nhl_api_player_ids import (
+from tools.hockey.player.fuzzy_resolve_nhl_api_player_ids import (
     fuzzy_resolve_nhl_api_player_ids,
 )
-from tools.player_comparison.get_team_schedule import get_team_schedule
+from tools.hockey.player.get_team_schedule import get_team_schedule
 
 logger = get_logger(__name__)
 

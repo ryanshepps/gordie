@@ -9,14 +9,14 @@ from agent.prompts.sport_context import get_sport_context
 from agent.response_models import TradeResponse
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
-from tools.player_comparison.calculate_undervalued_score import (
+from tools.hockey.player.calculate_undervalued_score import (
     calculate_undervalued_score,
 )
-from tools.player_comparison.calculate_undervalued_score_mlb import (
+from tools.hockey.stats.query_stats_db import query_hockey_stats_db
+from tools.mlb.player.calculate_undervalued_score_mlb import (
     calculate_mlb_undervalued_score,
 )
-from tools.stats.query_mlb_stats_db import query_mlb_stats_db
-from tools.stats.query_stats_db import query_hockey_stats_db
+from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from tools.yahoo.find_similar_ranked_players import find_similar_ranked_players
 from tools.yahoo.get_league_teams import get_league_teams
 from tools.yahoo.get_team_roster import get_team_roster

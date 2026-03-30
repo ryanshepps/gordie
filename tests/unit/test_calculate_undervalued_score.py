@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch
 
-from tools.player_comparison.calculate_undervalued_score import (
+from tools.hockey.player.calculate_undervalued_score import (
     _calculate_score,
     calculate_undervalued_score,
 )
@@ -163,10 +163,10 @@ class TestCalculateUndervaluedScoreTool:
         })
 
         with patch(
-            "tools.player_comparison.calculate_undervalued_score.get_player_season_rank",
+            "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
             return_value=mock_yahoo,
         ), patch(
-            "tools.player_comparison.calculate_undervalued_score.get_team_schedule",
+            "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
             return_value=mock_schedule,
         ):
             result = calculate_undervalued_score.invoke({
@@ -202,10 +202,10 @@ class TestCalculateUndervaluedScoreTool:
         })
 
         with patch(
-            "tools.player_comparison.calculate_undervalued_score.get_player_season_rank",
+            "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
             side_effect=Exception("Yahoo API down"),
         ), patch(
-            "tools.player_comparison.calculate_undervalued_score.get_team_schedule",
+            "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
             return_value=mock_schedule,
         ):
             result = calculate_undervalued_score.invoke({

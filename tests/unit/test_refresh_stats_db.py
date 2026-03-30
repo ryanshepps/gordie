@@ -13,7 +13,7 @@ from scheduled.refresh_stats_db import refresh_stats_db
 def isolate_db(tmp_path, monkeypatch):
     test_db_path = tmp_path / "moneypuck_stats.duckdb"
     monkeypatch.setattr("scheduled.refresh_stats_db.DB_PATH", test_db_path)
-    monkeypatch.setattr("tools.stats.duckdb_connection.DB_PATH", test_db_path)
+    monkeypatch.setattr("tools.hockey.stats.duckdb_connection.DB_PATH", test_db_path)
     return test_db_path
 
 

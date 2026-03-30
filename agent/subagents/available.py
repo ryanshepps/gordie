@@ -9,10 +9,10 @@ from agent.prompts.sport_context import get_sport_context
 from agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from module.logger import get_logger
 from tools.available.search_available_players import search_available_players
-from tools.stats.get_player_line_info import get_player_line_info
-from tools.stats.get_player_schedule import get_player_schedule
-from tools.stats.query_mlb_stats_db import query_mlb_stats_db
-from tools.stats.query_stats_db import query_hockey_stats_db
+from tools.hockey.stats.get_player_line_info import get_player_line_info
+from tools.hockey.stats.get_player_schedule import get_player_schedule
+from tools.hockey.stats.query_stats_db import query_hockey_stats_db
+from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from tools.yahoo.get_player_yahoo_info import get_player_yahoo_info
 from tools.yahoo.get_team_roster import get_team_roster
 

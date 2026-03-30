@@ -2,7 +2,7 @@ import threading
 
 import duckdb
 
-from tools.stats.mlb_schema import MLB_DB_PATH
+from tools.mlb.stats.mlb_schema import MLB_DB_PATH
 
 _connection: duckdb.DuckDBPyConnection | None = None
 _lock = threading.Lock()

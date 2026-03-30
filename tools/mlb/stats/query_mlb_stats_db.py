@@ -5,8 +5,8 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
-from tools.stats.mlb_connection import get_mlb_stats_connection
-from tools.stats.mlb_schema import MLB_TABLES, MLB_TOOL_DESCRIPTION
+from tools.mlb.stats.mlb_connection import get_mlb_stats_connection
+from tools.mlb.stats.mlb_schema import MLB_TABLES, MLB_TOOL_DESCRIPTION
 
 logger = get_logger(__name__)
 

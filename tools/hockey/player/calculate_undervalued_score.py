@@ -8,7 +8,7 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
-from tools.player_comparison.get_team_schedule import get_team_schedule
+from tools.hockey.player.get_team_schedule import get_team_schedule
 from tools.yahoo.get_player_season_rank import get_player_season_rank
 
 logger = get_logger(__name__)
