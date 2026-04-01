@@ -92,8 +92,9 @@ def format_teams_for_display(teams: list[dict[str, str]]) -> str:
     teams_list = []
     for team in teams:
         active_status = "Active" if team.get("is_active", False) else "Off-season"
+        sport_label = team.get("sport", "unknown").upper()
         team_str = (
-            f"  - Team: {team['team_name']}\n"
+            f"  - [{sport_label}] Team: {team['team_name']}\n"
             f"    Season: {team['season']} ({active_status})\n"
             f"    game_key={team['game_key']}, league_id={team['league_id']}, team_id={team['team_id']}"
         )
@@ -109,6 +110,7 @@ def auto_onboard_team(user_email: str, team: dict[str, str]) -> dict[str, str]:
         {
             "user_email": user_email,
             "game_key": team["game_key"],
+            "game_code": team.get("sport", "nhl"),
             "league_id": int(team["league_id"]),
             "team_name": team["team_name"],
             "team_id": int(team["team_id"]),

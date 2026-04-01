@@ -17,7 +17,10 @@ logger = get_logger(__name__)
 class OnboardUserTeamInput(BaseModel):
     user_email: str = Field(description="User's email address")
     game_key: str = Field(
-        description="Yahoo Fantasy game key from get_user_leagues (e.g., 'nhl', 'nfl')"
+        description="Numeric Yahoo Fantasy game key from get_user_leagues (e.g., '423', '465')"
+    )
+    game_code: str = Field(
+        description="Yahoo Fantasy sport code from get_user_leagues (e.g., 'nhl', 'mlb', 'nfl', 'nba')"
     )
     league_id: int = Field(
         description="Yahoo Fantasy league ID from get_user_leagues (just the numeric ID, e.g., '26455')"
@@ -30,7 +33,12 @@ class OnboardUserTeamInput(BaseModel):
 
 @tool(args_schema=OnboardUserTeamInput)
 def onboard_user_team(
-    user_email: str, game_key: str, league_id: int, team_name: str, team_id: int
+    user_email: str,
+    game_key: str,
+    game_code: str,
+    league_id: int,
+    team_name: str,
+    team_id: int,
 ) -> str:
     """
     Onboard a user's selected Yahoo Fantasy team to the database.
@@ -38,7 +46,8 @@ def onboard_user_team(
 
     Args:
         user_email: User's email address
-        game_key: Yahoo Fantasy game key from get_user_leagues (e.g., "nhl", "nfl")
+        game_key: Numeric Yahoo Fantasy game key from get_user_leagues (e.g., "423", "465")
+        game_code: Yahoo Fantasy sport code (e.g., "nhl", "mlb", "nfl", "nba")
         league_id: Yahoo Fantasy league ID from get_user_leagues (just the numeric ID, e.g., "26455")
         team_id: Yahoo Fantasy team ID from get_user_leagues (just the numeric team ID)
 
@@ -50,7 +59,9 @@ def onboard_user_team(
         return build_upgrade_message(user_email, reason, "email")
 
     try:
-        yahoo_client = AuthenticatedYahooClient(user_email=user_email, league_id=league_id)
+        yahoo_client = AuthenticatedYahooClient(
+            user_email=user_email, league_id=league_id, game_code=game_code
+        )
         yahoo_query = yahoo_client.query
 
         # Fetch league settings to get league details
