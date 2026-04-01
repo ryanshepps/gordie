@@ -143,6 +143,7 @@ def trade(
             f"Team ID: {team_id}",
             get_sport_context(sport),
         ],
+        sport=sport,
     )
 
     # Check for structured response first

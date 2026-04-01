@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from agent.agent_state import AgentState
 from agent.checkpointer import checkpointer
+from agent.context_types import Sport
 from middleware.sport_tool_filter import sport_tool_filter
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
@@ -67,13 +68,16 @@ def invoke_subagent(
     request: str,
     context_parts: list[str],
     thread_id: str | None = None,
+    sport: Sport | None = None,
 ) -> dict[str, Any]:
     """Invoke a sub-agent with standard message building."""
     system_messages = build_system_messages(context_parts)
 
-    input_state = {
+    input_state: dict[str, Any] = {
         "messages": [*system_messages, {"role": "user", "content": request}],
     }
+    if sport is not None:
+        input_state["sport"] = sport
 
     config: RunnableConfig = {}
     if thread_id:

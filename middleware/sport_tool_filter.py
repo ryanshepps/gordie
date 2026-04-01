@@ -9,6 +9,9 @@ SPORT_TOOLS: dict[Sport, set[str]] = {
         "query_hockey_stats_db",
         "calculate_undervalued_score",
         "get_team_schedule",
+        "get_player_schedule",
+        "get_player_line_info",
+        "compare_players_comprehensive",
         "fuzzy_resolve_nhl_api_player_ids",
     },
     "mlb": {

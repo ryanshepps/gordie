@@ -140,6 +140,7 @@ def statistician(
             f"Team ID: {team_id}",
             get_sport_context(sport),
         ],
+        sport=sport,
     )
 
     response = extract_response(

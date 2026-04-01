@@ -12,6 +12,7 @@ from tools.available.search_available_players import search_available_players
 from tools.hockey.stats.get_player_line_info import get_player_line_info
 from tools.hockey.stats.get_player_schedule import get_player_schedule
 from tools.hockey.stats.query_stats_db import query_hockey_stats_db
+from tools.mlb.player.get_team_schedule import get_mlb_team_schedule
 from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from tools.yahoo.get_player_yahoo_info import get_player_yahoo_info
 from tools.yahoo.get_team_roster import get_team_roster
@@ -70,6 +71,7 @@ agent = create_subagent(
         query_mlb_stats_db,
         get_player_schedule,
         get_player_line_info,
+        get_mlb_team_schedule,
         get_player_yahoo_info,
         get_team_roster,
     ],
@@ -116,6 +118,7 @@ def available_players(
             f"Team ID: {team_id}",
             get_sport_context(sport),
         ],
+        sport=sport,
     )
 
     response = extract_response(
