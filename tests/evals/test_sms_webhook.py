@@ -1,7 +1,5 @@
 """Integration tests for SMS webhook endpoint."""
 
-import hashlib
-import hmac
 import json
 import time
 from unittest.mock import MagicMock, patch
@@ -19,18 +17,16 @@ def clear_rate_limits():
     _rate_limit_store.clear()
 
 
+VALID_TOKEN = "test-webhook-token"
+
+
 @pytest.fixture
 def sms_env(monkeypatch):
     """Set required environment variables for SMS webhook tests."""
-    monkeypatch.setenv("SINCH_WEBHOOK_SECRET", "test-webhook-secret")
+    monkeypatch.setenv("SINCH_WEBHOOK_TOKEN", VALID_TOKEN)
     monkeypatch.setenv("SINCH_SERVICE_PLAN_ID", "test-plan")
     monkeypatch.setenv("SINCH_API_TOKEN", "test-token")
     monkeypatch.setenv("SINCH_FROM_NUMBER", "+15550001111")
-
-
-def _make_signature(body: bytes, secret: str = "test-webhook-secret") -> str:
-    """Generate HMAC-SHA1 signature for test payloads (matches Sinch spec)."""
-    return hmac.new(secret.encode(), body, hashlib.sha1).hexdigest()
 
 
 @pytest.fixture
@@ -63,7 +59,6 @@ class TestSmsWebhook:
         """Valid SMS webhook triggers agent processing and returns 200."""
         payload = {"from": "+15559876543", "body": "Who should I start?", "id": "sinch-msg-1"}
         body = json.dumps(payload).encode()
-        sig = _make_signature(body)
 
         mock_session = _mock_db_no_duplicate()
         mock_user_repo = MagicMock()
@@ -89,12 +84,9 @@ class TestSmsWebhook:
             patch("server.routes.sms_routes.threading") as mock_threading,
         ):
             response = await client.post(
-                "/sms/webhook",
+                f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Sinch-Signature": sig,
-                },
+                headers={"Content-Type": "application/json"},
             )
 
         assert response.status_code == 200
@@ -102,18 +94,15 @@ class TestSmsWebhook:
         assert data["status"] == "received"
         mock_threading.Thread.assert_called_once()
 
-    async def test_invalid_signature_returns_403(self, client):
-        """Invalid HMAC signature is rejected with 403."""
+    async def test_invalid_token_returns_403(self, client):
+        """Invalid auth token is rejected with 403."""
         payload = {"from": "+15559876543", "body": "Hello", "id": "sinch-msg-2"}
         body = json.dumps(payload).encode()
 
         response = await client.post(
-            "/sms/webhook",
+            "/sms/webhook?auth_token=wrong-token",
             data=body,
-            headers={
-                "Content-Type": "application/json",
-                "X-Sinch-Signature": "invalid-signature",
-            },
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 403
@@ -122,20 +111,15 @@ class TestSmsWebhook:
         """Duplicate Sinch message IDs are skipped with 200."""
         payload = {"from": "+15559876543", "body": "Hello", "id": "sinch-msg-dup"}
         body = json.dumps(payload).encode()
-        sig = _make_signature(body)
 
         mock_session = MagicMock()
-        # Return existing record (duplicate)
         mock_session.execute.return_value.fetchone.return_value = (1,)
 
         with patch("server.routes.sms_routes.get_session", return_value=mock_session):
             response = await client.post(
-                "/sms/webhook",
+                f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Sinch-Signature": sig,
-                },
+                headers={"Content-Type": "application/json"},
             )
 
         assert response.status_code == 200
@@ -146,7 +130,6 @@ class TestSmsWebhook:
         """Sending STOP triggers opt-out and confirmation SMS."""
         payload = {"from": "+15559876543", "body": "STOP", "id": "sinch-msg-stop"}
         body = json.dumps(payload).encode()
-        sig = _make_signature(body)
 
         mock_session = _mock_db_no_duplicate()
         mock_user_repo = MagicMock()
@@ -164,12 +147,9 @@ class TestSmsWebhook:
             ),
         ):
             response = await client.post(
-                "/sms/webhook",
+                f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Sinch-Signature": sig,
-                },
+                headers={"Content-Type": "application/json"},
             )
 
         assert response.status_code == 200
@@ -183,23 +163,18 @@ class TestSmsWebhook:
         """Excess messages from same phone are dropped after rate limit."""
         from server.routes.sms_routes import RATE_LIMIT_MAX
 
-        # Pre-fill rate limit store to the max
         _rate_limit_store["+15559876543"] = [time.time()] * RATE_LIMIT_MAX
 
         payload = {"from": "+15559876543", "body": "One more", "id": "sinch-msg-rate"}
         body = json.dumps(payload).encode()
-        sig = _make_signature(body)
 
         mock_session = _mock_db_no_duplicate()
 
         with patch("server.routes.sms_routes.get_session", return_value=mock_session):
             response = await client.post(
-                "/sms/webhook",
+                f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Sinch-Signature": sig,
-                },
+                headers={"Content-Type": "application/json"},
             )
 
         assert response.status_code == 200
@@ -210,7 +185,6 @@ class TestSmsWebhook:
         """Unknown phone number creates a pending_user record."""
         payload = {"from": "+15550009999", "body": "Hi", "id": "sinch-msg-new"}
         body = json.dumps(payload).encode()
-        sig = _make_signature(body)
 
         mock_session = _mock_db_no_duplicate()
         mock_user_repo = MagicMock()
@@ -239,12 +213,9 @@ class TestSmsWebhook:
             patch("server.routes.sms_routes.threading"),
         ):
             response = await client.post(
-                "/sms/webhook",
+                f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Sinch-Signature": sig,
-                },
+                headers={"Content-Type": "application/json"},
             )
 
         assert response.status_code == 200

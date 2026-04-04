@@ -1,4 +1,3 @@
-import logging
 from datetime import UTC, datetime
 
 from agent.agent_state import AgentState
@@ -12,9 +11,10 @@ from agent.context_resolvers import (
 from agent.context_types import ContextResult, Sport
 from agent.sport_inference import infer_sport
 from data.yahoo_user_team_repository import YahooUserTeamRepository
+from module.logger import get_logger
 from tools.oauth.generate_oauth_link import generate_oauth_link
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _fetch_onboarded_teams(user_email: str) -> list[dict[str, str]]:

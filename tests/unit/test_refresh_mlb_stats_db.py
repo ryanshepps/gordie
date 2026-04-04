@@ -76,7 +76,7 @@ class TestRefreshMlbStatsDb:
                 "scheduled.refresh_mlb_stats_db.batting_stats",
                 side_effect=Exception("fetch failed"),
             ),
-            pytest.raises(Exception, match="fetch failed"),
+            pytest.raises(RuntimeError, match="No MLB data fetched for any season"),
         ):
             refresh_mlb_stats_db()
 
@@ -105,7 +105,7 @@ class TestRefreshMlbStatsDb:
                 side_effect=Exception("fail"),
             ),
             patch("scheduled.refresh_mlb_stats_db.mlb_stats_db_refresh_total") as mock_counter,
-            pytest.raises(Exception, match="fail"),
+            pytest.raises(RuntimeError, match="No MLB data fetched for any season"),
         ):
             refresh_mlb_stats_db()
 

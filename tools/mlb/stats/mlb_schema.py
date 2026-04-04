@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
-MLB_SEASONS = list(range(2021, 2026))
+MLB_SEASONS = list(range(2021, datetime.now(UTC).year + 1))
 MLB_DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "mlb_stats.duckdb"
 MLB_TABLES = ["mlb_batters", "mlb_pitchers", "mlb_teams"]
 

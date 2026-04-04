@@ -61,7 +61,15 @@ def refresh_stats_db() -> None:
                     url = _csv_url(table_type, season)
                     dest = csv_dir / f"{table_type}_{season}.csv"
                     logger.info(f"Downloading {url}")
-                    _download_csv(url, dest)
+                    try:
+                        _download_csv(url, dest)
+                    except requests.HTTPError as exc:
+                        if exc.response is not None and exc.response.status_code == 404:
+                            logger.warning(
+                                f"MoneyPuck has no {table_type} data for {season} (404), skipping"
+                            )
+                        else:
+                            raise
 
             conn = duckdb.connect(str(tmp_path))
             try:

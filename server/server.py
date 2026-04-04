@@ -94,6 +94,14 @@ class Server:
         except Exception:
             logger.exception("Failed to refresh stats DB on startup")
 
+        try:
+            from scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
+
+            refresh_mlb_stats_db()
+            logger.info("MLB stats DB refreshed on startup")
+        except Exception:
+            logger.exception("Failed to refresh MLB stats DB on startup")
+
     def _setup_routes(self):
         """Configure Quart routes."""
         # Register route handlers from separate modules

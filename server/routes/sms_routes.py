@@ -22,7 +22,7 @@ from module.metrics import (
 )
 from server.sms_service import SmsService
 from server.thread_manager import resolve_sms_thread
-from server.webhook_verification import verify_sinch_webhook
+from server.webhook_verification import verify_sinch_webhook_token
 
 # In-memory rate limiting: phone_number -> list of timestamps
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
@@ -109,9 +109,13 @@ def register_sms_routes(app):
         start_time = time.time()
         logger = get_logger(__name__, log_file="server.log")
 
-        raw_body_data = await request.get_data()
-        assert isinstance(raw_body_data, bytes)
-        raw_body: bytes = raw_body_data
+        try:
+            return await _handle_sms_webhook(start_time, logger)
+        except Exception as exc:
+            logger.error(f"SMS webhook failed: {exc}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    async def _handle_sms_webhook(start_time: float, logger):
         data = await request.get_json()
 
         if not data:
@@ -130,15 +134,14 @@ def register_sms_routes(app):
             logger.error("Missing required SMS webhook fields")
             return jsonify({"error": "Missing required fields"}), 400
 
-        # Verify HMAC signature
-        signature = request.headers.get("X-Sinch-Signature", "")
-        if not verify_sinch_webhook(raw_body, signature):
+        auth_token = request.args.get("auth_token", "")
+        if not verify_sinch_webhook_token(auth_token):
             duration = time.time() - start_time
             sms_webhook_requests_total.labels(status="invalid_signature").inc()
             http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
                 duration
             )
-            logger.error(f"Invalid Sinch webhook signature from {phone_number}")
+            logger.error(f"Invalid Sinch webhook credentials from {phone_number}")
             return jsonify({"error": "Invalid signature"}), 403
 
         # Idempotency: check if we've already processed this message

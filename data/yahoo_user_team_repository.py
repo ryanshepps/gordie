@@ -26,7 +26,8 @@ class YahooUserTeamRepository(Repository):
             user_email: User's email address
             team_name: Name of the team
         """
-        self.insert(
+        self.upsert(
+            conflict_columns=["league_id", "team_id", "user_email"],
             league_id=league_id,
             team_id=team_id,
             user_email=user_email,

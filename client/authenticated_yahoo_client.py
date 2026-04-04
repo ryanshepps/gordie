@@ -32,25 +32,13 @@ class AuthenticatedYahooClient:
         league_id: int | None = None,
         access_token_json: str | None = None,
         game_code: str = "nhl",
+        game_key: str | None = None,
     ):
-        """
-        Initialize Yahoo Fantasy Sports client with robust token handling.
-
-        Args:
-            league_id: Yahoo Fantasy League ID (optional for league-specific queries)
-            access_token_json: JSON string containing all token data (defaults to db lookup)
-            user_email: User's Yahoo email (Used to fetch tokens from database)
-
-        Raises:
-            ValueError: If required credentials are missing or no auth token found for user
-            RuntimeError: If token refresh fails
-        """
         self.user_email = user_email
         self.league_id = league_id
         self.consumer_key = os.getenv("YAHOO_CLIENT_ID")
         self.consumer_secret = os.getenv("YAHOO_CLIENT_SECRET")
 
-        # Validate required credentials (league_id is now optional)
         missing = [
             name
             for name, value in [
@@ -62,9 +50,31 @@ class AuthenticatedYahooClient:
         if missing:
             raise ValueError(f"Missing required credentials: {', '.join(missing)}")
 
+        if league_id and not game_key:
+            resolved = self._resolve_league_metadata(league_id)
+            if resolved:
+                game_key, game_code = resolved
+
         self.game_code = game_code
+        self.game_key = game_key
         self.access_token_json = self._fetch_tokens_from_db(user_email)
         self._query = None
+
+    @staticmethod
+    def _resolve_league_metadata(league_id: int) -> tuple[str, str] | None:
+        session = get_session()
+        try:
+            row = session.execute(
+                text(
+                    "SELECT game_key, league_type FROM yahoo_leagues WHERE league_id = :league_id"
+                ),
+                {"league_id": str(league_id)},
+            ).fetchone()
+            if row:
+                return str(row[0]), str(row[1])
+            return None
+        finally:
+            session.close()
 
     def _fetch_tokens_from_db(self, user_email: str) -> str:
         """
@@ -173,12 +183,15 @@ class AuthenticatedYahooClient:
         query = YahooFantasySportsQuery(
             league_id=str(query_league_id),
             game_code=self.game_code,
-            game_id=None,
+            game_id=int(self.game_key) if self.game_key else None,
             yahoo_consumer_key=self.consumer_key,
             yahoo_consumer_secret=self.consumer_secret,
             env_file_location=Path("."),
-            save_token_data_to_env_file=False,  # Disabled - we save to DB instead
+            save_token_data_to_env_file=False,
         )
+
+        if self.game_key and self.league_id:
+            query.league_key = f"{self.game_key}.l.{self.league_id}"
 
         # Hook into the OAuth token refresh to save updated tokens to database
         if query.oauth:
@@ -264,13 +277,16 @@ class AuthenticatedYahooClient:
             query = YahooFantasySportsQuery(
                 league_id=str(query_league_id),
                 game_code=self.game_code,
-                game_id=None,
+                game_id=int(self.game_key) if self.game_key else None,
                 yahoo_consumer_key=self.consumer_key,
                 yahoo_consumer_secret=self.consumer_secret,
                 yahoo_access_token_json=full_token_data,
                 env_file_location=Path("."),
-                save_token_data_to_env_file=False,  # Disabled - we save to DB instead
+                save_token_data_to_env_file=False,
             )
+
+            if self.game_key and self.league_id:
+                query.league_key = f"{self.game_key}.l.{self.league_id}"
 
             # Hook into the OAuth token refresh to save updated tokens to database
             if query.oauth:

@@ -101,13 +101,17 @@ def get_user_leagues(user_email: str) -> str:
                 league_id = parts[2]
                 team_id_from_key = parts[4]
 
+                team_name = team.name if hasattr(team, "name") else "Unknown"
+                if isinstance(team_name, bytes):
+                    team_name = team_name.decode("utf-8")
+
                 team_info = {
                     "sport": game.code if hasattr(game, "code") else "Unknown",
                     "season": game.season if hasattr(game, "season") else "Unknown",
                     "game_key": game_key,
                     "league_id": league_id,
                     "team_id": team_id_from_key,
-                    "team_name": team.name if hasattr(team, "name") else "Unknown",
+                    "team_name": team_name,
                     "is_active": not (game.is_offseason if hasattr(game, "is_offseason") else True),
                 }
                 result.append(team_info)

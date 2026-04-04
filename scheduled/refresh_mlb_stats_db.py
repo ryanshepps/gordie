@@ -65,10 +65,17 @@ def refresh_mlb_stats_db() -> None:
 
         for season in MLB_SEASONS:
             logger.info(f"Fetching MLB data for {season}")
-            batting_frames.append(_fetch_batting(season))
-            pitching_frames.append(_fetch_pitching(season))
-            team_batting_frames.append(_fetch_team_batting(season))
-            team_pitching_frames.append(_fetch_team_pitching(season))
+            try:
+                batting_frames.append(_fetch_batting(season))
+                pitching_frames.append(_fetch_pitching(season))
+                team_batting_frames.append(_fetch_team_batting(season))
+                team_pitching_frames.append(_fetch_team_pitching(season))
+            except Exception:
+                logger.warning(f"FanGraphs has no MLB data for {season}, skipping")
+                continue
+
+        if not batting_frames:
+            raise RuntimeError("No MLB data fetched for any season")
 
         all_batters = pd.concat(batting_frames, ignore_index=True)
         all_pitchers = pd.concat(pitching_frames, ignore_index=True)

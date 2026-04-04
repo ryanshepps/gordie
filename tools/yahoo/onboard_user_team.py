@@ -60,7 +60,7 @@ def onboard_user_team(
 
     try:
         yahoo_client = AuthenticatedYahooClient(
-            user_email=user_email, league_id=league_id, game_code=game_code
+            user_email=user_email, league_id=league_id, game_code=game_code, game_key=game_key
         )
         yahoo_query = yahoo_client.query
 
@@ -69,9 +69,7 @@ def onboard_user_team(
         league_name = (
             str(league_settings.name) if hasattr(league_settings, "name") else f"League {league_id}"
         )
-        league_type = (
-            str(league_settings.game_code) if hasattr(league_settings, "game_code") else "unknown"
-        )
+        league_type = game_code
 
         # Save league to database
         # Convert Settings object to dict for JSON serialization

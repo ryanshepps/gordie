@@ -1,9 +1,10 @@
 """Schema constants for the DuckDB stats engine."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 MONEYPUCK_BASE_URL = "https://moneypuck.com/moneypuck/playerData/seasonSummary"
-SEASONS = list(range(2020, 2026))
+SEASONS = list(range(2020, datetime.now(UTC).year + 1))
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "moneypuck_stats.duckdb"
 TABLES = ["skaters", "goalies", "teams"]
 

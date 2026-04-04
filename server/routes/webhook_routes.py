@@ -10,7 +10,9 @@ from typing import cast
 from quart import jsonify, request
 
 from data.subscription_repository import SubscriptionRepository
+from data.user_repository import UserRepository
 from module.logger import get_logger
+from server.sms_service import SmsService
 
 WebhookValue = str | dict[str, str] | None
 WebhookObject = Mapping[str, WebhookValue]
@@ -151,6 +153,8 @@ def _handle_checkout_completed(
     )
     logger.info(f"Activated {tier} subscription for {email}")
 
+    _send_subscription_confirmation(email, tier, logger)
+
 
 def _handle_subscription_active(
     repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
@@ -269,3 +273,29 @@ def _handle_subscription_paused(
     user_email = existing[0]
     repo.pause_subscription(user_email)
     logger.info(f"Paused subscription for {user_email}")
+
+
+def _send_subscription_confirmation(
+    email: str, tier: str, logger: logging.Logger
+) -> None:
+    user_repo = UserRepository()
+    try:
+        user = user_repo.get_user(email)
+        if not user:
+            return
+        phone_number = user[1]
+        if not phone_number:
+            return
+    finally:
+        user_repo.close()
+
+    try:
+        sms_service = SmsService()
+        sms_service.send_sms(
+            phone_number,
+            f"You're all set! Your {tier.capitalize()} subscription is active. "
+            f"Ask me anything — no limits now. Let's win your league.",
+        )
+        logger.info(f"Sent subscription confirmation SMS to {phone_number}")
+    except Exception as e:
+        logger.error(f"Failed to send subscription confirmation SMS: {e}")

@@ -72,29 +72,23 @@ def is_timestamp_fresh(timestamp: str, max_age_seconds: int = 300) -> bool:
         return False
 
 
-def verify_sinch_webhook(raw_body: bytes, signature: str) -> bool:
-    """Verify Sinch webhook signature using HMAC-SHA1.
+def verify_sinch_webhook_token(token: str) -> bool:
+    """Verify Sinch webhook auth token passed as a query parameter.
 
-    Sinch signs the raw request body with HMAC-SHA1 and sends the
-    signature in the X-Sinch-Signature header. The HMAC secret is
-    configured via your Sinch account manager.
+    Sinch callback URLs can include query parameters. We append
+    ``?auth_token=<secret>`` to the URL configured in the Sinch
+    dashboard so the token survives proxies (e.g. Cloudflare Tunnel)
+    that strip the Authorization header.
 
     Args:
-        raw_body: Raw request body bytes (before JSON parsing)
-        signature: Signature from X-Sinch-Signature header
+        token: The ``auth_token`` query parameter value from the request
 
     Returns:
-        True if signature is valid, False otherwise
+        True if the token matches the expected secret, False otherwise
     """
-    webhook_secret = os.getenv("SINCH_WEBHOOK_SECRET")
-    if not webhook_secret:
-        logger.warning("SINCH_WEBHOOK_SECRET not configured — skipping signature verification")
-        return True
+    expected = os.getenv("SINCH_WEBHOOK_TOKEN")
+    if not expected:
+        logger.error("SINCH_WEBHOOK_TOKEN not configured")
+        return False
 
-    hmac_digest = hmac.new(
-        key=webhook_secret.encode("utf-8"),
-        msg=raw_body,
-        digestmod=hashlib.sha1,
-    ).hexdigest()
-
-    return hmac.compare_digest(signature, hmac_digest)
+    return hmac.compare_digest(token, expected)
