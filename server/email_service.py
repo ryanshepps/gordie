@@ -25,24 +25,30 @@ class EmailResult:
     error: str | None = None
 
 
+class EmailNotConfiguredError(RuntimeError):
+    """Raised when EmailService.send_* is invoked but Mailgun isn't configured."""
+
+
 class EmailService:
-    """Service for sending emails via Mailgun API."""
+    """Service for sending emails via Mailgun API.
+
+    Constructable without credentials — the instance is in a disabled state and
+    `send_email` returns an error result rather than raising. This lets the
+    server boot in email-disabled mode.
+    """
 
     def __init__(self) -> None:
-        """
-        Initialize the EmailService with Mailgun credentials from environment.
-
-        Raises:
-            ValueError: If required environment variables are missing
-        """
         self.api_key = os.getenv("MAILGUN_API_KEY")
         self.domain = os.getenv("MAILGUN_DOMAIN")
         self.from_email = os.getenv("MAILGUN_FROM_EMAIL")
+        self.enabled = bool(self.api_key and self.domain)
 
-        if not self.api_key or not self.domain:
-            raise ValueError("MAILGUN_API_KEY and MAILGUN_DOMAIN environment variables required")
+        if not self.enabled:
+            logger.warning(
+                "EmailService disabled: MAILGUN_API_KEY and/or MAILGUN_DOMAIN not set"
+            )
+            return
 
-        # Default from email if not specified
         if not self.from_email:
             self.from_email = f"Gordie <gordie@{self.domain}>"
 
@@ -105,6 +111,10 @@ class EmailService:
         Returns:
             EmailResult with success status and message_id if successful
         """
+        if not self.enabled:
+            logger.warning(f"Skipping email to {to_email}: EmailService not configured")
+            return EmailResult(success=False, error="email_disabled")
+
         try:
             url = f"https://api.mailgun.net/v3/{self.domain}/messages"
 

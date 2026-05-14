@@ -4,11 +4,10 @@ import time
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal, TypedDict
 
-from langchain_openai import ChatOpenAI
-
 from data.repository import DatabaseRow
 from data.subscription_repository import SubscriptionRepository, UsageTrackingRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
+from module.llm import make_llm
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -148,7 +147,7 @@ def get_user_tier(email: str) -> str:
 
 def classify_message_intent(message: str) -> MessageIntent:
     try:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        llm = make_llm(temperature=0)
         response = llm.invoke([
             {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
             {"role": "user", "content": message},

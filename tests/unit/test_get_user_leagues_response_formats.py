@@ -38,7 +38,7 @@ def _create_mock_client(mock_query):
 
 
 class TestUserWithSingleTeam:
-    """Test user with exactly one team (the tzada8@gmail.com scenario)."""
+    """Test user with exactly one team."""
 
     @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_single_team_user(self, mock_client_class):

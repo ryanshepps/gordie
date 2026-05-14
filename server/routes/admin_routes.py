@@ -1,5 +1,6 @@
 """Admin API routes for observability dashboard."""
 
+import hmac
 import os
 from functools import wraps
 
@@ -20,7 +21,9 @@ def _require_admin_key(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
         provided_key = request.headers.get("X-Admin-Key", "")
-        if not _ADMIN_KEY or provided_key != _ADMIN_KEY:
+        if not _ADMIN_KEY or not hmac.compare_digest(
+            provided_key.encode("utf-8"), _ADMIN_KEY.encode("utf-8")
+        ):
             return jsonify({"error": "Unauthorized"}), 401
         return await f(*args, **kwargs)
 

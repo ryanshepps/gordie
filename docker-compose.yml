@@ -1,15 +1,50 @@
+# Full-stack compose for fantasy-agent.
+# Brings up Postgres + the Quart server.
+# Copy `.env.example` to `.env` and fill in keys before running.
+#
+# Usage:
+#   docker compose up -d           # start in background
+#   docker compose logs -f server  # tail server logs
+#   docker compose down            # stop
+#
+# Frontend (SvelteKit) is run separately — see `frontend/README.md` or
+# `docs/setup/quickstart.md`.
+
 services:
   postgres:
     image: postgres:17-alpine
     container_name: gordie-postgres
     environment:
-      POSTGRES_DB: gordie
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: ${POSTGRES_DB:-fantasy_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - gordie_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fantasy_agent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gordie-server
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/fantasy_agent}
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
 
 volumes:
   gordie_pgdata:

@@ -24,17 +24,22 @@ class SmsResult:
 
 
 class SmsService:
-    """Service for sending SMS via Sinch REST API."""
+    """Service for sending SMS via Sinch REST API.
+
+    Constructable without credentials — `enabled` is False and send_sms returns
+    an error result rather than raising. This lets the server run email-only.
+    """
 
     def __init__(self) -> None:
         self.service_plan_id = os.getenv("SINCH_SERVICE_PLAN_ID")
         self.api_token = os.getenv("SINCH_API_TOKEN")
         self.from_number = os.getenv("SINCH_FROM_NUMBER")
+        self.enabled = bool(self.service_plan_id and self.api_token and self.from_number)
 
-        if not self.service_plan_id or not self.api_token or not self.from_number:
-            raise ValueError(
-                "SINCH_SERVICE_PLAN_ID, SINCH_API_TOKEN, and SINCH_FROM_NUMBER "
-                "environment variables required"
+        if not self.enabled:
+            logger.warning(
+                "SmsService disabled: SINCH_SERVICE_PLAN_ID / SINCH_API_TOKEN / "
+                "SINCH_FROM_NUMBER not all set"
             )
 
     def send_sms(self, to_phone_number: str, message: str) -> SmsResult:
@@ -47,6 +52,10 @@ class SmsService:
         Returns:
             SmsResult with success status and batch_id if successful
         """
+        if not self.enabled:
+            logger.warning(f"Skipping SMS to {to_phone_number}: SmsService not configured")
+            return SmsResult(success=False, error="sms_disabled")
+
         url = f"{SINCH_BASE_URL}/{self.service_plan_id}/batches"
         headers = {
             "Authorization": f"Bearer {self.api_token}",

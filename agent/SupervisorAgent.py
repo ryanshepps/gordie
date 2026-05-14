@@ -1,10 +1,8 @@
-import os
 from typing import Any, Literal, cast
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 
 from agent.agent_state import AgentState
@@ -16,6 +14,7 @@ from agent.subagents.trade import trade
 from middleware.sport_tool_filter import sport_tool_filter
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
+from module.llm import make_llm
 from module.logger import get_logger
 from tools.billing.generate_checkout_link import generate_checkout_link
 from tools.billing.generate_portal_link import generate_portal_link
@@ -32,10 +31,6 @@ logger = get_logger(__name__)
 
 
 def create_supervisor_agent(system_prompt: str):
-    if not os.environ.get("OPENAI_API_KEY"):
-        logger.error("OPENAI_API_KEY environment variable not set")
-        raise ValueError("OPENAI_API_KEY environment variable not set")
-
     from agent.memory_store import get_memory_store
 
     search_past_conversations = create_search_past_conversations_tool(get_memory_store())
@@ -55,7 +50,7 @@ def create_supervisor_agent(system_prompt: str):
     ]
 
     return create_agent(
-        model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
+        model=make_llm(temperature=0),
         tools=tools,
         middleware=[StateLoggingMiddleware("supervisor"), sport_tool_filter, handle_tool_errors],
         system_prompt=system_prompt,
@@ -77,7 +72,7 @@ def _invoke_billing_response(
     try:
         system_prompt = assemble_system_prompt(state)
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        llm = make_llm(temperature=0)
         user_messages = []
         for m in state.get("messages", []):
             if isinstance(m, dict):

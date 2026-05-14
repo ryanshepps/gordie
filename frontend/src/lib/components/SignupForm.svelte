@@ -9,9 +9,11 @@
 	const { id = 'signup' }: Props = $props();
 
 	let contactInfo = $state('');
-	let status = $state<'idle' | 'submitting' | 'success' | 'error'>('idle');
+	let status = $state<'idle' | 'submitting' | 'success' | 'error' | 'oss'>('idle');
 	let successMode = $state<'email' | 'phone'>('email');
 	let errorMessage = $state('');
+	let ossMessage = $state('');
+	let ossGithubUrl = $state('');
 
 	function isPhone(value: string): boolean {
 		const trimmed = value.trim();
@@ -30,12 +32,28 @@
 
 	let detectedMode = $derived<'email' | 'phone'>(isPhone(contactInfo) ? 'phone' : 'email');
 
+	type FormResult = {
+		type: string;
+		data?: {
+			error?: string;
+			mode?: string;
+			oss?: boolean;
+			message?: string;
+			github_url?: string | null;
+		};
+	};
+
 	function handleSubmit() {
 		status = 'submitting';
-		return async ({ result }: { result: { type: string; data?: { error?: string; mode?: string } } }) => {
+		return async ({ result }: { result: FormResult }) => {
 			if (result.type === 'success') {
 				successMode = (result.data?.mode as 'email' | 'phone') ?? detectedMode;
 				status = 'success';
+				contactInfo = '';
+			} else if (result.type === 'failure' && result.data?.oss) {
+				ossMessage = result.data.message ?? '';
+				ossGithubUrl = result.data.github_url ?? '';
+				status = 'oss';
 				contactInfo = '';
 			} else if (result.type === 'failure') {
 				status = 'error';
@@ -57,6 +75,17 @@
 				<p>Check your texts — Gordie's sending you a link to connect your Yahoo league.</p>
 			{:else}
 				<p>Check your inbox — Gordie's sending you a message. Look for <strong>gordie@gordie.lastingsoftware.ca</strong>.</p>
+			{/if}
+		</div>
+	{:else if status === 'oss'}
+		<div class="oss-message" in:fade={{ duration: 400, delay: 100 }}>
+			<div class="oss-tag">OPEN SOURCE</div>
+			<h3>GORDIE IS NOW OPEN SOURCE</h3>
+			<p>{ossMessage}</p>
+			{#if ossGithubUrl}
+				<a class="btn btn-primary oss-cta" href={ossGithubUrl} target="_blank" rel="noopener noreferrer">
+					View on GitHub
+				</a>
 			{/if}
 		</div>
 	{:else}
@@ -190,6 +219,62 @@
 	.success-message p {
 		color: var(--color-text-muted);
 		font-size: 0.95rem;
+		position: relative;
+	}
+
+	.oss-message {
+		padding: 2rem 1.5rem;
+		background: linear-gradient(135deg, rgba(0, 229, 255, 0.10) 0%, rgba(0, 229, 255, 0.03) 100%);
+		border: 1px solid rgba(0, 229, 255, 0.4);
+		border-radius: 0.5rem;
+		text-align: center;
+		position: relative;
+		overflow: hidden;
+	}
+
+	.oss-message::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(ellipse at 50% 0%, rgba(0, 229, 255, 0.12) 0%, transparent 60%);
+		pointer-events: none;
+	}
+
+	.oss-tag {
+		display: inline-block;
+		padding: 0.25rem 0.625rem;
+		margin-bottom: 0.875rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		color: #00E5FF;
+		background: rgba(0, 229, 255, 0.15);
+		border: 1px solid rgba(0, 229, 255, 0.4);
+		border-radius: 0.25rem;
+	}
+
+	.oss-message h3 {
+		font-family: 'Barlow Condensed', 'Inter Tight', sans-serif;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		background: linear-gradient(135deg, #00E5FF 0%, #E8EDF5 60%);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+		font-size: 1.5rem;
+		margin: 0 0 0.75rem;
+	}
+
+	.oss-message p {
+		color: var(--color-text-muted);
+		font-size: 0.95rem;
+		margin: 0 0 1.25rem;
+		position: relative;
+		line-height: 1.6;
+	}
+
+	.oss-cta {
+		display: inline-block;
 		position: relative;
 	}
 

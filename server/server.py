@@ -85,22 +85,31 @@ class Server:
 
     @staticmethod
     def _refresh_stats_db_on_startup() -> None:
+        from module.config import sport_enabled
+
         logger = get_logger(__name__)
-        try:
-            from scheduled.refresh_stats_db import refresh_stats_db
 
-            refresh_stats_db()
-            logger.info("Stats DB refreshed on startup")
-        except Exception:
-            logger.exception("Failed to refresh stats DB on startup")
+        if sport_enabled("nhl"):
+            try:
+                from scheduled.refresh_stats_db import refresh_stats_db
 
-        try:
-            from scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
+                refresh_stats_db()
+                logger.info("NHL stats DB refreshed on startup")
+            except Exception:
+                logger.exception("Failed to refresh NHL stats DB on startup")
+        else:
+            logger.info("NHL disabled via ENABLED_SPORTS; skipping stats refresh")
 
-            refresh_mlb_stats_db()
-            logger.info("MLB stats DB refreshed on startup")
-        except Exception:
-            logger.exception("Failed to refresh MLB stats DB on startup")
+        if sport_enabled("mlb"):
+            try:
+                from scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
+
+                refresh_mlb_stats_db()
+                logger.info("MLB stats DB refreshed on startup")
+            except Exception:
+                logger.exception("Failed to refresh MLB stats DB on startup")
+        else:
+            logger.info("MLB disabled via ENABLED_SPORTS; skipping stats refresh")
 
     def _setup_routes(self):
         """Configure Quart routes."""

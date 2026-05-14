@@ -96,11 +96,15 @@ class TestSmsService:
         assert result.success is True
         assert mock_post.call_count == 2
 
-    def test_missing_env_raises_value_error(self, monkeypatch):
-        """Missing env vars raise ValueError."""
+    def test_missing_env_boots_disabled(self, monkeypatch):
+        """Missing env vars leave the service in a disabled state, not raising."""
         monkeypatch.delenv("SINCH_SERVICE_PLAN_ID", raising=False)
         monkeypatch.delenv("SINCH_API_TOKEN", raising=False)
         monkeypatch.delenv("SINCH_FROM_NUMBER", raising=False)
 
-        with pytest.raises(ValueError, match="SINCH_SERVICE_PLAN_ID"):
-            SmsService()
+        service = SmsService()
+        assert service.enabled is False
+
+        result = service.send_sms("+15551234567", "test")
+        assert result.success is False
+        assert result.error == "sms_disabled"

@@ -2,6 +2,7 @@
 
 import os
 import threading
+from html import escape
 
 from quart import request
 
@@ -34,7 +35,10 @@ def register_oauth_routes(app):
         if error:
             logger.error(f"OAuth error: {error} — {error_description}")
             return (
-                _error_html("Authentication Error", f"{error}: {error_description or 'No description'}"),
+                _error_html(
+                    "Authentication Error",
+                    f"{escape(error)}: {escape(error_description or 'No description')}",
+                ),
                 400,
             )
 

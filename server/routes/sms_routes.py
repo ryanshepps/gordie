@@ -250,7 +250,7 @@ def register_sms_routes(app):
                 sms_service = SmsService()
                 sms_service.send_sms(
                     phone_number,
-                    f"Hey, I'm Gordie \u2014 your fantasy sports guy. "
+                    "Hey, I'm Gordie \u2014 your fantasy sports guy. "
                     f"Tap here to connect your Yahoo league: {oauth_url}",
                 )
                 logger.info(f"Sent cold-start OAuth SMS to {phone_number}")

@@ -15,7 +15,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     networks:
       - monitoring
     restart: unless-stopped
@@ -34,7 +34,7 @@ services:
       - GF_SERVER_ROOT_URL=http://localhost:3000
       - GF_INSTALL_PLUGINS=grafana-piechart-panel,yesoreyeram-infinity-datasource
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     networks:
       - monitoring
     restart: unless-stopped
@@ -51,7 +51,7 @@ services:
       - loki_data:/loki
     command: -config.file=/etc/loki/loki-config.yml
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     networks:
       - monitoring
     restart: unless-stopped
@@ -61,8 +61,8 @@ services:
     container_name: fantasy-agent-promtail
     volumes:
       - ./config/promtail-config.yml:/etc/promtail/promtail-config.yml
-      - ./:/app
-      - /var/log:/var/log
+      - ./:/app:ro
+      - /var/log:/var/log:ro
     command: -config.file=/etc/promtail/promtail-config.yml
     networks:
       - monitoring
@@ -78,9 +78,9 @@ services:
       - ./config/tempo-config.yml:/etc/tempo/tempo-config.yml
       - tempo_data:/var/tempo
     ports:
-      - "3200:3200"
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:3200:3200"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
     networks:
       - monitoring
     restart: unless-stopped

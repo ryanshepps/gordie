@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 load_dotenv()
 
-_raw_url = os.environ.get("DATABASE_URL", "postgresql://localhost:5432/gordie")
+_raw_url = os.environ.get("DATABASE_URL", "postgresql://localhost:5432/fantasy_agent")
 
 # Ensure we use psycopg v3 driver (not psycopg2)
 DATABASE_URL = _raw_url.replace("postgresql://", "postgresql+psycopg://", 1)

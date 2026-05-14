@@ -3,13 +3,13 @@
 from typing import Literal
 
 from langchain_core.messages import AIMessage
-from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 
 from agent.agent_state import AgentState
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.persona import PERSONA
 from agent.prompts.phrasebook import PHRASEBOOK
+from module.llm import make_llm
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,7 +39,7 @@ _CONDENSE_INSTRUCTION = (
     "Cut everything else."
 )
 
-_LLM = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
+_LLM = make_llm(temperature=0.5)
 
 
 def _build_rewrite_prompt(channel: str) -> str:

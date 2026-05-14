@@ -1,7 +1,7 @@
 import type { Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://gordie.lastingsoftware.ca';
+const API_URL = import.meta.env.VITE_API_URL || 'https://gordie-api.lastingsoftware.ca';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+[1-9]\d{9,14}$/;
@@ -35,8 +35,18 @@ export const actions: Actions = {
 				body: JSON.stringify(body)
 			});
 
+			const responseBody = await response.json().catch(() => null);
+
+			// Maintenance / open-source migration response from the API.
+			if (response.status === 503 && responseBody?.status === 'open_source') {
+				return fail(503, {
+					oss: true,
+					message: responseBody.message as string,
+					github_url: (responseBody.github_url as string | undefined) ?? null
+				});
+			}
+
 			if (!response.ok) {
-				const responseBody = await response.json().catch(() => null);
 				const message = responseBody?.error || 'Something went wrong. Please try again.';
 				return fail(response.status, { error: message });
 			}

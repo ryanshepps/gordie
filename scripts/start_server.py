@@ -1,5 +1,6 @@
 """Start the server to handle OAuth callbacks and email webhooks."""
 
+import os
 import sys
 
 from dotenv import load_dotenv
@@ -23,8 +24,8 @@ def main():
     tracing_logger = get_logger("tracing", log_file="tracing.log")
     redirect_stderr_to_logger(tracing_logger)
 
-    host = "localhost"
-    port = 8000
+    host = os.getenv("SERVER_HOST", "localhost")
+    port = int(os.getenv("SERVER_PORT", "8000"))
 
     logger.info(f"Starting server on {host}:{port}...")
     server = Server(host=host, port=port)

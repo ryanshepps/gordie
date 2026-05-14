@@ -7,12 +7,13 @@ import json
 from datetime import datetime
 from typing import Any
 
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langgraph.store.memory import InMemoryStore
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from data.database import get_session
+from module.llm import make_llm
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -202,7 +203,7 @@ def summarize_and_store_conversation(
     conversation_text = "\n\n".join(conversation_parts[-10:])  # Last 10 messages max
 
     try:
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        model = make_llm(temperature=0)
         structured_llm = model.with_structured_output(ConversationSummary)
 
         prompt = f"""Analyze this fantasy sports conversation and extract key information.

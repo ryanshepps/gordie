@@ -1,16 +1,15 @@
-"""LLM-powered digest content writer using Gordie's persona."""
+"""LLM-powered digest content writer using the agent's persona."""
 
 from __future__ import annotations
 
 from enum import Enum
-
-from langchain_openai import ChatOpenAI
 
 from agent.news.news_digest import NewsDigest
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.persona import PERSONA
 from agent.prompts.phrasebook import PHRASEBOOK
 from data.pydantic_models import DigestData
+from module.llm import make_llm
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -78,7 +77,7 @@ def write_digest_content(
         f"{digest_data.model_dump_json(indent=2)}"
     )
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+    llm = make_llm(temperature=0.7)
     response = llm.invoke([
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},

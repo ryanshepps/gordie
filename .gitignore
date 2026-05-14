@@ -1,14 +1,46 @@
-data/nhl_stats.db
-data/platform.db
-data/agent_conversations.db
-**.db-shm
-**.db-wal
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
 
-**/__pycache__/
+# Databases
+*.db
+*.db-shm
+*.db-wal
+*.duckdb
+*.sqlite
+*.sqlite3
 
+# Logs
+*.log
+
+# Coverage
+.coverage
+htmlcov/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Editor / OS
+.DS_Store
 .claude/tsc-cache/
 
-.cloudflared
+# Cloudflared local credentials
+.cloudflared/
+config/cloudflare-tunnel-config.yml
 
-*.log
+# Local-only deploy state
 .gstack/
+
+# Internal planning docs (decide per project)
+docs/plans/

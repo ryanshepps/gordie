@@ -7,24 +7,25 @@ found (or the retry limit is reached), it passes through to voice_rewrite.
 
 from typing import Literal
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 
 from agent.agent_state import AgentState
+from module.llm import make_llm
 from module.logger import get_logger
 
 logger = get_logger(__name__)
 
 _MAX_RETRIES = 1
 
-_llm_instance: ChatOpenAI | None = None
+_llm_instance: BaseChatModel | None = None
 
 
-def _get_llm() -> ChatOpenAI:
+def _get_llm() -> BaseChatModel:
     global _llm_instance
     if _llm_instance is None:
-        _llm_instance = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        _llm_instance = make_llm(temperature=0)
     return _llm_instance
 
 _SYSTEM_PROMPT = """\
