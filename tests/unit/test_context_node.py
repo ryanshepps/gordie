@@ -38,10 +38,11 @@ class TestMissingEmail:
 
 class TestNoOAuth:
     @patch("agent.context_node.generate_oauth_link")
+    @patch("agent.memory_store.get_memory_store")
     @patch("agent.context_node.is_first_time_user", return_value=True)
     @patch("agent.context_node.check_oauth_status", return_value=False)
     def test_first_time_user_returns_first_time_status(
-        self, _mock_oauth_check, _mock_first_time, mock_gen_link
+        self, _mock_oauth_check, _mock_first_time, _mock_memory_store, mock_gen_link
     ):
         mock_gen_link.invoke.return_value = "https://yahoo.com/oauth"
         state = _make_state()
@@ -52,10 +53,11 @@ class TestNoOAuth:
         assert result.get("oauth_url") == "https://yahoo.com/oauth"
 
     @patch("agent.context_node.generate_oauth_link")
+    @patch("agent.memory_store.get_memory_store")
     @patch("agent.context_node.is_first_time_user", return_value=False)
     @patch("agent.context_node.check_oauth_status", return_value=False)
     def test_returning_user_no_oauth_returns_no_oauth_status(
-        self, _mock_oauth_check, _mock_first_time, mock_gen_link
+        self, _mock_oauth_check, _mock_first_time, _mock_memory_store, mock_gen_link
     ):
         mock_gen_link.invoke.return_value = "https://yahoo.com/oauth"
         state = _make_state()
