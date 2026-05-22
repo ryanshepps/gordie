@@ -59,7 +59,14 @@ class TestAutoOnboardTeamPassesGameCode:
 class TestFormatTeamsForDisplay:
     def test_shows_sport_label(self):
         teams: list[dict[str, str]] = [
-            {"sport": "nhl", "team_name": "Steamys", "season": "2025", "game_key": "465", "league_id": "1", "team_id": "1"},
+            {
+                "sport": "nhl",
+                "team_name": "Steamys",
+                "season": "2025",
+                "game_key": "465",
+                "league_id": "1",
+                "team_id": "1",
+            },
         ]
 
         result = format_teams_for_display(teams)
@@ -68,8 +75,22 @@ class TestFormatTeamsForDisplay:
 
     def test_shows_multiple_sport_labels(self):
         teams: list[dict[str, str]] = [
-            {"sport": "nhl", "team_name": "Steamys", "season": "2025", "game_key": "465", "league_id": "1", "team_id": "1"},
-            {"sport": "mlb", "team_name": "Dingerz", "season": "2025", "game_key": "449", "league_id": "2", "team_id": "2"},
+            {
+                "sport": "nhl",
+                "team_name": "Steamys",
+                "season": "2025",
+                "game_key": "465",
+                "league_id": "1",
+                "team_id": "1",
+            },
+            {
+                "sport": "mlb",
+                "team_name": "Dingerz",
+                "season": "2025",
+                "game_key": "449",
+                "league_id": "2",
+                "team_id": "2",
+            },
         ]
 
         result = format_teams_for_display(teams)

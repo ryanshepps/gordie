@@ -34,8 +34,7 @@ def analyze_lineup(
             active_slot_counts[config.position] = config.count
 
     playing_and_available = [
-        p for p in roster_players
-        if p.team in teams_playing_today and p.roster_slot not in IR_SLOTS
+        p for p in roster_players if p.team in teams_playing_today and p.roster_slot not in IR_SLOTS
     ]
 
     position_conflicts: dict[str, list[str]] = {}
@@ -60,10 +59,7 @@ def analyze_lineup(
             continue
 
         primary_slot = player.position
-        active_in_primary = sum(
-            1 for p in roster_players
-            if p.roster_slot == primary_slot
-        )
+        active_in_primary = sum(1 for p in roster_players if p.roster_slot == primary_slot)
         max_primary = active_slot_counts.get(primary_slot, 0)
         if active_in_primary < max_primary:
             benched_with_games.append(player.name)

@@ -15,8 +15,12 @@ class TestCalculateScore:
     def test_negative_gae_with_high_xgoals_scores_high(self):
         """Player shooting below expected with high xGoals should score highly."""
         stats = {
-            "goals": 5, "x_goals": 12.0, "goals_above_expected": -7.0,
-            "games_played": 50, "toi_per_game_minutes": 18.0, "position": "C",
+            "goals": 5,
+            "x_goals": 12.0,
+            "goals_above_expected": -7.0,
+            "games_played": 50,
+            "toi_per_game_minutes": 18.0,
+            "position": "C",
         }
         score, reasons = _calculate_score(stats)
         assert score >= 4
@@ -25,7 +29,9 @@ class TestCalculateScore:
     def test_positive_gae_penalizes(self):
         """Player overperforming should get negative score."""
         stats = {
-            "goals": 20, "x_goals": 12.0, "goals_above_expected": 8.0,
+            "goals": 20,
+            "x_goals": 12.0,
+            "goals_above_expected": 8.0,
             "games_played": 50,
         }
         score, reasons = _calculate_score(stats)
@@ -62,8 +68,10 @@ class TestCalculateScore:
     def test_favorable_schedule_boosts(self):
         """Many upcoming games should boost score."""
         stats = {
-            "games_remaining_this_week": 4, "games_next_week": 4,
-            "toi_per_game_minutes": 18.0, "position": "C",
+            "games_remaining_this_week": 4,
+            "games_next_week": 4,
+            "toi_per_game_minutes": 18.0,
+            "position": "C",
         }
         _score, reasons = _calculate_score(stats)
         assert any("schedule" in r.lower() for r in reasons)
@@ -96,12 +104,20 @@ class TestCalculateScore:
         so a tiny sample with low volume doesn't score the same as a full-season player.
         """
         few_games_stats = {
-            "goals": 3, "x_goals": 5.0, "goals_above_expected": -2.0,
-            "games_played": 20, "toi_per_game_minutes": 16.0, "position": "RW",
+            "goals": 3,
+            "x_goals": 5.0,
+            "goals_above_expected": -2.0,
+            "games_played": 20,
+            "toi_per_game_minutes": 16.0,
+            "position": "RW",
         }
         full_season_stats = {
-            "goals": 10, "x_goals": 18.0, "goals_above_expected": -8.0,
-            "games_played": 70, "toi_per_game_minutes": 16.0, "position": "RW",
+            "goals": 10,
+            "x_goals": 18.0,
+            "goals_above_expected": -8.0,
+            "games_played": 70,
+            "toi_per_game_minutes": 16.0,
+            "position": "RW",
         }
         few_score, _ = _calculate_score(few_games_stats)
         full_score, _ = _calculate_score(full_season_stats)
@@ -116,11 +132,15 @@ class TestCalculateScore:
         verifies the normalization math runs without error on low-GP players.
         """
         few_games = {
-            "goals": 10, "x_goals": 6.0, "goals_above_expected": 4.0,
+            "goals": 10,
+            "x_goals": 6.0,
+            "goals_above_expected": 4.0,
             "games_played": 15,
         }
         full_season = {
-            "goals": 25, "x_goals": 21.0, "goals_above_expected": 4.0,
+            "goals": 25,
+            "x_goals": 21.0,
+            "goals_above_expected": 4.0,
             "games_played": 70,
         }
         _few_score, few_reasons = _calculate_score(few_games)
@@ -131,8 +151,12 @@ class TestCalculateScore:
     def test_very_few_games_gae_ignored(self):
         """Players with fewer than 5 games should not get GAE regression bonuses."""
         stats = {
-            "goals": 0, "x_goals": 3.0, "goals_above_expected": -3.0,
-            "games_played": 3, "toi_per_game_minutes": 14.0, "position": "C",
+            "goals": 0,
+            "x_goals": 3.0,
+            "goals_above_expected": -3.0,
+            "games_played": 3,
+            "toi_per_game_minutes": 14.0,
+            "position": "C",
         }
         _score, reasons = _calculate_score(stats)
         assert not any("significant" in r.lower() for r in reasons)
@@ -144,48 +168,57 @@ class TestCalculateUndervaluedScoreTool:
 
     def test_returns_json_with_score(self):
         """Should return JSON with undervalued_score and reasons."""
-        mock_yahoo = json.dumps({
-            "player": {
-                "rank": 85,
-                "player_key": "nhl.p.8478402",
-                "ownership_type": "team",
-                "owner_team_name": "Team A",
-                "percent_owned": "95",
-                "injury_status": None,
+        mock_yahoo = json.dumps(
+            {
+                "player": {
+                    "rank": 85,
+                    "player_key": "nhl.p.8478402",
+                    "ownership_type": "team",
+                    "owner_team_name": "Team A",
+                    "percent_owned": "95",
+                    "injury_status": None,
+                }
             }
-        })
-        mock_schedule = json.dumps({
-            "EDM": {
-                "status": "success",
-                "this_week_games": 3,
-                "next_week_games": 4,
+        )
+        mock_schedule = json.dumps(
+            {
+                "EDM": {
+                    "status": "success",
+                    "this_week_games": 3,
+                    "next_week_games": 4,
+                }
             }
-        })
+        )
 
-        with patch(
-            "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
-            return_value=mock_yahoo,
-        ), patch(
-            "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
-            return_value=mock_schedule,
+        with (
+            patch(
+                "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
+                return_value=mock_yahoo,
+            ),
+            patch(
+                "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
+                return_value=mock_schedule,
+            ),
         ):
-            result = calculate_undervalued_score.invoke({
-                "stats": {
-                    "player_name": "Connor McDavid",
-                    "team": "EDM",
-                    "position": "C",
-                    "games_played": 30,
-                    "goals": 20,
-                    "points": 55,
-                    "points_per_game": 1.83,
-                    "x_goals": 15.5,
-                    "fenwick_pct": 55.2,
-                    "corsi_pct": 54.1,
-                    "toi_per_game_minutes": 22.5,
-                },
-                "user_email": "test@example.com",
-                "league_id": "12345",
-            })
+            result = calculate_undervalued_score.invoke(
+                {
+                    "stats": {
+                        "player_name": "Connor McDavid",
+                        "team": "EDM",
+                        "position": "C",
+                        "games_played": 30,
+                        "goals": 20,
+                        "points": 55,
+                        "points_per_game": 1.83,
+                        "x_goals": 15.5,
+                        "fenwick_pct": 55.2,
+                        "corsi_pct": 54.1,
+                        "toi_per_game_minutes": 22.5,
+                    },
+                    "user_email": "test@example.com",
+                    "league_id": "12345",
+                }
+            )
 
         data = json.loads(result)
         assert data["status"] == "success"
@@ -197,34 +230,39 @@ class TestCalculateUndervaluedScoreTool:
 
     def test_handles_yahoo_failure_gracefully(self):
         """Should still return a score even if Yahoo lookup fails."""
-        mock_schedule = json.dumps({
-            "TOR": {"status": "success", "this_week_games": 3, "next_week_games": 3}
-        })
+        mock_schedule = json.dumps(
+            {"TOR": {"status": "success", "this_week_games": 3, "next_week_games": 3}}
+        )
 
-        with patch(
-            "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
-            side_effect=Exception("Yahoo API down"),
-        ), patch(
-            "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
-            return_value=mock_schedule,
+        with (
+            patch(
+                "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
+                side_effect=Exception("Yahoo API down"),
+            ),
+            patch(
+                "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
+                return_value=mock_schedule,
+            ),
         ):
-            result = calculate_undervalued_score.invoke({
-                "stats": {
-                    "player_name": "Auston Matthews",
-                    "team": "TOR",
-                    "position": "C",
-                    "games_played": 25,
-                    "goals": 15,
-                    "points": 35,
-                    "points_per_game": 1.4,
-                    "x_goals": 12.0,
-                    "fenwick_pct": 54.0,
-                    "corsi_pct": 53.0,
-                    "toi_per_game_minutes": 20.5,
-                },
-                "user_email": "test@example.com",
-                "league_id": "12345",
-            })
+            result = calculate_undervalued_score.invoke(
+                {
+                    "stats": {
+                        "player_name": "Auston Matthews",
+                        "team": "TOR",
+                        "position": "C",
+                        "games_played": 25,
+                        "goals": 15,
+                        "points": 35,
+                        "points_per_game": 1.4,
+                        "x_goals": 12.0,
+                        "fenwick_pct": 54.0,
+                        "corsi_pct": 53.0,
+                        "toi_per_game_minutes": 20.5,
+                    },
+                    "user_email": "test@example.com",
+                    "league_id": "12345",
+                }
+            )
 
         data = json.loads(result)
         assert data["status"] == "success"

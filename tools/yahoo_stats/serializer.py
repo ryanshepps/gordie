@@ -2,7 +2,9 @@
 
 from collections.abc import Mapping, Sequence
 
-SerializedDict = dict[str, "str | int | float | bool | None | list[SerializedDict] | SerializedDict"]
+SerializedDict = dict[
+    str, "str | int | float | bool | None | list[SerializedDict] | SerializedDict"
+]
 
 
 def _decode_name(raw: object) -> str:
@@ -125,9 +127,19 @@ def serialize_matchup(matchup: object) -> SerializedDict:
 
 def serialize_league_info(league_info: object) -> SerializedDict:
     fields = [
-        "current_week", "start_week", "end_week", "start_date", "end_date",
-        "season", "name", "league_key", "league_id", "num_teams",
-        "scoring_type", "game_code", "url",
+        "current_week",
+        "start_week",
+        "end_week",
+        "start_date",
+        "end_date",
+        "season",
+        "name",
+        "league_key",
+        "league_id",
+        "num_teams",
+        "scoring_type",
+        "game_code",
+        "url",
     ]
     result: SerializedDict = {}
     for field in fields:
@@ -158,11 +170,13 @@ def serialize_transaction(transaction: object) -> SerializedDict:
                 p_name = _decode_name(p_name_obj)
             else:
                 p_name = "Unknown"
-            players_data.append({
-                "player_key": _getattr_safe(p, "player_key"),
-                "name": p_name,
-                "type": _getattr_safe(p, "transaction_data"),
-            })
+            players_data.append(
+                {
+                    "player_key": _getattr_safe(p, "player_key"),
+                    "name": p_name,
+                    "type": _getattr_safe(p, "transaction_data"),
+                }
+            )
 
     return {
         "transaction_key": _getattr_safe(transaction, "transaction_key"),

@@ -316,14 +316,16 @@ def calculate_undervalued_score(
 
         if yahoo_data.get("player"):
             yahoo_player = yahoo_data["player"]
-            result.update({
-                "yahoo_rank": yahoo_player.get("rank"),
-                "yahoo_player_key": yahoo_player.get("player_key"),
-                "ownership_type": yahoo_player.get("ownership_type"),
-                "owner_team_name": yahoo_player.get("owner_team_name"),
-                "percent_owned": yahoo_player.get("percent_owned"),
-                "injury_status": yahoo_player.get("injury_status"),
-            })
+            result.update(
+                {
+                    "yahoo_rank": yahoo_player.get("rank"),
+                    "yahoo_player_key": yahoo_player.get("player_key"),
+                    "ownership_type": yahoo_player.get("ownership_type"),
+                    "owner_team_name": yahoo_player.get("owner_team_name"),
+                    "percent_owned": yahoo_player.get("percent_owned"),
+                    "injury_status": yahoo_player.get("injury_status"),
+                }
+            )
         else:
             warning = f"Yahoo rank not found: {yahoo_data.get('error', 'unknown')}"
             result["warnings"].append(warning)
@@ -340,10 +342,12 @@ def calculate_undervalued_score(
         if team in schedule_data:
             team_schedule = schedule_data[team]
             if team_schedule.get("status") == "success":
-                result.update({
-                    "games_remaining_this_week": team_schedule.get("this_week_games"),
-                    "games_next_week": team_schedule.get("next_week_games"),
-                })
+                result.update(
+                    {
+                        "games_remaining_this_week": team_schedule.get("this_week_games"),
+                        "games_next_week": team_schedule.get("next_week_games"),
+                    }
+                )
             else:
                 warning = f"Schedule not available: {team_schedule.get('message', 'unknown')}"
                 result["warnings"].append(warning)

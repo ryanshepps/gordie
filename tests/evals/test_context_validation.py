@@ -22,7 +22,6 @@ def _run_through_context_and_supervisor(state: AgentState):
 
 
 class TestFirstTimeUser:
-
     @pytest.fixture
     def first_time_user_state(self) -> AgentState:
         return AgentState(
@@ -69,16 +68,17 @@ class TestFirstTimeUser:
         assert "gordie" in response_lower, (
             f"Expected agent to introduce itself as Gordie: {response_text[:500]}"
         )
-        assert "yahoo" in response_lower or "oauth" in response_lower or "login.yahoo.com" in response_text, (
-            f"Expected OAuth URL in response: {response_text[:500]}"
-        )
+        assert (
+            "yahoo" in response_lower
+            or "oauth" in response_lower
+            or "login.yahoo.com" in response_text
+        ), f"Expected OAuth URL in response: {response_text[:500]}"
         assert any(kw in response_lower for kw in CAPABILITY_KEYWORDS), (
             f"Expected mention of capabilities: {response_text[:500]}"
         )
 
 
 class TestReturningUserNoTeams:
-
     @pytest.fixture
     def returning_user_no_teams_state(self) -> AgentState:
         return AgentState(
@@ -138,7 +138,6 @@ class TestReturningUserNoTeams:
 
 
 class TestMultipleTeamsClarification:
-
     @pytest.fixture
     def multi_team_user_state(self) -> AgentState:
         return AgentState(
@@ -205,7 +204,6 @@ class TestMultipleTeamsClarification:
 
 
 class TestSingleTeamProceeds:
-
     @pytest.fixture
     def single_team_user_state(self, mock_yahoo_tools) -> AgentState:
         return AgentState(
@@ -272,7 +270,6 @@ class TestSingleTeamProceeds:
 
 
 class TestNoTeamsAvailable:
-
     @pytest.fixture
     def no_teams_state(self) -> AgentState:
         return AgentState(
@@ -307,9 +304,7 @@ class TestNoTeamsAvailable:
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
         mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
-        no_teams_state["messages"] = [
-            HumanMessage(content="Can you help me with my lineup?")
-        ]
+        no_teams_state["messages"] = [HumanMessage(content="Can you help me with my lineup?")]
         result = _run_through_context_and_supervisor(no_teams_state)
 
         update = result.update or {}
@@ -326,7 +321,6 @@ class TestNoTeamsAvailable:
 
 
 class TestTeamSelectionNeeded:
-
     YAHOO_TEAMS: ClassVar[list[dict[str, str | bool]]] = [
         {
             "sport": "nhl",
@@ -382,9 +376,7 @@ class TestTeamSelectionNeeded:
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
         mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
-        team_selection_state["messages"] = [
-            HumanMessage(content="Help me with my fantasy team")
-        ]
+        team_selection_state["messages"] = [HumanMessage(content="Help me with my fantasy team")]
         result = _run_through_context_and_supervisor(team_selection_state)
 
         update = result.update or {}
@@ -401,7 +393,6 @@ class TestTeamSelectionNeeded:
 
 
 class TestAutoOnboarded:
-
     SINGLE_ACTIVE_TEAM: ClassVar[dict[str, str | bool]] = {
         "sport": "nhl",
         "season": "2025",
@@ -470,7 +461,6 @@ class TestAutoOnboarded:
 
 
 class TestContextError:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_api_failure_returns_error_response(self, mocker):
         mocker.patch(
@@ -515,7 +505,6 @@ class TestContextError:
 
 
 class TestOAuthURLPresence:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_oauth_url_never_paraphrased(self, mocker):
         mocker.patch(

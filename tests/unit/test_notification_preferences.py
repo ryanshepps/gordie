@@ -110,9 +110,7 @@ class TestNotificationPreferenceRepository:
         assert result_12345 is True, "League 12345 should be opted in"
         assert result_67890 is False, "League 67890 should be opted out"
 
-    def test_is_enabled_returns_false_for_unknown_notification_type(
-        self, repo, mock_session
-    ):
+    def test_is_enabled_returns_false_for_unknown_notification_type(self, repo, mock_session):
         """Unknown notification types should default to False."""
         mock_session.execute.return_value.fetchone.side_effect = [
             None,  # No preference

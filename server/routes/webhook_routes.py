@@ -208,7 +208,9 @@ def _handle_subscription_paid(
                 tier=tier,
                 current_period_ends_at=period_end or "",
             )
-            logger.info(f"Activated {tier} subscription for {email} via subscription.paid (no prior record)")
+            logger.info(
+                f"Activated {tier} subscription for {email} via subscription.paid (no prior record)"
+            )
             return
         logger.warning(f"subscription.paid for unknown subscription: {subscription_id}")
         return
@@ -275,9 +277,7 @@ def _handle_subscription_paused(
     logger.info(f"Paused subscription for {user_email}")
 
 
-def _send_subscription_confirmation(
-    email: str, tier: str, logger: logging.Logger
-) -> None:
+def _send_subscription_confirmation(email: str, tier: str, logger: logging.Logger) -> None:
     user_repo = UserRepository()
     try:
         user = user_repo.get_user(email)

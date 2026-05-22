@@ -61,9 +61,7 @@ def query_hockey_stats_db(sql: str, situation: Situation) -> str:
 
         records = [dict(zip(columns, row, strict=True)) for row in rows]
 
-        output: dict[str, list[dict[str, str | int | float | None]] | str] = {
-            "results": records
-        }
+        output: dict[str, list[dict[str, str | int | float | None]] | str] = {"results": records}
         if truncated:
             output["notice"] = f"Results truncated to {MAX_ROWS} rows."
 
@@ -79,9 +77,11 @@ def query_hockey_stats_db(sql: str, situation: Situation) -> str:
             cols = [row[0] for row in conn.execute(f"DESCRIBE {table}").fetchall()]
             schema_hints.append(f"{table} columns: {', '.join(cols)}")
         hint = "\n".join(schema_hints)
-        return json.dumps({
-            "error": str(exc),
-            "available_columns": hint,
-        })
+        return json.dumps(
+            {
+                "error": str(exc),
+                "available_columns": hint,
+            }
+        )
     except duckdb.Error:
         raise

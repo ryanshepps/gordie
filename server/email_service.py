@@ -44,9 +44,7 @@ class EmailService:
         self.enabled = bool(self.api_key and self.domain)
 
         if not self.enabled:
-            logger.warning(
-                "EmailService disabled: MAILGUN_API_KEY and/or MAILGUN_DOMAIN not set"
-            )
+            logger.warning("EmailService disabled: MAILGUN_API_KEY and/or MAILGUN_DOMAIN not set")
             return
 
         if not self.from_email:
@@ -211,7 +209,7 @@ class EmailService:
                     <span style="color: #9C9486;">Questions asked</span>
                 </td>
                 <td style="padding: 12px 16px; background: #0F0D09; border-radius: 6px 6px 0 0; border-bottom: 1px solid #2A2520; text-align: right; font-weight: 700;">
-                    {usage['questions_asked']}
+                    {usage["questions_asked"]}
                 </td>
             </tr>
             <tr>
@@ -219,7 +217,7 @@ class EmailService:
                     <span style="color: #9C9486;">Digests received</span>
                 </td>
                 <td style="padding: 12px 16px; background: #0F0D09; border-bottom: 1px solid #2A2520; text-align: right; font-weight: 700;">
-                    {usage['digests_received']}
+                    {usage["digests_received"]}
                 </td>
             </tr>
             <tr>
@@ -227,7 +225,7 @@ class EmailService:
                     <span style="color: #9C9486;">Leagues connected</span>
                 </td>
                 <td style="padding: 12px 16px; background: #0F0D09; border-radius: 0 0 6px 6px; text-align: right; font-weight: 700;">
-                    {usage['leagues_connected']}
+                    {usage["leagues_connected"]}
                 </td>
             </tr>
         </table>

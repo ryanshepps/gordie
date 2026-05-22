@@ -65,10 +65,12 @@ def get_player_schedule(
             resolution_errors[name] = str(player_result.get("message", "Player not found"))
 
     if not name_to_team:
-        return json.dumps({
-            "error": "Could not resolve any player names to teams",
-            "resolution_errors": resolution_errors,
-        })
+        return json.dumps(
+            {
+                "error": "Could not resolve any player names to teams",
+                "resolution_errors": resolution_errors,
+            }
+        )
 
     # Step 2: Get unique teams and fetch schedules
     unique_teams = list(set(name_to_team.values()))

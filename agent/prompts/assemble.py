@@ -147,4 +147,6 @@ def assemble_system_prompt(state: AgentState) -> str:
     context_section = _build_context_section(state)
     sport_context = get_sport_context(sport)
 
-    return f"{ANALYST_IDENTITY}\n{RULES}\n{channel_guidelines}\n\n{context_section}\n\n{sport_context}"
+    return (
+        f"{ANALYST_IDENTITY}\n{RULES}\n{channel_guidelines}\n\n{context_section}\n\n{sport_context}"
+    )

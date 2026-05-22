@@ -31,9 +31,9 @@ def filter_tools_by_sport[T](tools: Sequence[T], sport: Sport | None) -> list[T]
 
     allowed = SPORT_TOOLS.get(sport, set())
     return [
-        t for t in tools
-        if getattr(t, "name", "") not in ALL_SPORT_TOOLS
-        or getattr(t, "name", "") in allowed
+        t
+        for t in tools
+        if getattr(t, "name", "") not in ALL_SPORT_TOOLS or getattr(t, "name", "") in allowed
     ]
 
 

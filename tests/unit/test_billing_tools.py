@@ -106,9 +106,7 @@ class TestGenerateCheckoutLink:
     def test_invalid_plan_returns_error(self):
         from tools.billing.generate_checkout_link import generate_checkout_link
 
-        result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "platinum"}
-        )
+        result = generate_checkout_link.invoke({"user_email": "user@test.com", "plan": "platinum"})
 
         assert "Invalid plan" in result
 
@@ -131,7 +129,14 @@ class TestGeneratePortalLink:
     @patch("tools.billing.generate_portal_link.SubscriptionRepository")
     def test_existing_customer_returns_portal_url(self, mock_repo_cls, mock_portal):
         mock_repo_cls.return_value.get_subscription.return_value = (
-            "user@test.com", "cus_789", "sub_123", "standard", "active", None, None, None
+            "user@test.com",
+            "cus_789",
+            "sub_123",
+            "standard",
+            "active",
+            None,
+            None,
+            None,
         )
         mock_portal.return_value = "https://billing.creem.io/portal_abc"
 
@@ -155,7 +160,14 @@ class TestGeneratePortalLink:
     @patch("tools.billing.generate_portal_link.SubscriptionRepository")
     def test_no_creem_customer_id_returns_error(self, mock_repo_cls):
         mock_repo_cls.return_value.get_subscription.return_value = (
-            "user@test.com", None, None, "trialing", "trialing", None, None, None
+            "user@test.com",
+            None,
+            None,
+            "trialing",
+            "trialing",
+            None,
+            None,
+            None,
         )
 
         from tools.billing.generate_portal_link import generate_portal_link

@@ -115,7 +115,9 @@ class TestInjuryGameDayFiltering:
     def test_new_injury_surfaces_without_game_today(self):
         raw_news = RawNewsCollection(
             injuries=[
-                InjuryAlert(player_name="Connor McDavid", team="EDM", status="DTD", description="Upper body")
+                InjuryAlert(
+                    player_name="Connor McDavid", team="EDM", status="DTD", description="Upper body"
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -136,7 +138,9 @@ class TestInjuryGameDayFiltering:
     def test_repeat_injury_without_game_today_is_suppressed(self):
         raw_news = RawNewsCollection(
             injuries=[
-                InjuryAlert(player_name="Connor McDavid", team="EDM", status="DTD", description="Upper body")
+                InjuryAlert(
+                    player_name="Connor McDavid", team="EDM", status="DTD", description="Upper body"
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -155,7 +159,9 @@ class TestInjuryGameDayFiltering:
     def test_repeat_injury_with_game_today_surfaces(self):
         raw_news = RawNewsCollection(
             injuries=[
-                InjuryAlert(player_name="Connor McDavid", team="EDM", status="DTD", description="Upper body")
+                InjuryAlert(
+                    player_name="Connor McDavid", team="EDM", status="DTD", description="Upper body"
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -175,7 +181,9 @@ class TestInjuryGameDayFiltering:
     def test_status_change_treated_as_new(self):
         raw_news = RawNewsCollection(
             injuries=[
-                InjuryAlert(player_name="Connor McDavid", team="EDM", status="OUT", description="Upper body")
+                InjuryAlert(
+                    player_name="Connor McDavid", team="EDM", status="OUT", description="Upper body"
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -195,7 +203,9 @@ class TestInjuryGameDayFiltering:
     def test_ir_slot_player_gets_no_replacement_language(self):
         raw_news = RawNewsCollection(
             injuries=[
-                InjuryAlert(player_name="Mikko Rantanen", team="COL", status="IR", description="Knee")
+                InjuryAlert(
+                    player_name="Mikko Rantanen", team="COL", status="IR", description="Knee"
+                )
             ],
         )
         roster = [FakePlayer("Mikko Rantanen", "COL", "IR", "RW")]
@@ -218,7 +228,12 @@ class TestMatchupGameDayFiltering:
     def test_matchup_alerts_suppressed_when_no_lineup_decisions(self):
         raw_news = RawNewsCollection(
             matchups=[
-                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_weakness_metric=3.5, metric_label="GAA")
+                MatchupAlert(
+                    player_name="Connor McDavid",
+                    opponent="TOR",
+                    opponent_weakness_metric=3.5,
+                    metric_label="GAA",
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -238,7 +253,12 @@ class TestMatchupGameDayFiltering:
     def test_matchup_alerts_included_when_position_conflicts_exist(self):
         raw_news = RawNewsCollection(
             matchups=[
-                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_weakness_metric=3.5, metric_label="GAA")
+                MatchupAlert(
+                    player_name="Connor McDavid",
+                    opponent="TOR",
+                    opponent_weakness_metric=3.5,
+                    metric_label="GAA",
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]
@@ -261,7 +281,12 @@ class TestMatchupGameDayFiltering:
     def test_matchup_alerts_included_when_no_lineup_analysis_provided(self):
         raw_news = RawNewsCollection(
             matchups=[
-                MatchupAlert(player_name="Connor McDavid", opponent="TOR", opponent_weakness_metric=3.5, metric_label="GAA")
+                MatchupAlert(
+                    player_name="Connor McDavid",
+                    opponent="TOR",
+                    opponent_weakness_metric=3.5,
+                    metric_label="GAA",
+                )
             ],
         )
         roster = [FakePlayer("Connor McDavid", "EDM", "C", "C")]

@@ -40,6 +40,7 @@ dependencies = [
 exclude = [
     ".git",
     ".venv",
+    ".claude",
     "venv",
     "__pycache__",
     ".pytest_cache",
@@ -130,6 +131,7 @@ exclude = [
     "dist",
     "*.egg-info",
     "data_test_examples",
+    ".claude",
 ]
 
 [tool.uv.sources]

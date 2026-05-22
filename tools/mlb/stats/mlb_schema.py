@@ -9,7 +9,7 @@ MLB_TOOL_DESCRIPTION = f"""\
 Query MLB statistics stored in a local DuckDB database using SQL.
 Data sourced from FanGraphs via pybaseball.
 
-Available tables: {', '.join(MLB_TABLES)}
+Available tables: {", ".join(MLB_TABLES)}
 Seasons available: {MLB_SEASONS[0]}-{MLB_SEASONS[-1]}
 
 IMPORTANT: Each table has a DIFFERENT schema. Do NOT assume columns from one

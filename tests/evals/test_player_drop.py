@@ -11,7 +11,6 @@ SCHEDULE_KEYWORDS = ("schedule", "games", "week", "matchup", "upcoming")
 
 
 class TestPlayerDropDecision:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_response_gives_recommendation_with_stats_and_schedule(
         self,

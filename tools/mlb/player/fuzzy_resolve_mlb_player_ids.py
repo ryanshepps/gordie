@@ -80,19 +80,24 @@ def fuzzy_resolve_mlb_player_ids(player_names: list[str]) -> str:
         matches = _search_mlb_api(name)
 
         if not matches:
-            results[name] = {"status": "not_found", "message": f"No MLB players found matching '{name}'"}
+            results[name] = {
+                "status": "not_found",
+                "message": f"No MLB players found matching '{name}'",
+            }
             continue
 
         if len(matches) == 1:
             match = matches[0]
-            results[name] = [{
-                "player_id": match.player_id,
-                "full_name": match.full_name,
-                "team": match.team_abbrev,
-                "position": match.position,
-                "active": match.active,
-                "status": "exact_match",
-            }]
+            results[name] = [
+                {
+                    "player_id": match.player_id,
+                    "full_name": match.full_name,
+                    "team": match.team_abbrev,
+                    "position": match.position,
+                    "active": match.active,
+                    "status": "exact_match",
+                }
+            ]
         else:
             results[name] = [
                 {

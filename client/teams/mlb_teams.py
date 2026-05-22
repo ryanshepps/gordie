@@ -35,7 +35,9 @@ MLB_TEAMS: dict[str, str] = {
 
 MLB_TEAMS_BY_NAME: dict[str, str] = {name: abbr for abbr, name in MLB_TEAMS.items()}
 
-MLB_TEAMS_BY_NAME_LOWER: dict[str, str] = {name.lower(): abbr for name, abbr in MLB_TEAMS_BY_NAME.items()}
+MLB_TEAMS_BY_NAME_LOWER: dict[str, str] = {
+    name.lower(): abbr for name, abbr in MLB_TEAMS_BY_NAME.items()
+}
 
 
 def mlb_team_abbr(team_name: str) -> str:

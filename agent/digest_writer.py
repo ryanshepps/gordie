@@ -35,26 +35,26 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
         "Write like you're DMing breaking news that affects their team. "
         "Urgent, direct, actionable. Keep it under 400 words.\n\n"
         "RULES:\n"
-        "- Never say \"tonight\" for a player unless has_game_today is true\n"
+        '- Never say "tonight" for a player unless has_game_today is true\n'
         "- For IR players with already_on_ir_slot=true, do NOT suggest finding a replacement\n"
-        "- For new injuries without a game today, mention when their next game is instead of \"tonight\"\n"
-        "- Only recommend \"start X over Y\" when position_conflicts exist in the data\n"
+        '- For new injuries without a game today, mention when their next game is instead of "tonight"\n'
+        '- Only recommend "start X over Y" when position_conflicts exist in the data\n'
         "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
         "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely\n"
         "- Use the injury alert fields (has_game_today, is_new_injury, already_on_ir_slot) to guide tone\n"
-        "- Do NOT end with questions, offers to help, or calls to action (e.g. \"Want me to check waivers?\"). Just deliver the news and sign off."
+        '- Do NOT end with questions, offers to help, or calls to action (e.g. "Want me to check waivers?"). Just deliver the news and sign off.'
     ),
     (DigestType.NEWS, "sms"): (
         "Write like you're DMing breaking news that affects their team. "
         "Urgent, direct, actionable. No markdown. Keep it under 150 words.\n\n"
         "RULES:\n"
-        "- Never say \"tonight\" for a player unless has_game_today is true\n"
+        '- Never say "tonight" for a player unless has_game_today is true\n'
         "- For IR players with already_on_ir_slot=true, do NOT suggest finding a replacement\n"
-        "- For new injuries without a game today, mention when their next game is instead of \"tonight\"\n"
-        "- Only recommend \"start X over Y\" when position_conflicts exist in the data\n"
+        '- For new injuries without a game today, mention when their next game is instead of "tonight"\n'
+        '- Only recommend "start X over Y" when position_conflicts exist in the data\n'
         "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
         "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely\n"
-        "- Do NOT end with questions, offers to help, or calls to action (e.g. \"Want me to check waivers?\"). Just deliver the news and sign off."
+        '- Do NOT end with questions, offers to help, or calls to action (e.g. "Want me to check waivers?"). Just deliver the news and sign off.'
     ),
 }
 
@@ -78,9 +78,11 @@ def write_digest_content(
     )
 
     llm = make_llm(temperature=0.7)
-    response = llm.invoke([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ])
+    response = llm.invoke(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+    )
 
     return str(response.content)

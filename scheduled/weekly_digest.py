@@ -153,9 +153,7 @@ def _send_digest_email(
         raise RuntimeError(f"Email send failed: {result.error}")
 
 
-def _send_digest_sms(
-    content: str, phone_number: str, user_email: str, league_name: str
-) -> None:
+def _send_digest_sms(content: str, phone_number: str, user_email: str, league_name: str) -> None:
     plain_text = strip_markdown(content)
     sms_service = SmsService()
     result = sms_service.send_sms(phone_number, plain_text)
@@ -264,7 +262,9 @@ def _categorize_roster_by_performance(
     current_players = (
         current_roster
         if isinstance(current_roster, list)
-        else [current_roster] if current_roster else []
+        else [current_roster]
+        if current_roster
+        else []
     )
     for player in current_players:
         name = _get_player_name(player)
@@ -277,7 +277,9 @@ def _categorize_roster_by_performance(
     last_week_players = (
         last_week_roster
         if isinstance(last_week_roster, list)
-        else [last_week_roster] if last_week_roster else []
+        else [last_week_roster]
+        if last_week_roster
+        else []
     )
     for player in last_week_players:
         name = _get_player_name(player)

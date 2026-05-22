@@ -62,10 +62,12 @@ def get_player_line_info(
             resolution_errors[name] = str(player_result.get("message", "Player not found"))
 
     if not name_to_id:
-        return json.dumps({
-            "error": "Could not resolve any player names",
-            "resolution_errors": resolution_errors,
-        })
+        return json.dumps(
+            {
+                "error": "Could not resolve any player names",
+                "resolution_errors": resolution_errors,
+            }
+        )
 
     # Step 2: Fetch line info for resolved IDs
     player_ids = list(name_to_id.values())

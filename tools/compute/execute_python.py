@@ -44,7 +44,9 @@ def execute_python(code: str, data_json: str = "{}") -> str:
         if result.returncode == 0:
             output = result.stdout
             if len(output) > MAX_OUTPUT_CHARS:
-                output = output[:MAX_OUTPUT_CHARS] + f"\n... (truncated at {MAX_OUTPUT_CHARS} chars)"
+                output = (
+                    output[:MAX_OUTPUT_CHARS] + f"\n... (truncated at {MAX_OUTPUT_CHARS} chars)"
+                )
             return output if output else "(no output)"
 
         error = result.stderr

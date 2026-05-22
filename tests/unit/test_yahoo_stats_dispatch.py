@@ -43,11 +43,13 @@ class TestYahooScoringDispatch:
 
         mock_instance.query.get_league_standings.return_value = [team]
 
-        result = yahoo_scoring.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_standings",
-        })
+        result = yahoo_scoring.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_standings",
+            }
+        )
         parsed = json.loads(result)
 
         assert "standings" in parsed
@@ -89,12 +91,14 @@ class TestYahooScoringDispatch:
 
         mock_instance.query.get_league_scoreboard_by_week.return_value = scoreboard
 
-        result = yahoo_scoring.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_scoreboard_by_week",
-            "params_json": json.dumps({"week": 5}),
-        })
+        result = yahoo_scoring.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_scoreboard_by_week",
+                "params_json": json.dumps({"week": 5}),
+            }
+        )
         parsed = json.loads(result)
 
         assert "matchups" in parsed
@@ -141,12 +145,14 @@ class TestYahooRosterDispatch:
 
         mock_instance.query.get_team_roster_player_stats.return_value = [player]
 
-        result = yahoo_roster.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_team_roster_player_stats",
-            "params_json": json.dumps({"team_id": "1"}),
-        })
+        result = yahoo_roster.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_team_roster_player_stats",
+                "params_json": json.dumps({"team_id": "1"}),
+            }
+        )
         parsed = json.loads(result)
 
         assert "players" in parsed
@@ -189,12 +195,14 @@ class TestYahooPlayerDispatch:
 
         mock_instance.query.get_player_stats_for_season.return_value = player
 
-        result = yahoo_player.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_player_stats_for_season",
-            "params_json": json.dumps({"player_key": "nhl.p.7890"}),
-        })
+        result = yahoo_player.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_player_stats_for_season",
+                "params_json": json.dumps({"player_key": "nhl.p.7890"}),
+            }
+        )
         parsed = json.loads(result)
 
         assert "player" in parsed
@@ -231,11 +239,13 @@ class TestYahooLeagueDispatch:
 
         mock_instance.query.get_league_teams.return_value = [team]
 
-        result = yahoo_league.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_teams",
-        })
+        result = yahoo_league.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_teams",
+            }
+        )
         parsed = json.loads(result)
 
         assert "teams" in parsed
@@ -254,11 +264,13 @@ class TestYahooLeagueDispatch:
         league_info.end_date = "2025-04-13"
         mock_instance.query.get_league_info.return_value = league_info
 
-        result = yahoo_league.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_info",
-        })
+        result = yahoo_league.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_info",
+            }
+        )
         parsed = json.loads(result)
 
         assert "league_info" in parsed
@@ -277,11 +289,13 @@ class TestYahooLeagueDispatch:
         pick.player_key = "nhl.p.6743"
         mock_instance.query.get_league_draft_results.return_value = [pick]
 
-        result = yahoo_league.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_draft_results",
-        })
+        result = yahoo_league.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_draft_results",
+            }
+        )
         parsed = json.loads(result)
 
         assert "draft_results" in parsed
@@ -297,11 +311,13 @@ class TestParamsJsonParsing:
         mock_cls.return_value = mock_instance
         mock_instance.query.get_league_standings.return_value = []
 
-        result = yahoo_scoring.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_standings",
-        })
+        result = yahoo_scoring.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_standings",
+            }
+        )
         parsed = json.loads(result)
 
         assert "standings" in parsed
@@ -314,11 +330,13 @@ class TestParamsJsonParsing:
         mock_cls.return_value = mock_instance
         mock_instance.query.get_league_standings.side_effect = RuntimeError("API down")
 
-        result = yahoo_scoring.invoke({
-            "user_email": "test@test.com",
-            "league_id": "123",
-            "method": "get_league_standings",
-        })
+        result = yahoo_scoring.invoke(
+            {
+                "user_email": "test@test.com",
+                "league_id": "123",
+                "method": "get_league_standings",
+            }
+        )
         parsed = json.loads(result)
 
         assert "error" in parsed

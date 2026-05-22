@@ -11,7 +11,7 @@ TABLES = ["skaters", "goalies", "teams"]
 TOOL_DESCRIPTION = f"""\
 Query MoneyPuck NHL statistics stored in a local DuckDB database using SQL.
 
-Available tables: {', '.join(TABLES)}
+Available tables: {", ".join(TABLES)}
 Seasons available: {SEASONS[0]}-{SEASONS[-1]}
 
 IMPORTANT: Each table has a DIFFERENT schema. Do NOT assume columns from one

@@ -27,7 +27,10 @@ SMS_MAX_LENGTH = 800
 
 
 def _invoke_graph(state: dict[str, Any]) -> str:
-    config = cast(RunnableConfig, cast(object, {"configurable": {"thread_id": state.get("thread_id", "test")}}))
+    config = cast(
+        RunnableConfig,
+        cast(object, {"configurable": {"thread_id": state.get("thread_id", "test")}}),
+    )
     result = agent.invoke(cast(Any, state), config)
     return str(result.get("response", ""))
 
@@ -77,7 +80,6 @@ def email_user_state():
 
 
 class TestSmsMessageQuality:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     @pytest.mark.parametrize(
         "user_message",
@@ -87,9 +89,7 @@ class TestSmsMessageQuality:
             "Someone offered me Draisaitl for my Rantanen straight up",
         ],
     )
-    def test_sms_reads_like_texting(
-        self, sms_user_state, mock_yahoo_tools, user_message
-    ):
+    def test_sms_reads_like_texting(self, sms_user_state, mock_yahoo_tools, user_message):
         sms_user_state["messages"] = [HumanMessage(content=user_message)]
         response = _invoke_graph(sms_user_state)
 
@@ -106,7 +106,6 @@ class TestSmsMessageQuality:
 
 
 class TestSmsVsEmailConsistency:
-
     @pytest.fixture
     def consistency_evaluator(self):
         return create_trajectory_llm_as_judge(
@@ -149,10 +148,7 @@ class TestSmsVsEmailConsistency:
 
         assert email_response, "Email agent produced no output"
 
-        combined = (
-            f"SMS response:\n{sms_response}\n\n"
-            f"Email response:\n{email_response}"
-        )
+        combined = f"SMS response:\n{sms_response}\n\nEmail response:\n{email_response}"
         output_messages = [{"role": "assistant", "content": combined}]
 
         eval_result = consistency_evaluator(

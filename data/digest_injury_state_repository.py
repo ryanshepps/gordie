@@ -6,7 +6,6 @@ from data.repository import Repository
 
 
 class DigestInjuryStateRepository(Repository):
-
     def __init__(self, session: Session | None = None) -> None:
         super().__init__("digest_injury_states", session)
 

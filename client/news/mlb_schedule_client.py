@@ -30,8 +30,12 @@ def fetch_mlb_teams_playing_on_date(date_str: str) -> set[str]:
     teams: set[str] = set()
     for date_entry in data.get("dates", []):
         for game in date_entry.get("games", []):
-            home_abbr = game.get("teams", {}).get("home", {}).get("team", {}).get("abbreviation", "")
-            away_abbr = game.get("teams", {}).get("away", {}).get("team", {}).get("abbreviation", "")
+            home_abbr = (
+                game.get("teams", {}).get("home", {}).get("team", {}).get("abbreviation", "")
+            )
+            away_abbr = (
+                game.get("teams", {}).get("away", {}).get("team", {}).get("abbreviation", "")
+            )
             if home_abbr:
                 teams.add(home_abbr)
             if away_abbr:

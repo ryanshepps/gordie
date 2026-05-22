@@ -12,9 +12,7 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _extract_player_yahoo_info(
-    player_data: list[object], rank: int
-) -> dict[str, str | int | None]:
+def _extract_player_yahoo_info(player_data: list[object], rank: int) -> dict[str, str | int | None]:
     """Extract Yahoo-specific info from raw API player data structure."""
     player_info: dict[str, str | int | None] = {
         "name": "Unknown",

@@ -89,7 +89,9 @@ class TestRefreshMlbStatsDb:
             patch("scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting),
             patch("scheduled.refresh_mlb_stats_db.team_pitching", side_effect=_fake_team_pitching),
             patch("scheduled.refresh_mlb_stats_db.mlb_stats_db_refresh_total") as mock_counter,
-            patch("scheduled.refresh_mlb_stats_db.mlb_stats_db_last_refresh_timestamp") as mock_gauge,
+            patch(
+                "scheduled.refresh_mlb_stats_db.mlb_stats_db_last_refresh_timestamp"
+            ) as mock_gauge,
             patch("scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection"),
         ):
             refresh_mlb_stats_db()

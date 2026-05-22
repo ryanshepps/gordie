@@ -19,7 +19,6 @@ def _run_through_context_and_supervisor(state: AgentState):
 
 
 class TestOnboardingOAuth:
-
     @pytest.fixture
     def unauthenticated_user_state(self) -> AgentState:
         return AgentState(

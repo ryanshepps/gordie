@@ -62,17 +62,11 @@ def weekly_digest_data():
         current_week=15,
         roster_performance=RosterPerformance(
             top_performers=[
-                PlayerPerformance(
-                    name="Connor McDavid", position="C", team="EDM", points=25.5
-                ),
-                PlayerPerformance(
-                    name="Leon Draisaitl", position="C", team="EDM", points=22.0
-                ),
+                PlayerPerformance(name="Connor McDavid", position="C", team="EDM", points=25.5),
+                PlayerPerformance(name="Leon Draisaitl", position="C", team="EDM", points=22.0),
             ],
             underperformers=[
-                PlayerPerformance(
-                    name="Bench Warmer", position="RW", team="CBJ", points=1.0
-                ),
+                PlayerPerformance(name="Bench Warmer", position="RW", team="CBJ", points=1.0),
             ],
             injured=[
                 PlayerPerformance(
@@ -154,7 +148,6 @@ def news_digest_data():
 
 
 class TestWeeklyDigestContent:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_references_top_performer(self, weekly_digest_data):
         content = write_digest_content(weekly_digest_data, DigestType.WEEKLY)
@@ -222,7 +215,6 @@ class TestWeeklyDigestContent:
 
 
 class TestNewsDigestContent:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_references_injured_player(self, news_digest_data):
         content = write_digest_content(news_digest_data, DigestType.NEWS)

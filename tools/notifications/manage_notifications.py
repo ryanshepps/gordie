@@ -14,9 +14,7 @@ class ManageNotificationsInput(BaseModel):
 
     user_email: str = Field(description="User's email address")
     league_id: str = Field(description="Yahoo league ID")
-    notification_type: str = Field(
-        description="Type of notification (e.g., 'weekly_digest')"
-    )
+    notification_type: str = Field(description="Type of notification (e.g., 'weekly_digest')")
     enabled: bool = Field(description="Whether to enable or disable the notification")
 
 

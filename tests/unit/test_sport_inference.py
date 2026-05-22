@@ -47,7 +47,15 @@ class TestSingleTeamShortcut:
         assert result == "mlb"
 
     def test_returns_none_for_invalid_sport(self):
-        teams = [{"league_id": "1", "team_id": "1", "team_name": "T", "league_name": "L", "sport": "curling"}]
+        teams = [
+            {
+                "league_id": "1",
+                "team_id": "1",
+                "team_name": "T",
+                "league_name": "L",
+                "sport": "curling",
+            }
+        ]
         result = infer_sport("anything", teams, None, None)
         assert result is None
 
@@ -122,26 +130,32 @@ class TestKeywordMatching:
 
 class TestTeamNameMatching:
     def test_team_name_in_message(self):
-        teams = _teams_with_names([
-            ("nhl", "Kraken Crushers", "NHL Dynasty"),
-            ("mlb", "Diamond Dogs", "Fantasy Baseball League"),
-        ])
+        teams = _teams_with_names(
+            [
+                ("nhl", "Kraken Crushers", "NHL Dynasty"),
+                ("mlb", "Diamond Dogs", "Fantasy Baseball League"),
+            ]
+        )
         result = infer_sport("how are my Diamond Dogs doing", teams, None, None)
         assert result == "mlb"
 
     def test_league_name_in_message(self):
-        teams = _teams_with_names([
-            ("nhl", "Team A", "Frozen Four League"),
-            ("mlb", "Team B", "Sluggers League"),
-        ])
+        teams = _teams_with_names(
+            [
+                ("nhl", "Team A", "Frozen Four League"),
+                ("mlb", "Team B", "Sluggers League"),
+            ]
+        )
         result = infer_sport("what's happening in Sluggers League", teams, None, None)
         assert result == "mlb"
 
     def test_ambiguous_name_match_returns_none(self):
-        teams = _teams_with_names([
-            ("nhl", "Winners", "League One"),
-            ("mlb", "Winners", "League Two"),
-        ])
+        teams = _teams_with_names(
+            [
+                ("nhl", "Winners", "League One"),
+                ("mlb", "Winners", "League Two"),
+            ]
+        )
         result = infer_sport("how are the Winners doing", teams, None, None)
         assert result is None
 

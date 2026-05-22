@@ -174,9 +174,7 @@ class ProcessedEmail(Base):
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
 
-    user_email: Mapped[str] = mapped_column(
-        String, ForeignKey("users.email"), primary_key=True
-    )
+    user_email: Mapped[str] = mapped_column(String, ForeignKey("users.email"), primary_key=True)
     creem_customer_id: Mapped[str | None] = mapped_column(String)
     creem_subscription_id: Mapped[str | None] = mapped_column(String)
     tier: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
@@ -190,9 +188,7 @@ class UserSubscription(Base):
 class UsageTracking(Base):
     __tablename__ = "usage_tracking"
 
-    user_email: Mapped[str] = mapped_column(
-        String, ForeignKey("users.email"), primary_key=True
-    )
+    user_email: Mapped[str] = mapped_column(String, ForeignKey("users.email"), primary_key=True)
     week_start: Mapped[date] = mapped_column(Date, primary_key=True)
     question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
@@ -200,9 +196,7 @@ class UsageTracking(Base):
 class DigestInjuryState(Base):
     __tablename__ = "digest_injury_states"
 
-    user_email: Mapped[str] = mapped_column(
-        String, ForeignKey("users.email"), primary_key=True
-    )
+    user_email: Mapped[str] = mapped_column(String, ForeignKey("users.email"), primary_key=True)
     player_name: Mapped[str] = mapped_column(String, primary_key=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

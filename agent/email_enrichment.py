@@ -114,30 +114,33 @@ def fetch_player_stats(player_names: list[str]) -> list[dict[str, Any]]:
             assists = max(0, points - goals)
             x_goals = _to_float(stats.get("x_goals") or stats.get("I_F_xGoals"))
 
-            stats_list.append({
-                "name": str(stats.get("name") or name),
-                "position": str(stats.get("position") or ""),
-                "games_played": _to_int(stats.get("games_played")),
-                "goals": goals,
-                "assists": assists,
-                "points": points,
-                "points_per_game": round(_to_float(stats.get("points_per_game")), 2),
-                "toi_per_game_minutes": round(_to_float(stats.get("toi_per_game_minutes")), 1),
-                "x_goals": round(x_goals, 2),
-                "goals_above_expected": round(goals - x_goals, 2),
-                "fenwick_pct": round(
-                    _to_float(stats.get("fenwick_pct") or stats.get("onIce_fenwickPercentage")), 1
-                ),
-                "corsi_pct": round(
-                    _to_float(stats.get("corsi_pct") or stats.get("onIce_corsiPercentage")), 1
-                ),
-                "shots_on_goal": _to_int(
-                    stats.get("shots_on_goal") or stats.get("I_F_shotsOnGoal")
-                ),
-                "high_danger_goals": _to_int(
-                    stats.get("high_danger_goals") or stats.get("I_F_highDangerGoals")
-                ),
-            })
+            stats_list.append(
+                {
+                    "name": str(stats.get("name") or name),
+                    "position": str(stats.get("position") or ""),
+                    "games_played": _to_int(stats.get("games_played")),
+                    "goals": goals,
+                    "assists": assists,
+                    "points": points,
+                    "points_per_game": round(_to_float(stats.get("points_per_game")), 2),
+                    "toi_per_game_minutes": round(_to_float(stats.get("toi_per_game_minutes")), 1),
+                    "x_goals": round(x_goals, 2),
+                    "goals_above_expected": round(goals - x_goals, 2),
+                    "fenwick_pct": round(
+                        _to_float(stats.get("fenwick_pct") or stats.get("onIce_fenwickPercentage")),
+                        1,
+                    ),
+                    "corsi_pct": round(
+                        _to_float(stats.get("corsi_pct") or stats.get("onIce_corsiPercentage")), 1
+                    ),
+                    "shots_on_goal": _to_int(
+                        stats.get("shots_on_goal") or stats.get("I_F_shotsOnGoal")
+                    ),
+                    "high_danger_goals": _to_int(
+                        stats.get("high_danger_goals") or stats.get("I_F_highDangerGoals")
+                    ),
+                }
+            )
 
         return stats_list
 

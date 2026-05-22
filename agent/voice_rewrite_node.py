@@ -49,10 +49,12 @@ def _build_rewrite_prompt(channel: str) -> str:
 
 
 def _invoke_rewrite(system_prompt: str, draft: str) -> str:
-    result = _LLM.invoke([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Rewrite this draft:\n\n{draft}"},
-    ])
+    result = _LLM.invoke(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Rewrite this draft:\n\n{draft}"},
+        ]
+    )
     return str(result.content)
 
 
@@ -63,7 +65,9 @@ def _get_last_ai_content(messages: list[object]) -> tuple[str | None, int | None
         if msg_type is None and isinstance(msg, dict):
             msg_type = msg.get("type")
         if msg_type == "ai":
-            content = getattr(msg, "content", None) if not isinstance(msg, dict) else msg.get("content")
+            content = (
+                getattr(msg, "content", None) if not isinstance(msg, dict) else msg.get("content")
+            )
             if content:
                 return str(content), i
     return None, None

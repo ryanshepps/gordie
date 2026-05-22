@@ -25,7 +25,9 @@ class BatterStats(BaseModel):
     hard_hit_pct: float = Field(description="Hard hit percentage", ge=0, le=70)
     k_pct: float = Field(description="Strikeout percentage", ge=0, le=50)
     bb_pct: float = Field(description="Walk percentage", ge=0, le=30)
-    sprint_speed: float | None = Field(default=None, description="Sprint speed in ft/s", ge=20, le=35)
+    sprint_speed: float | None = Field(
+        default=None, description="Sprint speed in ft/s", ge=20, le=35
+    )
     hr: int = Field(description="Home runs", ge=0)
     rbi: int = Field(description="Runs batted in", ge=0)
     sb: int = Field(description="Stolen bases", ge=0)
@@ -53,7 +55,9 @@ class PitcherStats(BaseModel):
 
 class CalculateMLBUndervaluedInput(BaseModel):
     batter_stats: BatterStats | None = Field(default=None, description="Pre-fetched batter stats")
-    pitcher_stats: PitcherStats | None = Field(default=None, description="Pre-fetched pitcher stats")
+    pitcher_stats: PitcherStats | None = Field(
+        default=None, description="Pre-fetched pitcher stats"
+    )
     user_email: str = Field(description="User's email address for Yahoo authentication")
     league_id: str = Field(description="Yahoo fantasy league ID")
 
@@ -225,9 +229,7 @@ def _apply_rank_disparity_batter(
         )
     elif rank_disparity < -40:
         score -= 1
-        reasons.append(
-            f"Overranked: rank {yahoo_rank} but {ops:.3f} OPS suggests ~{expected_rank}"
-        )
+        reasons.append(f"Overranked: rank {yahoo_rank} but {ops:.3f} OPS suggests ~{expected_rank}")
 
     return score, reasons
 
@@ -263,9 +265,7 @@ def _apply_rank_disparity_pitcher(
         )
     elif rank_disparity < -40:
         score -= 1
-        reasons.append(
-            f"Overranked: rank {yahoo_rank} but {era:.2f} ERA suggests ~{expected_rank}"
-        )
+        reasons.append(f"Overranked: rank {yahoo_rank} but {era:.2f} ERA suggests ~{expected_rank}")
 
     return score, reasons
 
@@ -328,9 +328,7 @@ def _enrich_with_yahoo(
     return yahoo_fields, warnings
 
 
-def _enrich_with_schedule(
-    team: str, player_name: str
-) -> tuple[dict[str, int | None], list[str]]:
+def _enrich_with_schedule(team: str, player_name: str) -> tuple[dict[str, int | None], list[str]]:
     schedule_fields: dict[str, int | None] = {}
     warnings: list[str] = []
 
@@ -346,7 +344,9 @@ def _enrich_with_schedule(
                     "games_next_week": team_schedule.get("next_week_games"),
                 }
             else:
-                warnings.append(f"Schedule not available: {team_schedule.get('message', 'unknown')}")
+                warnings.append(
+                    f"Schedule not available: {team_schedule.get('message', 'unknown')}"
+                )
     except Exception as e:
         warnings.append(f"Schedule fetch failed: {e!s}")
         logger.error(f"{player_name}: Schedule fetch failed: {e!s}")
@@ -354,9 +354,7 @@ def _enrich_with_schedule(
     return schedule_fields, warnings
 
 
-def _score_batter(
-    stats: BatterStats, user_email: str, league_id: str
-) -> str:
+def _score_batter(stats: BatterStats, user_email: str, league_id: str) -> str:
     score, reasons = _calculate_batter_score(stats)
 
     result: dict[str, str | int | float | list[str] | None] = {
@@ -412,9 +410,7 @@ def _score_batter(
     return json.dumps(result, indent=2)
 
 
-def _score_pitcher(
-    stats: PitcherStats, user_email: str, league_id: str
-) -> str:
+def _score_pitcher(stats: PitcherStats, user_email: str, league_id: str) -> str:
     score, reasons = _calculate_pitcher_score(stats)
 
     result: dict[str, str | int | float | list[str] | None] = {
@@ -490,7 +486,9 @@ def calculate_mlb_undervalued_score(
     You MUST first use query_mlb_stats_db to get the player's stats, then pass them here.
     """
     if batter_stats is not None and pitcher_stats is not None:
-        return json.dumps({"error": "Provide exactly one of batter_stats or pitcher_stats, not both"})
+        return json.dumps(
+            {"error": "Provide exactly one of batter_stats or pitcher_stats, not both"}
+        )
     if batter_stats is None and pitcher_stats is None:
         return json.dumps({"error": "Provide exactly one of batter_stats or pitcher_stats"})
 
