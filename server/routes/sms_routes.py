@@ -277,12 +277,13 @@ def register_sms_routes(app):
         # Process in background thread
         def process_sms():
             try:
-                from server.tier_enforcement import build_billing_context, check_question_allowed
+                from billing import get_gateway
 
+                gateway = get_gateway()
                 billing_ctx = None
-                allowed, reason = check_question_allowed(user_email, message_body)
+                allowed, reason = gateway.check_question_allowed(user_email, message_body)
                 if not allowed:
-                    billing_ctx = build_billing_context(user_email, reason, "sms")
+                    billing_ctx = gateway.build_billing_context(user_email, reason, "sms")
 
                 from scripts.message_agent import message_agent
 

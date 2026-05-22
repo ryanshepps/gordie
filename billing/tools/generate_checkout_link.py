@@ -3,8 +3,8 @@
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
+from billing.creem_client import create_checkout_session
 from module.logger import get_logger
-from server.creem_client import create_checkout_session
 
 logger = get_logger(__name__)
 
