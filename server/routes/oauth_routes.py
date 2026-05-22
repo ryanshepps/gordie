@@ -3,6 +3,7 @@
 import os
 import threading
 from html import escape
+from uuid import UUID
 
 from quart import request
 
@@ -64,9 +65,8 @@ def register_oauth_routes(app):
                     400,
                 )
 
-            # Unpack record columns
-            # (id, nonce, user_email, phone_number, thread_id, channel, created_at)
-            _, nonce, user_email, phone_number, thread_id, channel, _ = record
+            # Unpack record columns: (id, nonce, medium, external_id, thread_id, created_at)
+            _, nonce, medium_value, external_id, thread_id, _ = record
 
             # Exchange code for tokens
             client_id = os.getenv("YAHOO_CLIENT_ID")
@@ -96,22 +96,47 @@ def register_oauth_routes(app):
                     "Authentication Error", "Could not retrieve your Yahoo email."
                 ), 500
 
-            # Account linking for SMS cold-start: phone_number set, user_email is None
-            if phone_number and not user_email:
-                from data.pending_user_repository import PendingUserRepository
-                from data.user_repository import UserRepository
+            from data.models import Medium
+            from data.user_repository import UserRepository
 
-                user_repo = UserRepository()
-                try:
-                    existing_user = user_repo.get_user(yahoo_email)
-                    if existing_user:
-                        user_repo.add_phone_to_user(yahoo_email, phone_number)
-                        logger.info(f"Linked phone {phone_number} to existing user {yahoo_email}")
-                    else:
-                        user_repo.add_user_with_phone(yahoo_email, phone_number)
-                        logger.info(f"Created new user {yahoo_email} with phone {phone_number}")
-                finally:
-                    user_repo.close()
+            medium = Medium(str(medium_value))
+            phone_number = external_id if medium is Medium.SMS else None
+
+            user_repo = UserRepository()
+            try:
+                email_user = user_repo.get_by_identity(Medium.EMAIL, yahoo_email)
+                source_user = user_repo.get_by_identity(medium, str(external_id))
+
+                if email_user:
+                    user_id = UUID(str(email_user[0]))
+                    if not source_user:
+                        user_repo.link_identity(
+                            user_id,
+                            medium,
+                            str(external_id),
+                            str(external_id),
+                        )
+                    elif UUID(str(source_user[0])) != user_id:
+                        user_repo.merge_users(UUID(str(source_user[0])), user_id)
+                elif source_user:
+                    user_id = UUID(str(source_user[0]))
+                    user_repo.link_identity(user_id, Medium.EMAIL, yahoo_email, yahoo_email)
+                else:
+                    user_id = user_repo.create_with_identity(
+                        Medium.EMAIL,
+                        yahoo_email,
+                        yahoo_email,
+                    )
+                    if medium is not Medium.EMAIL:
+                        user_repo.link_identity(user_id, medium, str(external_id), str(external_id))
+            finally:
+                user_repo.close()
+
+            user_email = yahoo_email
+
+            # Account linking for SMS cold-start: remove pending phone signup after link.
+            if phone_number:
+                from data.pending_user_repository import PendingUserRepository
 
                 pending_user_repo = PendingUserRepository()
                 try:
@@ -122,19 +147,11 @@ def register_oauth_routes(app):
                 finally:
                     pending_user_repo.close()
 
-                user_email = yahoo_email
-
-            # Determine user identifier for saving tokens
-            identifier = user_email or phone_number
-            if not identifier:
-                logger.error(f"No user identifier in pending_oauth record state={state}")
-                return _error_html("Authentication Error", "No user identifier found."), 500
-
             # Save tokens
             from data.yahoo_token_repository import save_tokens
 
-            save_tokens(identifier, yahoo_email, token_data)
-            logger.info(f"Tokens saved for user={identifier}")
+            save_tokens(user_email, yahoo_email, token_data)
+            logger.info(f"Tokens saved for user={user_email}")
 
             # Delete the pending_oauth record
             repo.delete_by_id(state)
@@ -148,12 +165,12 @@ def register_oauth_routes(app):
                     message_agent(
                         message="I've completed the OAuth authentication!",
                         thread_id=thread_id,
-                        channel=channel,
+                        channel=medium.value,
                         user_email=user_email,
                         phone_number=phone_number,
                         original_subject="Yahoo Fantasy Authentication",
                     )
-                    logger.info(f"Agent resumed for user={identifier} thread={thread_id}")
+                    logger.info(f"Agent resumed for user={user_email} thread={thread_id}")
                 except Exception as e:
                     logger.error(f"Failed to resume agent after OAuth: {e}", exc_info=True)
 

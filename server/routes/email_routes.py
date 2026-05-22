@@ -2,6 +2,7 @@
 
 import threading
 import time
+from uuid import UUID
 
 from quart import jsonify, request
 
@@ -34,7 +35,6 @@ def register_email_routes(app):
 
         # Extract email threading headers
         in_reply_to = form.get("In-Reply-To")
-        references = form.get("References")
         message_id = form.get("Message-Id")
 
         # Validate required fields
@@ -79,32 +79,19 @@ def register_email_routes(app):
 
         # Idempotency: check if we've already processed this Message-Id
         if message_id:
-            from sqlalchemy import text as sql_text
+            from data.models import Medium
+            from data.processed_inbound_message_repository import (
+                ProcessedInboundMessageRepository,
+            )
 
-            from data.database import get_session
-
-            session = get_session()
+            processed_repo = ProcessedInboundMessageRepository()
             try:
-                existing = session.execute(
-                    sql_text("SELECT 1 FROM processed_emails WHERE message_id = :message_id"),
-                    {"message_id": message_id},
-                ).fetchone()
-
-                if existing:
+                if not processed_repo.claim(Medium.EMAIL, str(message_id), str(sender_email)):
                     logger.info(f"Duplicate email {message_id}, skipping")
                     webhook_requests_total.labels(webhook_type="email", status="duplicate").inc()
                     return jsonify({"status": "duplicate"}), 200
-
-                session.execute(
-                    sql_text(
-                        "INSERT INTO processed_emails (message_id, sender_email) "
-                        "VALUES (:message_id, :sender_email)"
-                    ),
-                    {"message_id": message_id, "sender_email": sender_email},
-                )
-                session.commit()
             finally:
-                session.close()
+                processed_repo.close()
 
         logger.info(
             f"Received email from {sender_email}: {subject}", extra={"user_email": sender_email}
@@ -113,18 +100,30 @@ def register_email_routes(app):
             logger.info(f"Email is a reply to: {in_reply_to}")
 
         # Resolve thread_id based on email headers
-        from server.thread_manager import resolve_thread
+        from data.models import Medium
+        from data.thread_repository import ThreadRepository
+        from data.user_repository import UserRepository
 
-        thread_info = resolve_thread(
-            user_email=sender_email,
-            in_reply_to=in_reply_to,
-            references=references,
-            subject=subject,
-        )
+        user_repo = UserRepository()
+        try:
+            user = user_repo.get_by_identity(Medium.EMAIL, sender_email)
+            user_id = (
+                UUID(str(user[0]))
+                if user
+                else user_repo.create_with_identity(Medium.EMAIL, sender_email, sender_email)
+            )
+        finally:
+            user_repo.close()
+
+        thread_repo = ThreadRepository()
+        try:
+            thread_info = thread_repo.resolve(user_id, Medium.EMAIL)
+        finally:
+            thread_repo.close()
 
         logger.info(
             f"Thread resolved: {thread_info.thread_id} "
-            f"(new={thread_info.is_new_thread}, subject={thread_info.subject})"
+            f"(new={thread_info.is_new_thread}, subject={subject})"
         )
 
         # Process in background thread
@@ -146,7 +145,7 @@ def register_email_routes(app):
                     thread_id=thread_info.thread_id,
                     channel="email",
                     user_email=sender_email,
-                    original_subject=thread_info.subject,
+                    original_subject=subject,
                     original_message=message_body,
                     billing_context=billing_ctx,
                 )

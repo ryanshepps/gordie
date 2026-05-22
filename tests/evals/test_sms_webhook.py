@@ -3,6 +3,7 @@
 import json
 import time
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import pytest
 
@@ -47,11 +48,10 @@ def client(app):
     return app.test_client()
 
 
-def _mock_db_no_duplicate():
-    """Mock database session that returns no existing record (not a duplicate)."""
-    mock_session = MagicMock()
-    mock_session.execute.return_value.fetchone.return_value = None
-    return mock_session
+def _mock_processed_repo(claimed: bool = True) -> MagicMock:
+    mock_repo = MagicMock()
+    mock_repo.claim.return_value = claimed
+    return mock_repo
 
 
 class TestSmsWebhook:
@@ -60,27 +60,29 @@ class TestSmsWebhook:
         payload = {"from": "+15559876543", "body": "Who should I start?", "id": "sinch-msg-1"}
         body = json.dumps(payload).encode()
 
-        mock_session = _mock_db_no_duplicate()
+        mock_processed_repo = _mock_processed_repo()
         mock_user_repo = MagicMock()
         mock_user_repo.is_sms_opted_out.return_value = False
-        mock_user_repo.get_user_by_phone.return_value = (
-            "user@test.com",
-            "+15559876543",
-            False,
-        )
+        user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
+        mock_user_repo.get_by_identity.return_value = (user_id, "created")
+        mock_user_repo.get_identity_external_id.return_value = "user@test.com"
 
-        mock_thread_info = MagicMock(thread_id="sms:+15559876543:abc123", is_new_thread=True)
+        mock_thread_info = MagicMock(
+            thread_id="8ec8bd5f-7d86-47c8-9a7a-3ad6c97c4e58", is_new_thread=True
+        )
+        mock_thread_repo = MagicMock()
+        mock_thread_repo.resolve.return_value = mock_thread_info
 
         with (
-            patch("server.routes.sms_routes.get_session", return_value=mock_session),
+            patch(
+                "server.routes.sms_routes.ProcessedInboundMessageRepository",
+                return_value=mock_processed_repo,
+            ),
             patch(
                 "server.routes.sms_routes.UserRepository",
                 return_value=mock_user_repo,
             ),
-            patch(
-                "server.routes.sms_routes.resolve_sms_thread",
-                return_value=mock_thread_info,
-            ),
+            patch("server.routes.sms_routes.ThreadRepository", return_value=mock_thread_repo),
             patch("server.routes.sms_routes.threading") as mock_threading,
         ):
             response = await client.post(
@@ -112,10 +114,12 @@ class TestSmsWebhook:
         payload = {"from": "+15559876543", "body": "Hello", "id": "sinch-msg-dup"}
         body = json.dumps(payload).encode()
 
-        mock_session = MagicMock()
-        mock_session.execute.return_value.fetchone.return_value = (1,)
+        mock_processed_repo = _mock_processed_repo(claimed=False)
 
-        with patch("server.routes.sms_routes.get_session", return_value=mock_session):
+        with patch(
+            "server.routes.sms_routes.ProcessedInboundMessageRepository",
+            return_value=mock_processed_repo,
+        ):
             response = await client.post(
                 f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
@@ -131,12 +135,15 @@ class TestSmsWebhook:
         payload = {"from": "+15559876543", "body": "STOP", "id": "sinch-msg-stop"}
         body = json.dumps(payload).encode()
 
-        mock_session = _mock_db_no_duplicate()
+        mock_processed_repo = _mock_processed_repo()
         mock_user_repo = MagicMock()
         mock_sms_instance = MagicMock()
 
         with (
-            patch("server.routes.sms_routes.get_session", return_value=mock_session),
+            patch(
+                "server.routes.sms_routes.ProcessedInboundMessageRepository",
+                return_value=mock_processed_repo,
+            ),
             patch(
                 "server.routes.sms_routes.UserRepository",
                 return_value=mock_user_repo,
@@ -168,9 +175,12 @@ class TestSmsWebhook:
         payload = {"from": "+15559876543", "body": "One more", "id": "sinch-msg-rate"}
         body = json.dumps(payload).encode()
 
-        mock_session = _mock_db_no_duplicate()
+        mock_processed_repo = _mock_processed_repo()
 
-        with patch("server.routes.sms_routes.get_session", return_value=mock_session):
+        with patch(
+            "server.routes.sms_routes.ProcessedInboundMessageRepository",
+            return_value=mock_processed_repo,
+        ):
             response = await client.post(
                 f"/sms/webhook?auth_token={VALID_TOKEN}",
                 data=body,
@@ -186,18 +196,28 @@ class TestSmsWebhook:
         payload = {"from": "+15550009999", "body": "Hi", "id": "sinch-msg-new"}
         body = json.dumps(payload).encode()
 
-        mock_session = _mock_db_no_duplicate()
+        mock_processed_repo = _mock_processed_repo()
         mock_user_repo = MagicMock()
         mock_user_repo.is_sms_opted_out.return_value = False
-        mock_user_repo.get_user_by_phone.return_value = None
+        mock_user_repo.get_by_identity.return_value = None
+        mock_user_repo.create_with_identity.return_value = UUID(
+            "7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58"
+        )
 
         mock_pending_repo = MagicMock()
         mock_pending_repo.get_pending_user_by_phone.return_value = None
 
-        mock_thread_info = MagicMock(thread_id="sms:+15550009999:abc123", is_new_thread=True)
+        mock_thread_info = MagicMock(
+            thread_id="8ec8bd5f-7d86-47c8-9a7a-3ad6c97c4e58", is_new_thread=True
+        )
+        mock_thread_repo = MagicMock()
+        mock_thread_repo.resolve.return_value = mock_thread_info
 
         with (
-            patch("server.routes.sms_routes.get_session", return_value=mock_session),
+            patch(
+                "server.routes.sms_routes.ProcessedInboundMessageRepository",
+                return_value=mock_processed_repo,
+            ),
             patch(
                 "server.routes.sms_routes.UserRepository",
                 return_value=mock_user_repo,
@@ -206,11 +226,10 @@ class TestSmsWebhook:
                 "server.routes.sms_routes.PendingUserRepository",
                 return_value=mock_pending_repo,
             ),
-            patch(
-                "server.routes.sms_routes.resolve_sms_thread",
-                return_value=mock_thread_info,
-            ),
+            patch("server.routes.sms_routes.ThreadRepository", return_value=mock_thread_repo),
             patch("server.routes.sms_routes.threading"),
+            patch("server.routes.sms_routes._generate_cold_start_oauth_link", return_value="url"),
+            patch("server.routes.sms_routes.SmsService"),
         ):
             response = await client.post(
                 f"/sms/webhook?auth_token={VALID_TOKEN}",

@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from data.database import get_session
+from data.models import Medium
+from data.user_repository import UserRepository
 from module.llm import make_llm
 from module.logger import get_logger
 
@@ -107,13 +109,14 @@ def _persist_summary(
     """Persist a conversation summary to the database for durable storage."""
     try:
         session = get_session()
+        user_id = UserRepository(session).resolve_user_id(Medium.EMAIL, user_email, user_email)
         now = datetime.now().isoformat()
         session.execute(
             text(
                 """
                 INSERT INTO conversation_summaries
-                    (thread_id, user_email, summary, key_topics, players_mentioned, decisions_made, created_at, updated_at)
-                VALUES (:thread_id, :user_email, :summary, :key_topics, :players_mentioned, :decisions_made, :created_at, :updated_at)
+                    (thread_id, user_id, summary, key_topics, players_mentioned, decisions_made, created_at, updated_at)
+                VALUES (:thread_id, :user_id, :summary, :key_topics, :players_mentioned, :decisions_made, :created_at, :updated_at)
                 ON CONFLICT (thread_id) DO UPDATE SET
                     summary = EXCLUDED.summary,
                     key_topics = EXCLUDED.key_topics,
@@ -124,7 +127,7 @@ def _persist_summary(
             ),
             {
                 "thread_id": thread_id,
-                "user_email": user_email,
+                "user_id": user_id,
                 "summary": summary.summary,
                 "key_topics": json.dumps(summary.key_topics),
                 "players_mentioned": json.dumps(summary.players_mentioned),
@@ -153,14 +156,17 @@ def get_conversation_summaries_by_email(user_email: str) -> list[dict[str, Any]]
     rows = session.execute(
         text(
             """
-            SELECT thread_id, user_email, summary, key_topics, players_mentioned,
+            SELECT cs.thread_id, ui.external_id, cs.summary, cs.key_topics, cs.players_mentioned,
                    decisions_made, created_at, updated_at
-            FROM conversation_summaries
-            WHERE user_email = :user_email
-            ORDER BY created_at DESC
+            FROM conversation_summaries cs
+            JOIN user_identities ui
+                ON ui.user_id = cs.user_id
+                AND ui.medium = :medium
+            WHERE ui.external_id = :user_email
+            ORDER BY cs.created_at DESC
             """
         ),
-        {"user_email": user_email},
+        {"medium": Medium.EMAIL.value, "user_email": user_email},
     ).fetchall()
     session.close()
 

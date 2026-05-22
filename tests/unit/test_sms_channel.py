@@ -3,21 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from agent.agent_state import AgentState
-from agent.channels.sms_channel import (
-    _extract_phone_from_thread_id,
-    send_sms_response,
-)
-
-
-class TestExtractPhoneFromThreadId:
-    def test_extracts_phone(self):
-        assert _extract_phone_from_thread_id("sms:+15551234567:abc123") == "+15551234567"
-
-    def test_returns_none_for_email_thread(self):
-        assert _extract_phone_from_thread_id("user@test.com:abc123") is None
-
-    def test_returns_none_for_non_sms_prefix(self):
-        assert _extract_phone_from_thread_id("web:abc123") is None
+from agent.channels.sms_channel import send_sms_response
 
 
 class TestSendSmsResponse:
@@ -25,7 +11,7 @@ class TestSendSmsResponse:
         """Short plain message is sent as-is."""
         state: AgentState = {
             "messages": [],
-            "thread_id": "sms:+15551234567:abc123",
+            "thread_id": "7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58",
         }
 
         mock_result = MagicMock(success=True, batch_id="batch-1")
@@ -34,9 +20,9 @@ class TestSendSmsResponse:
 
         with (
             patch("server.sms_service.SmsService", return_value=mock_service),
-            patch("data.sms_thread_repository.SmsThreadRepository") as mock_repo,
+            patch("data.thread_repository.ThreadRepository") as mock_repo,
         ):
-            mock_repo.return_value.update_sms_thread_activity = MagicMock()
+            mock_repo.return_value.get_sms_external_id.return_value = "+15551234567"
             send_sms_response(state, "Hello from Gordie!")
 
         mock_service.send_sms.assert_called_once()
@@ -48,7 +34,7 @@ class TestSendSmsResponse:
         """Long messages are sent without truncation (no web URL fallback)."""
         state: AgentState = {
             "messages": [],
-            "thread_id": "sms:+15551234567:abc123",
+            "thread_id": "7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58",
         }
 
         long_message = "A " * 200  # 400 chars
@@ -59,9 +45,9 @@ class TestSendSmsResponse:
 
         with (
             patch("server.sms_service.SmsService", return_value=mock_service),
-            patch("data.sms_thread_repository.SmsThreadRepository") as mock_repo,
+            patch("data.thread_repository.ThreadRepository") as mock_repo,
         ):
-            mock_repo.return_value.update_sms_thread_activity = MagicMock()
+            mock_repo.return_value.get_sms_external_id.return_value = "+15551234567"
             send_sms_response(state, long_message)
 
         mock_service.send_sms.assert_called_once()

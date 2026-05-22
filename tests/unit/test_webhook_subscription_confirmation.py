@@ -2,15 +2,17 @@
 
 import logging
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 from billing.webhook import _handle_checkout_completed, _send_subscription_confirmation
 
 
 class TestSendSubscriptionConfirmation:
     def test_sends_sms_when_user_has_phone(self):
-        mock_user = ("user@test.com", "+15551234567", False, None)
+        user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
         mock_repo = MagicMock()
-        mock_repo.get_user.return_value = mock_user
+        mock_repo.get_by_identity.return_value = (user_id, "created")
+        mock_repo.get_identity_external_id.return_value = "+15551234567"
 
         mock_sms = MagicMock()
 
@@ -27,9 +29,10 @@ class TestSendSubscriptionConfirmation:
         assert "active" in message
 
     def test_skips_sms_when_user_has_no_phone(self):
-        mock_user = ("user@test.com", None, False, None)
+        user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
         mock_repo = MagicMock()
-        mock_repo.get_user.return_value = mock_user
+        mock_repo.get_by_identity.return_value = (user_id, "created")
+        mock_repo.get_identity_external_id.return_value = None
 
         with (
             patch("billing.webhook.UserRepository", return_value=mock_repo),
@@ -41,7 +44,7 @@ class TestSendSubscriptionConfirmation:
 
     def test_skips_sms_when_user_not_found(self):
         mock_repo = MagicMock()
-        mock_repo.get_user.return_value = None
+        mock_repo.get_by_identity.return_value = None
 
         with (
             patch("billing.webhook.UserRepository", return_value=mock_repo),
@@ -52,9 +55,10 @@ class TestSendSubscriptionConfirmation:
         mock_sms_cls.assert_not_called()
 
     def test_sms_failure_does_not_raise(self):
-        mock_user = ("user@test.com", "+15551234567", False, None)
+        user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
         mock_repo = MagicMock()
-        mock_repo.get_user.return_value = mock_user
+        mock_repo.get_by_identity.return_value = (user_id, "created")
+        mock_repo.get_identity_external_id.return_value = "+15551234567"
 
         mock_sms = MagicMock()
         mock_sms.send_sms.side_effect = RuntimeError("Sinch down")

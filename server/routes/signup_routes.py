@@ -2,6 +2,7 @@
 
 import re
 import threading
+from uuid import UUID
 
 from quart import jsonify, request
 
@@ -60,9 +61,26 @@ def register_signup_routes(app):
             finally:
                 sub_repo.close()
 
-            from server.thread_manager import resolve_thread
+            from data.models import Medium
+            from data.thread_repository import ThreadRepository
+            from data.user_repository import UserRepository
 
-            thread_info = resolve_thread(user_email=email, subject="Website Signup")
+            user_repo = UserRepository()
+            try:
+                user = user_repo.get_by_identity(Medium.EMAIL, email)
+                user_id = (
+                    UUID(str(user[0]))
+                    if user
+                    else user_repo.create_with_identity(Medium.EMAIL, email, email)
+                )
+            finally:
+                user_repo.close()
+
+            thread_repo = ThreadRepository()
+            try:
+                thread_info = thread_repo.resolve(user_id, Medium.EMAIL)
+            finally:
+                thread_repo.close()
 
             def process_email_signup():
                 try:
@@ -85,8 +103,10 @@ def register_signup_routes(app):
         if phone_number:
             logger.info(f"Website signup (phone) from {phone_number}")
 
+            from data.models import Medium
             from data.pending_user_repository import PendingUserRepository
-            from server.thread_manager import resolve_sms_thread
+            from data.thread_repository import ThreadRepository
+            from data.user_repository import UserRepository
 
             pending_repo = PendingUserRepository()
             try:
@@ -96,7 +116,22 @@ def register_signup_routes(app):
             finally:
                 pending_repo.close()
 
-            thread_info = resolve_sms_thread(phone_number)
+            user_repo = UserRepository()
+            try:
+                user = user_repo.get_by_identity(Medium.SMS, phone_number)
+                user_id = (
+                    UUID(str(user[0]))
+                    if user
+                    else user_repo.create_with_identity(Medium.SMS, phone_number, phone_number)
+                )
+            finally:
+                user_repo.close()
+
+            thread_repo = ThreadRepository()
+            try:
+                thread_info = thread_repo.resolve(user_id, Medium.SMS)
+            finally:
+                thread_repo.close()
 
             try:
                 from server.routes.sms_routes import _generate_cold_start_oauth_link

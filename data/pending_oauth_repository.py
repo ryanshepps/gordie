@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from data.models import Medium
 from data.repository import DatabaseRow, Repository
 
 
@@ -18,18 +19,16 @@ class PendingOAuthRepository(Repository):
         self,
         nonce: str,
         thread_id: str,
-        channel: str,
-        user_email: str | None = None,
-        phone_number: str | None = None,
+        medium: Medium,
+        external_id: str,
     ) -> str:
         """Create a pending OAuth record.
 
         Args:
             nonce: OAuth nonce for id_token validation
             thread_id: Thread ID to resume after OAuth completes
-            channel: Channel type ("email", "sms", or "web")
-            user_email: User's email address (required for email/web channels)
-            phone_number: User's phone number (required for SMS channel)
+            medium: Medium that started the flow
+            external_id: Medium-specific user identifier
 
         Returns:
             The generated UUID used as the OAuth state parameter
@@ -39,9 +38,8 @@ class PendingOAuthRepository(Repository):
             id=pending_id,
             nonce=nonce,
             thread_id=thread_id,
-            channel=channel,
-            user_email=user_email,
-            phone_number=phone_number,
+            medium=medium.value,
+            external_id=external_id,
         )
         return pending_id
 
