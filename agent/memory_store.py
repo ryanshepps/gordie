@@ -4,10 +4,10 @@ This module handles conversation memory storage and summarization.
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Any
 
-from langchain_openai import OpenAIEmbeddings
 from langgraph.store.memory import InMemoryStore
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -20,23 +20,59 @@ logger = get_logger(__name__)
 
 # Memory store singleton - lazily initialized to avoid import-time API key requirements
 _memory_store: InMemoryStore | None = None
+_memory_search_enabled = False
+
+
+def _memory_enabled() -> bool:
+    return os.getenv("MEMORY_ENABLED", "true").lower() not in {"0", "false", "no", "off"}
+
+
+def is_memory_search_enabled() -> bool:
+    """Return whether semantic conversation search is available."""
+    return _memory_search_enabled
+
+
+def _create_memory_store() -> InMemoryStore:
+    """Create a memory store using OpenAI embeddings only when configured."""
+    global _memory_search_enabled
+
+    _memory_search_enabled = False
+    if not _memory_enabled():
+        logger.info("Conversation memory disabled by MEMORY_ENABLED")
+        return InMemoryStore()
+
+    llm_provider = os.getenv("LLM_PROVIDER", "openai").lower()
+    if llm_provider != "openai":
+        logger.info(
+            "Conversation semantic search disabled because LLM_PROVIDER=%s has no embeddings",
+            llm_provider,
+        )
+        return InMemoryStore()
+
+    if not os.getenv("OPENAI_API_KEY"):
+        logger.info("Conversation semantic search disabled because OPENAI_API_KEY is not set")
+        return InMemoryStore()
+
+    from langchain_openai import OpenAIEmbeddings
+
+    _memory_search_enabled = True
+    return InMemoryStore(
+        index={
+            "dims": 1536,
+            "embed": OpenAIEmbeddings(model="text-embedding-3-small"),
+        }
+    )
 
 
 def get_memory_store() -> InMemoryStore:
     """Get or create the memory store singleton with semantic search."""
     global _memory_store
     if _memory_store is None:
-        _memory_store = InMemoryStore(
-            index={
-                "dims": 1536,
-                "embed": OpenAIEmbeddings(model="text-embedding-3-small"),
-            }
-        )
+        _memory_store = _create_memory_store()
     return _memory_store
 
 
 # For backwards compatibility - will be initialized on first access
-# Note: This will fail at import time if OPENAI_API_KEY is not set
 # Use get_memory_store() for lazy initialization
 memory_store: InMemoryStore | None = None
 
@@ -169,6 +205,10 @@ def summarize_and_store_conversation(
     Returns:
         True if stored successfully, False otherwise
     """
+    if not _memory_enabled():
+        logger.debug("Conversation memory is disabled")
+        return False
+
     # Need at least 2 messages (user + assistant) to summarize
     if not messages or len(messages) < 2:
         logger.debug("Not enough messages to summarize")

@@ -31,9 +31,12 @@ logger = get_logger(__name__)
 
 
 def create_supervisor_agent(system_prompt: str):
-    from agent.memory_store import get_memory_store
+    from agent.memory_store import get_memory_store, is_memory_search_enabled
 
-    search_past_conversations = create_search_past_conversations_tool(get_memory_store())
+    search_past_conversations = create_search_past_conversations_tool(
+        get_memory_store(),
+        enabled=is_memory_search_enabled(),
+    )
 
     tools = [
         trade,
