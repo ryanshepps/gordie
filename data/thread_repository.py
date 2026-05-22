@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from data.models import Medium
@@ -46,7 +47,27 @@ class ThreadRepository(Repository):
             )
 
         thread_id = uuid4()
-        self.insert(id=thread_id, user_id=user_id, medium=medium.value)
+        try:
+            self.insert(id=thread_id, user_id=user_id, medium=medium.value)
+        except IntegrityError:
+            self.session.rollback()
+            existing = self.get_by(user_id=user_id, medium=medium.value)
+            if existing:
+                thread_id = UUID(str(existing[0]))
+                self.session.execute(
+                    text("UPDATE conversation_threads SET last_active = NOW() WHERE id = :id"),
+                    {"id": thread_id},
+                )
+                self.session.commit()
+                return ThreadRecord(
+                    id=thread_id,
+                    user_id=UUID(str(existing[1])),
+                    medium=Medium(str(existing[2])),
+                    is_new_thread=False,
+                )
+            raise RuntimeError(
+                "Thread creation conflicted but no existing thread was found"
+            ) from None
         return ThreadRecord(id=thread_id, user_id=user_id, medium=medium, is_new_thread=True)
 
     def get_sms_external_id(self, thread_id: str) -> str | None:

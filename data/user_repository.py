@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from data.models import Medium
@@ -40,17 +41,25 @@ class UserRepository(Repository):
         external_id: str,
         display_name: str | None = None,
     ) -> UUID:
-        """Create a canonical user and its first identity."""
-        result = self.session.execute(
-            text("INSERT INTO users DEFAULT VALUES RETURNING id")
-        ).fetchone()
-        if result is None:
-            raise RuntimeError("Failed to create user")
+        """Create a canonical user and its first identity, or return the existing user."""
+        try:
+            result = self.session.execute(
+                text("INSERT INTO users DEFAULT VALUES RETURNING id")
+            ).fetchone()
+            if result is None:
+                raise RuntimeError("Failed to create user")
 
-        user_id = UUID(str(result[0]))
-        self._insert_identity(user_id, medium, external_id, display_name)
-        self.session.commit()
-        return user_id
+            user_id = UUID(str(result[0]))
+            self._insert_identity(user_id, medium, external_id, display_name)
+            self.session.commit()
+            return user_id
+        except IntegrityError:
+            self.session.rollback()
+
+        existing = self.get_by_identity(medium, external_id)
+        if existing is None:
+            raise RuntimeError("Identity creation conflicted but no existing user was found")
+        return UUID(str(existing[0]))
 
     def link_identity(
         self,
