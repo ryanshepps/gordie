@@ -4,6 +4,8 @@ import time
 from datetime import UTC, datetime
 from typing import Literal, TypedDict
 
+from requests.exceptions import RequestException
+
 from billing.repository import SubscriptionRepository
 from data.repository import DatabaseRow
 from data.yahoo_user_team_repository import YahooUserTeamRepository
@@ -196,7 +198,7 @@ def build_billing_context(email: str, reason: str, channel: str) -> str:
         from billing.creem_client import create_checkout_session
 
         hosted_url = create_checkout_session("hosted_monthly", email)
-    except Exception as e:
+    except (RequestException, ValueError) as e:
         logger.warning(f"Failed to generate checkout links for {email}: {e}")
         hosted_url = None
 
@@ -230,6 +232,6 @@ def build_upgrade_message(email: str, reason: str, channel: str) -> str:
             f"{reason}\n\n"
             f"{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and Gordie questions: {hosted_url}"
         )
-    except Exception as e:
+    except (RequestException, ValueError) as e:
         logger.warning(f"Failed to generate checkout links for {email}: {e}")
         return reason

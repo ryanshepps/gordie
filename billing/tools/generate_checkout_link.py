@@ -2,6 +2,7 @@
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+from requests.exceptions import RequestException
 
 from billing.creem_client import create_checkout_session
 from module.logger import get_logger
@@ -44,6 +45,6 @@ def generate_checkout_link(user_email: str, plan: str) -> str:
         plan_label = PLAN_DESCRIPTIONS[plan]
         logger.info(f"Generated checkout link for {user_email}: {plan}")
         return f"{plan_label}: {checkout_url}"
-    except Exception as e:
+    except (RequestException, ValueError) as e:
         logger.error(f"Failed to generate checkout link for {user_email}/{plan}: {e}")
         return "Sorry, I couldn't generate a checkout link right now. Please try again in a moment."

@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch
 
+from requests.exceptions import RequestException
+
 from billing.tier import BillingStatus
 
 
@@ -26,7 +28,7 @@ def _billing_status(
 
 class TestGetSubscriptionStatus:
     @patch("billing.tools.get_subscription_status.get_billing_status")
-    def test_free_user_includes_current_limits(self, mock_billing):
+    def test_free_user_includes_current_limits(self, mock_billing) -> None:
         mock_billing.return_value = _billing_status(leagues_connected=1)
 
         from billing.tools.get_subscription_status import get_subscription_status
@@ -41,7 +43,7 @@ class TestGetSubscriptionStatus:
         assert result["plans"]["free"]["digests"] == "Yes"
 
     @patch("billing.tools.get_subscription_status.get_billing_status")
-    def test_hosted_user_includes_period_end(self, mock_billing):
+    def test_hosted_user_includes_period_end(self, mock_billing) -> None:
         mock_billing.return_value = _billing_status(
             tier="hosted",
             status="active",
@@ -61,7 +63,7 @@ class TestGetSubscriptionStatus:
 
 class TestGenerateCheckoutLink:
     @patch("billing.tools.generate_checkout_link.create_checkout_session")
-    def test_valid_plan_returns_url(self, mock_checkout):
+    def test_valid_plan_returns_url(self, mock_checkout) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/sess_abc"
 
         from billing.tools.generate_checkout_link import generate_checkout_link
@@ -74,7 +76,7 @@ class TestGenerateCheckoutLink:
         assert "$10/mo" in result
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
-    def test_invalid_plan_returns_error(self):
+    def test_invalid_plan_returns_error(self) -> None:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke({"user_email": "user@test.com", "plan": "platinum"})
@@ -83,9 +85,9 @@ class TestGenerateCheckoutLink:
 
     @patch(
         "billing.tools.generate_checkout_link.create_checkout_session",
-        side_effect=Exception("API error"),
+        side_effect=RequestException("API error"),
     )
-    def test_api_failure_returns_friendly_error(self, mock_checkout):
+    def test_api_failure_returns_friendly_error(self, mock_checkout) -> None:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
@@ -98,7 +100,7 @@ class TestGenerateCheckoutLink:
 class TestGeneratePortalLink:
     @patch("billing.tools.generate_portal_link.get_billing_portal_link")
     @patch("billing.tools.generate_portal_link.SubscriptionRepository")
-    def test_existing_customer_returns_portal_url(self, mock_repo_cls, mock_portal):
+    def test_existing_customer_returns_portal_url(self, mock_repo_cls, mock_portal) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = (
             "user@test.com",
             "cus_789",
@@ -118,7 +120,7 @@ class TestGeneratePortalLink:
         mock_portal.assert_called_once_with("cus_789")
 
     @patch("billing.tools.generate_portal_link.SubscriptionRepository")
-    def test_no_subscription_returns_error(self, mock_repo_cls):
+    def test_no_subscription_returns_error(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = None
 
         from billing.tools.generate_portal_link import generate_portal_link
@@ -128,7 +130,7 @@ class TestGeneratePortalLink:
         assert "No active subscription" in result
 
     @patch("billing.tools.generate_portal_link.SubscriptionRepository")
-    def test_no_creem_customer_id_returns_error(self, mock_repo_cls):
+    def test_no_creem_customer_id_returns_error(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = (
             "user@test.com",
             None,

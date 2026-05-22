@@ -7,7 +7,7 @@ from billing.webhook import _handle_checkout_completed, _send_subscription_confi
 
 
 class TestSendSubscriptionConfirmation:
-    def test_sends_sms_when_user_has_phone(self):
+    def test_sends_sms_when_user_has_phone(self) -> None:
         mock_user = ("user@test.com", "+15551234567", False, None)
         mock_repo = MagicMock()
         mock_repo.get_user.return_value = mock_user
@@ -26,7 +26,7 @@ class TestSendSubscriptionConfirmation:
         assert "Hosted" in message
         assert "active" in message
 
-    def test_skips_sms_when_user_has_no_phone(self):
+    def test_skips_sms_when_user_has_no_phone(self) -> None:
         mock_user = ("user@test.com", None, False, None)
         mock_repo = MagicMock()
         mock_repo.get_user.return_value = mock_user
@@ -39,7 +39,7 @@ class TestSendSubscriptionConfirmation:
 
         mock_sms_cls.assert_not_called()
 
-    def test_skips_sms_when_user_not_found(self):
+    def test_skips_sms_when_user_not_found(self) -> None:
         mock_repo = MagicMock()
         mock_repo.get_user.return_value = None
 
@@ -51,7 +51,7 @@ class TestSendSubscriptionConfirmation:
 
         mock_sms_cls.assert_not_called()
 
-    def test_sms_failure_does_not_raise(self):
+    def test_sms_failure_does_not_raise(self) -> None:
         mock_user = ("user@test.com", "+15551234567", False, None)
         mock_repo = MagicMock()
         mock_repo.get_user.return_value = mock_user
@@ -67,7 +67,7 @@ class TestSendSubscriptionConfirmation:
 
 
 class TestCheckoutCompletedTriggersConfirmation:
-    def test_sends_confirmation_after_activation(self):
+    def test_sends_confirmation_after_activation(self) -> None:
         obj = {
             "customer": {"id": "cust_123", "email": "user@test.com"},
             "subscription": {"id": "sub_123", "current_period_end_date": "2026-05-01"},
@@ -84,7 +84,7 @@ class TestCheckoutCompletedTriggersConfirmation:
         mock_repo.activate_subscription.assert_called_once()
         mock_confirm.assert_called_once_with("user@test.com", "hosted", logging.getLogger())
 
-    def test_no_confirmation_when_email_missing(self):
+    def test_no_confirmation_when_email_missing(self) -> None:
         obj = {
             "customer": {"id": "cust_123"},
             "subscription": {"id": "sub_123"},

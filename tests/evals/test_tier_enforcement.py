@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
+from requests.exceptions import RequestException
 
 from billing.tier import (
     _tier_cache,
@@ -146,7 +147,10 @@ class TestBuildUpgradeMessage:
 
         assert "https://checkout.creem.io/hosted" in result
 
-    @patch("billing.creem_client.create_checkout_session", side_effect=RuntimeError("API error"))
+    @patch(
+        "billing.creem_client.create_checkout_session",
+        side_effect=RequestException("API error"),
+    )
     def test_fallback_to_reason_on_api_failure(self, _mock_checkout) -> None:
         result = build_upgrade_message("user@test.com", "Limit reached.", "email")
         assert result == "Limit reached."
@@ -241,7 +245,10 @@ class TestBuildBillingContext:
         assert "Hosted" in result
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
-    @patch("billing.creem_client.create_checkout_session", side_effect=RuntimeError("API error"))
+    @patch(
+        "billing.creem_client.create_checkout_session",
+        side_effect=RequestException("API error"),
+    )
     def test_fallback_on_api_failure_still_has_context(self, _mock_checkout) -> None:
         result = build_billing_context("user@test.com", "Limit reached.", "email")
 
