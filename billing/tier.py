@@ -309,8 +309,10 @@ def build_billing_context(email: str, reason: str, channel: Medium | str) -> str
 
     if hosted_url:
         medium = _coerce_medium(channel)
-        link_label = "Upgrade link" if medium is Medium.SMS else (
-            f"{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and questions"
+        link_label = (
+            "Upgrade link"
+            if medium is Medium.SMS
+            else (f"{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and questions")
         )
         lines.append(f"\n{link_label}: {hosted_url}")
 

@@ -76,7 +76,9 @@ class EmailAdapter:
             )
 
             if result.success:
-                logger.info(f"Email sent successfully to {external_id}, message_id: {result.message_id}")
+                logger.info(
+                    f"Email sent successfully to {external_id}, message_id: {result.message_id}"
+                )
 
                 if result.message_id and thread_id and user_id:
                     try:

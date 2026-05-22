@@ -52,7 +52,9 @@ class TestFirstTimeUser:
         first_time_user_state: AgentState,
         mocker,
     ):
-        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
+        mocker.patch(
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+        )
         mocker.patch(
             "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
@@ -112,7 +114,9 @@ class TestReturningUserNoTeams:
         returning_user_no_teams_state: AgentState,
         mocker,
     ):
-        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
+        mocker.patch(
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+        )
         mocker.patch(
             "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
@@ -536,7 +540,9 @@ class TestContextError:
 class TestOAuthURLPresence:
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_oauth_url_never_paraphrased(self, mocker):
-        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
+        mocker.patch(
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+        )
         mocker.patch(
             "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],

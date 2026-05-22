@@ -44,7 +44,9 @@ class TestOnboardingOAuth:
             "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
-        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
+        mocker.patch(
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+        )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = []

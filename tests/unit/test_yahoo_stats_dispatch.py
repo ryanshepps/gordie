@@ -17,7 +17,11 @@ class TestYahooScoringDispatch:
         from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         result = yahoo_scoring.invoke(
-            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "bad_method"}
+            {
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
+                "league_id": "123",
+                "method": "bad_method",
+            }
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -114,7 +118,11 @@ class TestYahooRosterDispatch:
         from tools.yahoo_stats.yahoo_roster import yahoo_roster
 
         result = yahoo_roster.invoke(
-            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "nonexistent"}
+            {
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
+                "league_id": "123",
+                "method": "nonexistent",
+            }
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -167,7 +175,11 @@ class TestYahooPlayerDispatch:
         from tools.yahoo_stats.yahoo_player import yahoo_player
 
         result = yahoo_player.invoke(
-            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "fake"}
+            {
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
+                "league_id": "123",
+                "method": "fake",
+            }
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -215,7 +227,11 @@ class TestYahooLeagueDispatch:
         from tools.yahoo_stats.yahoo_league import yahoo_league
 
         result = yahoo_league.invoke(
-            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "nope"}
+            {
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
+                "league_id": "123",
+                "method": "nope",
+            }
         )
         parsed = json.loads(result)
         assert "error" in parsed

@@ -51,9 +51,6 @@ def manage_notifications(
     action = "enabled" if enabled else "disabled"
     type_display = notification_type.replace("_", " ").title()
 
-    logger.info(
-        f"Notification preference updated: {league_id} - "
-        f"{notification_type} = {enabled}"
-    )
+    logger.info(f"Notification preference updated: {league_id} - {notification_type} = {enabled}")
 
     return f"{type_display} has been {action} for this league."
