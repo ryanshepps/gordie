@@ -59,21 +59,20 @@ def save_message_id_mapping(
     session = get_session()
     try:
         user_repo = UserRepository(session)
-        if user_repo.get_by_identity(Medium.EMAIL, user_email) is None:
-            user_repo.create_with_identity(Medium.EMAIL, user_email, user_email)
+        user_id = user_repo.resolve_user_id(Medium.EMAIL, user_email, user_email)
 
         session.execute(
             text(
                 """
-                INSERT INTO email_threads (message_id, thread_id, user_email, subject)
-                VALUES (:message_id, :thread_id, :user_email, :subject)
+                INSERT INTO email_threads (message_id, thread_id, user_id, subject)
+                VALUES (:message_id, :thread_id, :user_id, :subject)
                 ON CONFLICT (message_id) DO NOTHING
                 """
             ),
             {
                 "message_id": message_id,
                 "thread_id": thread_id,
-                "user_email": user_email,
+                "user_id": user_id,
                 "subject": subject,
             },
         )

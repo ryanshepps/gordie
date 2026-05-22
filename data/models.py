@@ -93,7 +93,9 @@ class YahooUserTeam(Base):
         String, ForeignKey("yahoo_leagues.league_id"), primary_key=True
     )
     team_id: Mapped[str] = mapped_column(String, primary_key=True)
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
     team_name: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -101,7 +103,9 @@ class YahooUserTeam(Base):
 class YahooToken(Base):
     __tablename__ = "yahoo_tokens"
 
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
     yahoo_email: Mapped[str] = mapped_column(String, nullable=False)
     access_token: Mapped[str] = mapped_column(String, nullable=False)
     refresh_token: Mapped[str] = mapped_column(String, nullable=False)
@@ -115,12 +119,14 @@ class EmailThread(Base):
     __tablename__ = "email_threads"
     __table_args__ = (
         Index("idx_email_threads_thread_id", "thread_id"),
-        Index("idx_email_threads_user_email", "user_email"),
+        Index("idx_email_threads_user_id", "user_id"),
     )
 
     message_id: Mapped[str] = mapped_column(String, primary_key=True)
     thread_id: Mapped[str] = mapped_column(String, nullable=False)
-    user_email: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     subject: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -138,7 +144,9 @@ class NotificationType(Base):
 class NotificationPreference(Base):
     __tablename__ = "notification_preferences"
 
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
     league_id: Mapped[str] = mapped_column(
         String, ForeignKey("yahoo_leagues.league_id"), primary_key=True
     )
@@ -152,10 +160,12 @@ class NotificationPreference(Base):
 
 class ConversationSummary(Base):
     __tablename__ = "conversation_summaries"
-    __table_args__ = (Index("idx_conversation_summaries_user_email", "user_email"),)
+    __table_args__ = (Index("idx_conversation_summaries_user_id", "user_id"),)
 
     thread_id: Mapped[str] = mapped_column(String, primary_key=True)
-    user_email: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     summary: Mapped[str | None] = mapped_column(Text)
     key_topics: Mapped[str | None] = mapped_column(Text)
     players_mentioned: Mapped[str | None] = mapped_column(Text)
@@ -206,7 +216,9 @@ class ProcessedInboundMessage(Base):
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
 
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
     creem_customer_id: Mapped[str | None] = mapped_column(String)
     creem_subscription_id: Mapped[str | None] = mapped_column(String)
     tier: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
@@ -220,7 +232,9 @@ class UserSubscription(Base):
 class UsageTracking(Base):
     __tablename__ = "usage_tracking"
 
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
     week_start: Mapped[date] = mapped_column(Date, primary_key=True)
     question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
@@ -228,7 +242,9 @@ class UsageTracking(Base):
 class DigestInjuryState(Base):
     __tablename__ = "digest_injury_states"
 
-    user_email: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
     player_name: Mapped[str] = mapped_column(String, primary_key=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

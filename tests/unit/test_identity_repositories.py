@@ -88,7 +88,9 @@ def test_thread_resolve_returns_existing_thread_after_unique_conflict() -> None:
     user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
     thread_id = UUID("8ec8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
     conflict = IntegrityError("insert thread", {}, Exception("duplicate"))
-    session = FakeSession(rows=[None, conflict, (thread_id, user_id, "sms", "created", "active"), None])
+    session = FakeSession(
+        rows=[None, conflict, (thread_id, user_id, "sms", "created", "active"), None]
+    )
     repo = ThreadRepository(cast(Session, cast(object, session)))
 
     result = repo.resolve(user_id, Medium.SMS)

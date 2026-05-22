@@ -5,7 +5,9 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from data.models import Medium
 from data.repository import Repository
+from data.user_repository import UserRepository
 
 
 class NotificationPreferenceRepository(Repository):
@@ -32,15 +34,34 @@ class NotificationPreferenceRepository(Repository):
         Returns:
             True if notification is enabled, False otherwise
         """
-        # Check for explicit preference
-        pref = self.get_by(
-            user_email=user_email,
-            league_id=league_id,
-            notification_type=notification_type,
-        )
+        pref = self.session.execute(
+            text(
+                """
+                SELECT
+                    ui.external_id,
+                    np.league_id,
+                    np.notification_type,
+                    np.enabled,
+                    np.created_at,
+                    np.updated_at
+                FROM notification_preferences np
+                JOIN user_identities ui
+                    ON ui.user_id = np.user_id
+                    AND ui.medium = :medium
+                WHERE ui.external_id = :user_email
+                    AND np.league_id = :league_id
+                    AND np.notification_type = :notification_type
+                """
+            ),
+            {
+                "medium": Medium.EMAIL.value,
+                "user_email": user_email,
+                "league_id": league_id,
+                "notification_type": notification_type,
+            },
+        ).fetchone()
 
         if pref is not None:
-            # Column order: user_email, league_id, notification_type, enabled, created_at, updated_at
             return bool(pref[3])
 
         # Fall back to notification type default
@@ -66,9 +87,10 @@ class NotificationPreferenceRepository(Repository):
             notification_type: Type of notification (e.g., "weekly_digest")
             enabled: Whether to enable or disable the notification
         """
+        user_id = UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
         self.upsert(
-            conflict_columns=["user_email", "league_id", "notification_type"],
-            user_email=user_email,
+            conflict_columns=["user_id", "league_id", "notification_type"],
+            user_id=user_id,
             league_id=league_id,
             notification_type=notification_type,
             enabled=enabled,
@@ -90,17 +112,24 @@ class NotificationPreferenceRepository(Repository):
             text(
                 """
                 -- Users with explicit enabled=TRUE
-                SELECT user_email, league_id FROM notification_preferences
-                WHERE notification_type = :type1 AND enabled = TRUE
+                SELECT ui.external_id, np.league_id
+                FROM notification_preferences np
+                JOIN user_identities ui
+                    ON ui.user_id = np.user_id
+                    AND ui.medium = :medium1
+                WHERE np.notification_type = :type1 AND np.enabled = TRUE
 
                 UNION
 
                 -- Users with no preference, where type default is TRUE
-                SELECT DISTINCT ut.user_email, ut.league_id
+                SELECT DISTINCT ui.external_id, ut.league_id
                 FROM yahoo_user_teams ut
+                JOIN user_identities ui
+                    ON ui.user_id = ut.user_id
+                    AND ui.medium = :medium2
                 WHERE NOT EXISTS (
                     SELECT 1 FROM notification_preferences np
-                    WHERE np.user_email = ut.user_email
+                    WHERE np.user_id = ut.user_id
                     AND np.league_id = ut.league_id
                     AND np.notification_type = :type2
                 )
@@ -110,7 +139,13 @@ class NotificationPreferenceRepository(Repository):
                 )
                 """
             ),
-            {"type1": notification_type, "type2": notification_type, "type3": notification_type},
+            {
+                "medium1": Medium.EMAIL.value,
+                "medium2": Medium.EMAIL.value,
+                "type1": notification_type,
+                "type2": notification_type,
+                "type3": notification_type,
+            },
         ).fetchall()
 
         return [(str(row[0]), str(row[1])) for row in result]

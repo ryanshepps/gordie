@@ -28,6 +28,56 @@ medium_enum = postgresql.ENUM(
 )
 
 
+def _replace_user_email_with_user_id(
+    table_name: str,
+    primary_key_columns: Sequence[str] | None = None,
+    old_index_name: str | None = None,
+    new_index_name: str | None = None,
+) -> None:
+    op.execute(f"DELETE FROM {table_name}")
+    if old_index_name:
+        op.drop_index(old_index_name, table_name=table_name)
+    if primary_key_columns:
+        op.drop_constraint(f"{table_name}_pkey", table_name, type_="primary")
+    op.add_column(
+        table_name,
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+    )
+    op.drop_column(table_name, "user_email")
+    op.create_foreign_key(
+        f"{table_name}_user_id_fkey",
+        table_name,
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    if primary_key_columns:
+        op.create_primary_key(f"{table_name}_pkey", table_name, list(primary_key_columns))
+    if new_index_name:
+        op.create_index(new_index_name, table_name, ["user_id"], unique=False)
+
+
+def _restore_user_email_column(
+    table_name: str,
+    primary_key_columns: Sequence[str] | None = None,
+    old_index_name: str | None = None,
+    new_index_name: str | None = None,
+) -> None:
+    op.execute(f"DELETE FROM {table_name}")
+    if old_index_name:
+        op.drop_index(old_index_name, table_name=table_name)
+    op.drop_constraint(f"{table_name}_user_id_fkey", table_name, type_="foreignkey")
+    if primary_key_columns:
+        op.drop_constraint(f"{table_name}_pkey", table_name, type_="primary")
+    op.add_column(table_name, sa.Column("user_email", sa.String(), nullable=False))
+    op.drop_column(table_name, "user_id")
+    if primary_key_columns:
+        op.create_primary_key(f"{table_name}_pkey", table_name, list(primary_key_columns))
+    if new_index_name:
+        op.create_index(new_index_name, table_name, ["user_email"], unique=False)
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
@@ -81,6 +131,26 @@ def upgrade() -> None:
         sa.UniqueConstraint("medium", "external_id", name="uq_user_identity_medium_external_id"),
     )
     op.create_index("ix_user_identities_user_id", "user_identities", ["user_id"], unique=False)
+
+    _replace_user_email_with_user_id("yahoo_user_teams", ["league_id", "team_id", "user_id"])
+    _replace_user_email_with_user_id("yahoo_tokens", ["user_id"])
+    _replace_user_email_with_user_id(
+        "email_threads",
+        old_index_name="idx_email_threads_user_email",
+        new_index_name="idx_email_threads_user_id",
+    )
+    _replace_user_email_with_user_id(
+        "notification_preferences",
+        ["user_id", "league_id", "notification_type"],
+    )
+    _replace_user_email_with_user_id(
+        "conversation_summaries",
+        old_index_name="idx_conversation_summaries_user_email",
+        new_index_name="idx_conversation_summaries_user_id",
+    )
+    _replace_user_email_with_user_id("user_subscriptions", ["user_id"])
+    _replace_user_email_with_user_id("usage_tracking", ["user_id", "week_start"])
+    _replace_user_email_with_user_id("digest_injury_states", ["user_id", "player_name"])
 
     op.create_table(
         "conversation_threads",
@@ -193,6 +263,27 @@ def downgrade() -> None:
 
     op.drop_index("ix_conversation_threads_user_id", table_name="conversation_threads")
     op.drop_table("conversation_threads")
+
+    _restore_user_email_column("digest_injury_states", ["user_email", "player_name"])
+    _restore_user_email_column("usage_tracking", ["user_email", "week_start"])
+    _restore_user_email_column("user_subscriptions", ["user_email"])
+    _restore_user_email_column(
+        "conversation_summaries",
+        old_index_name="idx_conversation_summaries_user_id",
+        new_index_name="idx_conversation_summaries_user_email",
+    )
+    _restore_user_email_column(
+        "notification_preferences",
+        ["user_email", "league_id", "notification_type"],
+    )
+    _restore_user_email_column(
+        "email_threads",
+        old_index_name="idx_email_threads_user_id",
+        new_index_name="idx_email_threads_user_email",
+    )
+    _restore_user_email_column("yahoo_tokens", ["user_email"])
+    _restore_user_email_column("yahoo_user_teams", ["league_id", "team_id", "user_email"])
+
     op.drop_index("ix_user_identities_user_id", table_name="user_identities")
     op.drop_table("user_identities")
     op.drop_table("users")

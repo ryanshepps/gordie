@@ -61,6 +61,18 @@ class UserRepository(Repository):
             raise RuntimeError("Identity creation conflicted but no existing user was found")
         return UUID(str(existing[0]))
 
+    def resolve_user_id(
+        self,
+        medium: Medium,
+        external_id: str,
+        display_name: str | None = None,
+    ) -> UUID:
+        """Return the canonical user for an identity, creating it when needed."""
+        user = self.get_by_identity(medium, external_id)
+        if user:
+            return UUID(str(user[0]))
+        return self.create_with_identity(medium, external_id, display_name)
+
     def link_identity(
         self,
         user_id: UUID,
