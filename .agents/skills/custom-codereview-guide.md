@@ -25,6 +25,15 @@ conventions:
 - Avoid running or requiring the full eval suite for unrelated changes; only
   targeted evals should be required when a change affects eval behavior.
 
+## PR Completeness
+
+- Inspect adjacent domains, callers, configuration, documentation, migrations,
+  tests, and operational references that are implied by the PR's stated intent.
+- Flag missing follow-through when the changed code creates an incomplete user
+  flow, stale documentation, untested behavior, or mismatched configuration.
+- Keep completeness feedback tied to the PR's actual intent; do not request
+  unrelated cleanup or speculative follow-up work.
+
 ## Operations
 
 - Database changes should include Alembic migrations when schema changes are
