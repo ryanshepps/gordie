@@ -1,4 +1,5 @@
 import argparse
+from uuid import UUID
 
 # Initialize tracing BEFORE any application imports so that
 # Logfire's auto-tracing can rewrite modules at import time.
@@ -38,13 +39,14 @@ def _resolve_user_email(
         return user_email
 
     if channel == "sms" and phone_number:
+        from data.models import Medium
         from data.user_repository import UserRepository
 
         repo = UserRepository()
         try:
-            user = repo.get_user_by_phone(phone_number)
+            user = repo.get_by_identity(Medium.SMS, phone_number)
             if user:
-                return str(user[0])  # email is the first column
+                return repo.get_identity_external_id(UUID(str(user[0])), Medium.EMAIL)
         finally:
             repo.close()
         return None
@@ -187,9 +189,26 @@ def main():
 
     args = parser.parse_args()
     try:
-        from server.thread_manager import resolve_thread
+        from data.models import Medium
+        from data.thread_repository import ThreadRepository
+        from data.user_repository import UserRepository
 
-        thread_info = resolve_thread(user_email=args.email)
+        user_repo = UserRepository()
+        try:
+            user = user_repo.get_by_identity(Medium.EMAIL, args.email)
+            user_id = (
+                UUID(str(user[0]))
+                if user
+                else user_repo.create_with_identity(Medium.EMAIL, args.email, args.email)
+            )
+        finally:
+            user_repo.close()
+
+        thread_repo = ThreadRepository()
+        try:
+            thread_info = thread_repo.resolve(user_id, Medium.EMAIL)
+        finally:
+            thread_repo.close()
         message_agent(
             message=args.message,
             thread_id=thread_info.thread_id,

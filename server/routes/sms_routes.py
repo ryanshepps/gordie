@@ -6,13 +6,15 @@ import threading
 import time
 from collections import defaultdict
 from urllib.parse import urlencode
+from uuid import UUID
 
 from quart import jsonify, request
-from sqlalchemy import text
 
-from data.database import get_session
+from data.models import Medium
 from data.pending_oauth_repository import PendingOAuthRepository
 from data.pending_user_repository import PendingUserRepository
+from data.processed_inbound_message_repository import ProcessedInboundMessageRepository
+from data.thread_repository import ThreadRepository
 from data.user_repository import UserRepository
 from module.logger import get_logger
 from module.metrics import (
@@ -21,7 +23,6 @@ from module.metrics import (
     sms_webhook_requests_total,
 )
 from server.sms_service import SmsService
-from server.thread_manager import resolve_sms_thread
 from server.webhook_verification import verify_sinch_webhook_token
 
 # In-memory rate limiting: phone_number -> list of timestamps
@@ -62,8 +63,8 @@ def _generate_cold_start_oauth_link(phone_number: str, thread_id: str) -> str:
         pending_id = repo.create(
             nonce=nonce,
             thread_id=thread_id,
-            channel="sms",
-            phone_number=phone_number,
+            medium=Medium.SMS,
+            external_id=phone_number,
         )
     finally:
         repo.close()
@@ -144,29 +145,14 @@ def register_sms_routes(app):
             logger.error(f"Invalid Sinch webhook credentials from {phone_number}")
             return jsonify({"error": "Invalid signature"}), 403
 
-        # Idempotency: check if we've already processed this message
-        session = get_session()
+        processed_repo = ProcessedInboundMessageRepository()
         try:
-            existing = session.execute(
-                text("SELECT 1 FROM processed_sms WHERE message_id = :message_id"),
-                {"message_id": sinch_message_id},
-            ).fetchone()
-
-            if existing:
+            if not processed_repo.claim(Medium.SMS, str(sinch_message_id), phone_number):
                 logger.info(f"Duplicate SMS {sinch_message_id}, skipping")
                 sms_webhook_requests_total.labels(status="duplicate").inc()
                 return jsonify({"status": "duplicate"}), 200
-
-            session.execute(
-                text(
-                    "INSERT INTO processed_sms (message_id, phone_number) "
-                    "VALUES (:message_id, :phone_number)"
-                ),
-                {"message_id": sinch_message_id, "phone_number": phone_number},
-            )
-            session.commit()
         finally:
-            session.close()
+            processed_repo.close()
 
         # Rate limiting
         if _is_rate_limited(phone_number):
@@ -227,8 +213,8 @@ def register_sms_routes(app):
                 logger.info(f"SMS from opted-out user {phone_number}, skipping")
                 return jsonify({"status": "opted_out"}), 200
 
-            # User lookup: registered user or cold-start
-            user = user_repo.get_user_by_phone(phone_number)
+            # User lookup: registered SMS identity or cold-start
+            user = user_repo.get_by_identity(Medium.SMS, phone_number)
         finally:
             user_repo.close()
 
@@ -243,7 +229,17 @@ def register_sms_routes(app):
             finally:
                 pending_repo.close()
 
-            thread_info = resolve_sms_thread(phone_number)
+            user_repo = UserRepository()
+            try:
+                user_id = user_repo.create_with_identity(Medium.SMS, phone_number, phone_number)
+            finally:
+                user_repo.close()
+
+            thread_repo = ThreadRepository()
+            try:
+                thread_info = thread_repo.resolve(user_id, Medium.SMS)
+            finally:
+                thread_repo.close()
 
             try:
                 oauth_url = _generate_cold_start_oauth_link(phone_number, thread_info.thread_id)
@@ -264,11 +260,47 @@ def register_sms_routes(app):
             )
             return jsonify({"status": "cold_start"}), 200
 
-        user_email = str(user[0])
+        user_id = UUID(str(user[0]))
+        user_repo = UserRepository()
+        try:
+            user_email = user_repo.get_identity_external_id(user_id, Medium.EMAIL)
+        finally:
+            user_repo.close()
+
+        if not user_email:
+            thread_repo = ThreadRepository()
+            try:
+                thread_info = thread_repo.resolve(user_id, Medium.SMS)
+            finally:
+                thread_repo.close()
+
+            try:
+                oauth_url = _generate_cold_start_oauth_link(phone_number, thread_info.thread_id)
+                sms_service = SmsService()
+                sms_service.send_sms(
+                    phone_number,
+                    "Hey, I'm Gordie \u2014 your fantasy sports guy. "
+                    f"Tap here to connect your Yahoo league: {oauth_url}",
+                )
+            except Exception as e:
+                logger.error(f"Failed to send cold-start OAuth SMS to {phone_number}: {e}")
+
+            duration = time.time() - start_time
+            http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
+                duration
+            )
+            sms_webhook_requests_total.labels(status="cold_start").inc()
+            logger.info(f"SMS identity {phone_number} has no email identity yet")
+            return jsonify({"status": "cold_start"}), 200
+
         logger.info(f"Received SMS from {phone_number}: {message_body[:50]}")
 
         # Resolve thread
-        thread_info = resolve_sms_thread(phone_number)
+        thread_repo = ThreadRepository()
+        try:
+            thread_info = thread_repo.resolve(user_id, Medium.SMS)
+        finally:
+            thread_repo.close()
 
         logger.info(
             f"SMS thread resolved: {thread_info.thread_id} (new={thread_info.is_new_thread})"

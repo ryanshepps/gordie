@@ -7,14 +7,6 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _extract_phone_from_thread_id(thread_id: str) -> str | None:
-    """Extract phone number from SMS thread_id format 'sms:{phone}:{uuid}'."""
-    parts = thread_id.split(":")
-    if len(parts) >= 3 and parts[0] == "sms":
-        return parts[1]
-    return None
-
-
 def send_sms_response(state: AgentState, message_content: str) -> None:
     """Send the agent response as an SMS.
 
@@ -28,9 +20,16 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
         logger.error("No thread_id in state, cannot send SMS")
         return
 
-    phone_number = _extract_phone_from_thread_id(thread_id)
-    if not phone_number:
-        logger.error(f"Could not extract phone number from thread_id: {thread_id}")
+    from data.thread_repository import ThreadRepository
+
+    repo = ThreadRepository()
+    try:
+        phone_number = repo.get_sms_external_id(thread_id)
+    finally:
+        repo.close()
+
+    if phone_number is None:
+        logger.error(f"Could not resolve SMS identity for thread_id: {thread_id}")
         return
 
     plain_text = strip_markdown(message_content)
@@ -52,14 +51,3 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
     except Exception as e:
         sms_sent_total.labels(status="failure").inc()
         logger.error(f"Failed to send SMS: {e}")
-
-    # Update thread activity
-    from data.sms_thread_repository import SmsThreadRepository
-
-    repo = SmsThreadRepository()
-    try:
-        repo.update_sms_thread_activity(thread_id)
-    except Exception as e:
-        logger.error(f"Failed to update SMS thread activity: {e}")
-    finally:
-        repo.close()
