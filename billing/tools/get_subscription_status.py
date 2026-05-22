@@ -1,11 +1,13 @@
 """Tool for retrieving user subscription and usage status."""
 
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
-from billing.tier import get_billing_status
+from billing.tier import get_billing_status_by_user_id
+from tools.user_context import get_user_id
 
 PLAN_DETAILS: dict[str, dict[str, str | int]] = {
     "free": {
@@ -26,11 +28,14 @@ PLAN_DETAILS: dict[str, dict[str, str | int]] = {
 
 
 class GetSubscriptionStatusInput(BaseModel):
-    user_email: str = Field(description="User's email address")
+    include_plan_details: bool = Field(default=True, description="Whether to include plan details")
 
 
 @tool(args_schema=GetSubscriptionStatusInput)
-def get_subscription_status(user_email: str) -> str:
+def get_subscription_status(
+    include_plan_details: bool = True,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
+) -> str:
     """Get the user's current subscription tier, billing status, usage limits, and plan comparison details.
 
     Use this tool when:
@@ -38,13 +43,10 @@ def get_subscription_status(user_email: str) -> str:
     - User wants to know what features they have access to
     - User asks about pricing or what plans are available
 
-    Args:
-        user_email: User's email address
-
     Returns:
-        JSON string with subscription status, usage, limits, and all plan details
+        JSON string with subscription status, usage, limits, and plan details
     """
-    status = get_billing_status(user_email)
+    status = get_billing_status_by_user_id(get_user_id(state))
 
     result: dict[str, str | int | bool | dict[str, dict[str, str | int]] | None] = {
         "tier": status["tier"],
@@ -58,6 +60,7 @@ def get_subscription_status(user_email: str) -> str:
     result["leagues_connected"] = status["leagues_connected"]
     result["leagues_allowed"] = status["leagues_allowed"]
 
-    result["plans"] = PLAN_DETAILS
+    if include_plan_details:
+        result["plans"] = PLAN_DETAILS
 
     return json.dumps(result)

@@ -30,6 +30,8 @@ class TestAutoOnboardTeamPassesGameCode:
 
         call_args = mock_onboard.invoke.call_args[0][0]
         assert call_args["game_code"] == "nhl"
+        assert "user_id" not in call_args
+        assert call_args["state"]["user_id"] == "user@example.com"
 
     @patch("agent.context_resolvers.onboard_user_team")
     def test_mlb_team_passes_mlb_game_code(self, mock_onboard):
@@ -39,6 +41,8 @@ class TestAutoOnboardTeamPassesGameCode:
 
         call_args = mock_onboard.invoke.call_args[0][0]
         assert call_args["game_code"] == "mlb"
+        assert "user_id" not in call_args
+        assert call_args["state"]["user_id"] == "user@example.com"
 
     @patch("agent.context_resolvers.onboard_user_team")
     def test_missing_sport_defaults_to_nhl(self, mock_onboard):
@@ -54,6 +58,8 @@ class TestAutoOnboardTeamPassesGameCode:
 
         call_args = mock_onboard.invoke.call_args[0][0]
         assert call_args["game_code"] == "nhl"
+        assert "user_id" not in call_args
+        assert call_args["state"]["user_id"] == "user@example.com"
 
 
 class TestFormatTeamsForDisplay:

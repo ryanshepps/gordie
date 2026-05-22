@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agent.agent_state import AgentState
 from agent.data_quality_node import data_quality_node
+from data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 RESPONSE_MISSING_GP_CONTEXT = (
@@ -33,7 +34,9 @@ def _make_state(ai_response: str, retries: int = 0) -> AgentState:
             HumanMessage(content="Should I drop Timo Meier for Teuvo Teravainen?"),
             AIMessage(content=ai_response),
         ],
-        user_email="test@example.com",
+        user_id="00000000-0000-0000-0000-000000000302",
+        external_id="test@example.com",
+        channel=Medium.EMAIL,
         thread_id=str(uuid.uuid4()),
         data_quality_retries=retries,
     )

@@ -4,12 +4,15 @@ from langchain_core.messages import HumanMessage
 
 from agent.agent_state import AgentState
 from agent.context_node import context_node
+from data.models import Medium
 
 
 def _make_state(**overrides) -> AgentState:
     defaults: AgentState = AgentState(
         messages=[HumanMessage(content="hello")],
-        user_email="user@example.com",
+        user_id="00000000-0000-0000-0000-000000000001",
+        external_id="user@example.com",
+        channel=Medium.EMAIL,
         thread_id="thread-1",
     )
     for k, v in overrides.items():
@@ -26,14 +29,14 @@ class TestBillingBlocked:
         assert result["context_status"] == "billing_blocked"
 
 
-class TestMissingEmail:
-    def test_returns_error_when_no_email(self):
-        state = _make_state(user_email="")
+class TestMissingUserId:
+    def test_returns_error_when_no_user_id(self):
+        state = _make_state(user_id="")
 
         result = context_node(state)
 
         assert result["context_status"] == "error"
-        assert "email" in result.get("context_error", "").lower()
+        assert "user id" in result.get("context_error", "").lower()
 
 
 class TestNoOAuth:
@@ -79,7 +82,7 @@ class TestNoTeamsInDb:
         result = context_node(state)
 
         assert result["context_status"] == "no_teams_available"
-        mock_handle.assert_called_once_with("user@example.com")
+        mock_handle.assert_called_once_with("00000000-0000-0000-0000-000000000001")
 
 
 class TestTeamAmbiguous:

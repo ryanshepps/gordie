@@ -10,6 +10,8 @@ from yfpy.exceptions import YahooFantasySportsDataNotFound
 
 from tools.yahoo.get_user_leagues import get_user_leagues
 
+USER_STATE = {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}}
+
 
 class MockGame:
     """Mock Game object for testing."""
@@ -54,7 +56,7 @@ class TestUserWithSingleTeam:
         mock_query.get_user_teams.return_value = {"game": game}
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "single@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert len(teams_list) == 1
@@ -79,7 +81,7 @@ class TestUserWithMultipleTeams:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "multi@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert len(teams_list) == 2
@@ -98,7 +100,7 @@ class TestUserWithMultipleTeams:
         mock_query.get_user_teams.return_value = [game1, game2]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "seasons@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert len(teams_list) == 2
@@ -118,7 +120,7 @@ class TestUserWithNoTeams:
         mock_query.get_user_teams.side_effect = YahooFantasySportsDataNotFound("No games")
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "nogames@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
 
         assert result == "[]"
 
@@ -129,7 +131,7 @@ class TestUserWithNoTeams:
         mock_query.get_user_teams.return_value = []
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "empty@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert teams_list == []
@@ -147,7 +149,7 @@ class TestErrorHandling:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "noperm@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         # Should gracefully skip the error and return empty list
@@ -163,7 +165,7 @@ class TestErrorHandling:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "badkey@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         # Should skip malformed team but not crash
@@ -181,7 +183,7 @@ class TestErrorHandling:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "nokey@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         # Should skip team without team_key
@@ -204,7 +206,7 @@ class TestEdgeCases:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "noteams@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert teams_list == []
@@ -219,7 +221,7 @@ class TestEdgeCases:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "offseason@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert len(teams_list) == 1
@@ -235,7 +237,7 @@ class TestEdgeCases:
         mock_query.get_user_teams.return_value = [game]
         mock_client_class.return_value = _create_mock_client(mock_query)
 
-        result = get_user_leagues.invoke({"user_email": "football@example.com"})
+        result = get_user_leagues.invoke(USER_STATE)
         teams_list = eval(result)
 
         assert len(teams_list) == 1

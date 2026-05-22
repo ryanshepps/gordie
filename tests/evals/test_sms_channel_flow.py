@@ -13,9 +13,14 @@ import pytest
 from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
 
-from agent.graph_builder import agent
+from agent.graph_builder import build_agent_graph
+from data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
+
+EVAL_USER_ID = "00000000-0000-0000-0000-000000000001"
+agent = build_agent_graph(InMemorySaver())
 
 MARKDOWN_PATTERNS = (
     re.compile(r"\*\*"),
@@ -41,11 +46,12 @@ def sms_user_state():
     thread_id = f"sms:{phone}:{uuid.uuid4()}"
     return {
         "messages": [],
-        "user_email": "test@example.com",
+        "user_id": EVAL_USER_ID,
+        "external_id": phone,
         "league_id": "12345",
         "team_id": "1",
         "thread_id": thread_id,
-        "channel": "sms",
+        "channel": Medium.SMS,
         "user_teams": [
             {
                 "league_id": "12345",
@@ -62,11 +68,12 @@ def sms_user_state():
 def email_user_state():
     return {
         "messages": [],
-        "user_email": "test@example.com",
+        "user_id": EVAL_USER_ID,
+        "external_id": "test@example.com",
         "league_id": "12345",
         "team_id": "1",
         "thread_id": str(uuid.uuid4()),
-        "channel": "email",
+        "channel": Medium.EMAIL,
         "user_teams": [
             {
                 "league_id": "12345",

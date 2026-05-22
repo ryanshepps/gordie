@@ -4,6 +4,7 @@ import json
 from unittest.mock import patch
 
 from tools.hockey.player.calculate_undervalued_score import (
+    MoneyPuckStats,
     _calculate_score,
     calculate_undervalued_score,
 )
@@ -200,24 +201,22 @@ class TestCalculateUndervaluedScoreTool:
                 return_value=mock_schedule,
             ),
         ):
-            result = calculate_undervalued_score.invoke(
-                {
-                    "stats": {
-                        "player_name": "Connor McDavid",
-                        "team": "EDM",
-                        "position": "C",
-                        "games_played": 30,
-                        "goals": 20,
-                        "points": 55,
-                        "points_per_game": 1.83,
-                        "x_goals": 15.5,
-                        "fenwick_pct": 55.2,
-                        "corsi_pct": 54.1,
-                        "toi_per_game_minutes": 22.5,
-                    },
-                    "user_email": "test@example.com",
-                    "league_id": "12345",
-                }
+            result = calculate_undervalued_score.func(  # pyright: ignore[reportAttributeAccessIssue]
+                stats=MoneyPuckStats(
+                    player_name="Connor McDavid",
+                    team="EDM",
+                    position="C",
+                    games_played=30,
+                    goals=20,
+                    points=55,
+                    points_per_game=1.83,
+                    x_goals=15.5,
+                    fenwick_pct=55.2,
+                    corsi_pct=54.1,
+                    toi_per_game_minutes=22.5,
+                ),
+                league_id="12345",
+                state={"user_id": "user-123"},
             )
 
         data = json.loads(result)
@@ -244,24 +243,22 @@ class TestCalculateUndervaluedScoreTool:
                 return_value=mock_schedule,
             ),
         ):
-            result = calculate_undervalued_score.invoke(
-                {
-                    "stats": {
-                        "player_name": "Auston Matthews",
-                        "team": "TOR",
-                        "position": "C",
-                        "games_played": 25,
-                        "goals": 15,
-                        "points": 35,
-                        "points_per_game": 1.4,
-                        "x_goals": 12.0,
-                        "fenwick_pct": 54.0,
-                        "corsi_pct": 53.0,
-                        "toi_per_game_minutes": 20.5,
-                    },
-                    "user_email": "test@example.com",
-                    "league_id": "12345",
-                }
+            result = calculate_undervalued_score.func(  # pyright: ignore[reportAttributeAccessIssue]
+                stats=MoneyPuckStats(
+                    player_name="Auston Matthews",
+                    team="TOR",
+                    position="C",
+                    games_played=25,
+                    goals=15,
+                    points=35,
+                    points_per_game=1.4,
+                    x_goals=12.0,
+                    fenwick_pct=54.0,
+                    corsi_pct=53.0,
+                    toi_per_game_minutes=20.5,
+                ),
+                league_id="12345",
+                state={"user_id": "user-123"},
             )
 
         data = json.loads(result)

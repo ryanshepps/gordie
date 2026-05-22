@@ -1,10 +1,13 @@
 """Tool to get all Yahoo Fantasy leagues for a user."""
 
-from langchain.tools import tool
+from typing import Annotated
+
+from langchain.tools import InjectedState, tool
 from yfpy.exceptions import YahooFantasySportsDataNotFound
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
@@ -58,17 +61,15 @@ def _normalize_teams(teams_data):
 
 
 @tool
-def get_user_leagues(user_email: str) -> str:
+def get_user_leagues(state: Annotated[dict[str, object], InjectedState] | None = None) -> str:
     """
     Get all Yahoo Fantasy leagues for a user across all sports and seasons.
-
-    Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
 
     Returns:
         String with league information including league IDs, names, and teams.
     """
-    yahoo_client = AuthenticatedYahooClient(user_email=user_email)
+    user_id = get_user_id(state)
+    yahoo_client = AuthenticatedYahooClient(user_id=user_id)
     yahoo_query = yahoo_client.query
 
     try:
@@ -76,7 +77,7 @@ def get_user_leagues(user_email: str) -> str:
 
         # Normalize to list of Game objects
         games = _normalize_games(user_games)
-        logger.info(f"Found {len(games)} game(s) for user {user_email}")
+        logger.info(f"Found {len(games)} game(s) for user_id={user_id}")
 
         result = []
         for game in games:
@@ -118,7 +119,7 @@ def get_user_leagues(user_email: str) -> str:
 
         return str(result)
     except YahooFantasySportsDataNotFound:
-        logger.info(f"User {user_email} has no Yahoo Fantasy leagues")
+        logger.info(f"User {user_id} has no Yahoo Fantasy leagues")
         return "[]"
     except Exception as e:
         logger.error(f"Error fetching user leagues: {e}", exc_info=True)

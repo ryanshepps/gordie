@@ -6,53 +6,18 @@ from langchain_core.runnables import RunnableConfig
 from agent.agent_state import AgentState
 from agent.graph_builder import agent
 from data.conversation_repository import ConversationRepository
+from data.models import Medium
 from module.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def _resolve_user_email(
-    channel: str,
-    user_email: str | None,
-    phone_number: str | None,
-    thread_id: str,
-) -> str | None:
-    """Resolve user email based on channel and available identifiers.
-
-    Args:
-        channel: Channel type ("email" or "sms")
-        user_email: Provided user email (if any)
-        phone_number: Provided phone number (if any)
-        thread_id: Thread ID
-
-    Returns:
-        Resolved email address or None if not resolvable
-    """
-    if user_email:
-        return user_email
-
-    if channel == "sms" and phone_number:
-        from data.models import Medium
-        from data.user_repository import UserRepository
-
-        repo = UserRepository()
-        try:
-            user = repo.get_by_identity(Medium.SMS, phone_number)
-            if user:
-                return repo.get_identity_external_id(UUID(str(user[0])), Medium.EMAIL)
-        finally:
-            repo.close()
-        return None
-
-    return None
-
-
 def message_agent(
     message: str,
     thread_id: str,
-    channel: str = "email",
-    user_email: str | None = None,
-    phone_number: str | None = None,
+    channel: Medium,
+    user_id: str,
+    external_id: str,
     team_context: str | None = None,
     original_subject: str | None = None,
     original_message: str | None = None,
@@ -64,9 +29,9 @@ def message_agent(
     Args:
         message: Message content to send to the agent
         thread_id: Conversation thread ID
-        channel: Channel type ("email" or "sms")
-        user_email: User's email address (required for email channel)
-        phone_number: User's phone number (required for sms channel)
+        channel: Channel type
+        user_id: Canonical user UUID
+        external_id: Medium-native identifier for this conversation
         team_context: Optional team context in format app:game_key:league_id:team_id
         original_subject: Original email subject line for reply threading
         original_message: Original user message for quoting in replies
@@ -74,23 +39,16 @@ def message_agent(
     Returns:
         Agent's response as a string, or empty string if error occurs
     """
-    # Resolve user email based on channel
-    email = _resolve_user_email(channel, user_email, phone_number, thread_id)
-    if not email:
-        logger.error(f"Could not resolve user email for channel={channel}")
-        return ""
-
     try:
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
-        # Build message payload
         message_payload = {"role": "user", "content": message}
         if team_context:
             message_payload["team_context"] = team_context
 
-        # Build initial state
         initial_state: AgentState = {
-            "user_email": email,
+            "user_id": user_id,
+            "external_id": external_id,
             "thread_id": thread_id,
             "channel": channel,
             "messages": [message_payload],
@@ -108,7 +66,6 @@ def message_agent(
             "billing_context": billing_context,
         }
 
-        # Persist user message before invoking graph
         repo = ConversationRepository()
         try:
             repo.add_message(
@@ -126,27 +83,19 @@ def message_agent(
 
         logger.info("\nGordie's Response:\n")
 
-        # Extract response text
         response_text = ""
-
-        # Check for direct response first (from clarification node)
         if response and response.get("response"):
             response_text = response["response"]
             logger.info(response_text)
-        # Otherwise check messages - only extract NEW agent messages (not entire history)
         elif response and "messages" in response:
             response_parts = []
-            # The initial_state contains 1 user message
-            # So we want messages AFTER the first one (index 0)
             new_messages = response["messages"][len(initial_state["messages"]) :]
             for msg in new_messages:
-                # Only include assistant/AI messages, not user messages
                 if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
                     response_parts.append(msg.content)
                     logger.info(msg.content)
             response_text = "\n".join(response_parts)
 
-        # Persist AI response after graph completes
         if response_text.strip():
             repo = ConversationRepository()
             try:
@@ -168,7 +117,7 @@ def message_agent(
         return ""
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Send a message to the onboarding agent")
     parser.add_argument("email", type=str, help="User's email address (thread ID)")
     parser.add_argument("message", type=str, help="Message to send to the agent")
@@ -181,7 +130,6 @@ def main():
 
     args = parser.parse_args()
     try:
-        from data.models import Medium
         from data.thread_repository import ThreadRepository
         from data.user_repository import UserRepository
 
@@ -201,11 +149,13 @@ def main():
             thread_info = thread_repo.resolve(user_id, Medium.EMAIL)
         finally:
             thread_repo.close()
+
         message_agent(
             message=args.message,
             thread_id=thread_info.thread_id,
-            channel="email",
-            user_email=args.email,
+            channel=Medium.EMAIL,
+            user_id=str(user_id),
+            external_id=args.email,
             team_context=args.team_context,
         )
     except Exception as e:

@@ -79,7 +79,7 @@ Positive slope = improving, negative = declining.
 - Present results with interpretation (e.g., "z-score of -1.8 means 1.8 standard deviations \
 below the position average — bottom 4% of the distribution").
 
-User: {user_email} | League: {league_id} | Team: {team_id}
+League: {league_id} | Team: {team_id}
 """
 
 agent = create_subagent(
@@ -101,7 +101,6 @@ agent = create_subagent(
 @tool
 def statistician(
     request: str,
-    user_email: str,
     league_id: str,
     team_id: str,
     state: Annotated[dict[str, object], InjectedState] | None = None,
@@ -120,7 +119,6 @@ def statistician(
 
     Args:
         request: The user's statistical question in natural language.
-        user_email: The email address of the user.
         league_id: The ID of the fantasy league.
         team_id: The ID of the user's team.
         state: The agent state (injected).
@@ -131,15 +129,19 @@ def statistician(
     logger.info(f"Statistician sub-agent invoked with request: {request}")
 
     sport = cast(Sport | None, state.get("sport")) if state else None
+    user_id = str(state.get("user_id")) if state and state.get("user_id") else None
     result = invoke_subagent(
         agent=agent,
         request=request,
         context_parts=[
-            f"User email: {user_email}",
+            f"User ID: {user_id}",
             f"League ID: {league_id}",
             f"Team ID: {team_id}",
             get_sport_context(sport),
         ],
+        user_id=user_id,
+        league_id=league_id,
+        team_id=team_id,
         sport=sport,
     )
 

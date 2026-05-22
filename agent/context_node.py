@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from uuid import UUID
 
 from agent.agent_state import AgentState
 from agent.context_resolvers import (
@@ -10,6 +11,7 @@ from agent.context_resolvers import (
 )
 from agent.context_types import ContextResult, Sport
 from agent.sport_inference import infer_sport
+from data.models import Medium
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
 from tools.oauth.generate_oauth_link import generate_oauth_link
@@ -17,10 +19,10 @@ from tools.oauth.generate_oauth_link import generate_oauth_link
 logger = get_logger(__name__)
 
 
-def _fetch_onboarded_teams(user_email: str) -> list[dict[str, str]]:
+def _fetch_onboarded_teams(user_id: str) -> list[dict[str, str]]:
     repo = YahooUserTeamRepository()
     try:
-        return repo.get_user_teams_with_league_info(user_email)
+        return repo.get_user_teams_with_league_info_by_user_id(UUID(user_id))
     finally:
         repo.close()
 
@@ -50,11 +52,11 @@ def _infer_sport(user_teams: list[dict[str, str]], league_id: str) -> Sport:
     return "nhl"
 
 
-def _handle_no_teams(user_email: str) -> ContextResult:
+def _handle_no_teams(user_id: str) -> ContextResult:
     try:
-        teams = fetch_supported_teams(user_email)
+        teams = fetch_supported_teams(user_id)
     except Exception as e:
-        logger.error(f"Error fetching available teams for {user_email}: {e}")
+        logger.error(f"Error fetching available teams for user_id={user_id}: {e}")
         return ContextResult(
             context_status="error",
             context_error=f"Failed to fetch Yahoo Fantasy teams: {e}",
@@ -65,7 +67,7 @@ def _handle_no_teams(user_email: str) -> ContextResult:
 
     active_teams = [t for t in teams if t.get("is_active", False)]
     if len(active_teams) == 1:
-        team = auto_onboard_team(user_email, active_teams[0])
+        team = auto_onboard_team(user_id, active_teams[0])
         return ContextResult(
             context_status="auto_onboarded",
             league_id=team["league_id"],
@@ -83,26 +85,29 @@ def context_node(state: AgentState) -> ContextResult:
     if state.get("billing_context"):
         return ContextResult(context_status="billing_blocked")
 
-    user_email = state.get("user_email", "")
-    if not user_email:
-        return ContextResult(context_status="error", context_error="No user email found")
+    user_id = state.get("user_id", "")
+    if not user_id:
+        return ContextResult(context_status="error", context_error="No user ID found")
 
-    has_oauth = check_oauth_status(user_email)
+    has_oauth = check_oauth_status(user_id)
 
     if not has_oauth:
         from agent.memory_store import get_memory_store
 
-        first_time = is_first_time_user(user_email, get_memory_store())
+        first_time = is_first_time_user(user_id, get_memory_store())
         thread_id = state.get("thread_id", "")
+        channel = state.get("channel", Medium.EMAIL)
+        medium = channel if isinstance(channel, Medium) else Medium(channel)
+        external_id = state.get("external_id", "")
         oauth_url = generate_oauth_link.invoke(
-            {"user_email": user_email, "thread_id": thread_id, "channel": "email"}
+            {"external_id": external_id, "thread_id": thread_id, "channel": medium}
         )
         status = "first_time_user" if first_time else "no_oauth"
         return ContextResult(context_status=status, oauth_url=oauth_url)
 
-    onboarded_teams = _fetch_onboarded_teams(user_email)
+    onboarded_teams = _fetch_onboarded_teams(user_id)
     if not onboarded_teams:
-        return _handle_no_teams(user_email)
+        return _handle_no_teams(user_id)
 
     league_id, team_id = resolve_team_context(state, onboarded_teams)
     if league_id and team_id:

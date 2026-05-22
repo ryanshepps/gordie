@@ -2,13 +2,14 @@
 
 import json
 from collections.abc import Mapping
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
 from tools.hockey.player.get_team_schedule import get_team_schedule
+from tools.user_context import get_user_id
 from tools.yahoo.get_player_season_rank import get_player_season_rank
 
 logger = get_logger(__name__)
@@ -34,7 +35,6 @@ class CalculateUndervaluedScoreInput(BaseModel):
     """Input schema for calculate_undervalued_score tool."""
 
     stats: MoneyPuckStats = Field(description="Pre-fetched MoneyPuck stats for the player")
-    user_email: str = Field(description="User's email address for Yahoo authentication")
     league_id: str = Field(description="Yahoo fantasy league ID")
 
 
@@ -258,8 +258,8 @@ def _calculate_score(stats: "Mapping[str, StatsValue]") -> tuple[float, list[str
 @tool(args_schema=CalculateUndervaluedScoreInput)
 def calculate_undervalued_score(
     stats: MoneyPuckStats,
-    user_email: str,
     league_id: str,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """Calculate an undervalued score for a player using pre-fetched MoneyPuck stats.
 
@@ -279,7 +279,6 @@ def calculate_undervalued_score(
 
     Args:
         stats: Pre-fetched MoneyPuck stats for the player
-        user_email: User's email for Yahoo OAuth
         league_id: Yahoo fantasy league ID
 
     Returns:
@@ -287,6 +286,7 @@ def calculate_undervalued_score(
     """
     player_name = stats.player_name
     team = stats.team
+    user_id = get_user_id(state)
     goals_above_expected = stats.goals - stats.x_goals
 
     result: PlayerScoreDict = {
@@ -308,7 +308,7 @@ def calculate_undervalued_score(
 
     try:
         yahoo_response = get_player_season_rank(
-            user_email=user_email,
+            user_id=user_id,
             league_id=league_id,
             player_name=player_name,
         )

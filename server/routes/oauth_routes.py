@@ -132,8 +132,6 @@ def register_oauth_routes(app):
             finally:
                 user_repo.close()
 
-            user_email = yahoo_email
-
             # Account linking for SMS cold-start: remove pending phone signup after link.
             if phone_number:
                 from data.pending_user_repository import PendingUserRepository
@@ -148,10 +146,10 @@ def register_oauth_routes(app):
                     pending_user_repo.close()
 
             # Save tokens
-            from data.yahoo_token_repository import save_tokens
+            from data.yahoo_token_repository import save_tokens_by_user_id
 
-            save_tokens(user_email, yahoo_email, token_data)
-            logger.info(f"Tokens saved for user={user_email}")
+            save_tokens_by_user_id(str(user_id), yahoo_email, token_data)
+            logger.info(f"Tokens saved for user_id={user_id}")
 
             # Delete the pending_oauth record
             repo.delete_by_id(state)
@@ -165,12 +163,12 @@ def register_oauth_routes(app):
                     message_agent(
                         message="I've completed the OAuth authentication!",
                         thread_id=thread_id,
-                        channel=medium.value,
-                        user_email=user_email,
-                        phone_number=phone_number,
+                        channel=medium,
+                        user_id=str(user_id),
+                        external_id=str(external_id),
                         original_subject="Yahoo Fantasy Authentication",
                     )
-                    logger.info(f"Agent resumed for user={user_email} thread={thread_id}")
+                    logger.info(f"Agent resumed for user_id={user_id} thread={thread_id}")
                 except Exception as e:
                     logger.error(f"Failed to resume agent after OAuth: {e}", exc_info=True)
 

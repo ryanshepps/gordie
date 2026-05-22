@@ -1,6 +1,6 @@
 """Tests for shared text utilities."""
 
-from agent.channels.text_utils import strip_markdown
+from server.adapters.text_utils import strip_markdown
 
 
 class TestStripMarkdown:

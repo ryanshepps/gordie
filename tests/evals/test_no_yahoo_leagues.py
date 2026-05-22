@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage
 
 from agent.agent_state import AgentState
 from agent.SupervisorAgent import supervisor_node
+from data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 NO_TEAMS_KEYWORDS = (
@@ -28,7 +29,9 @@ class TestNoYahooLeagues:
     def authenticated_no_leagues_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="noleagues@example.com",
+            user_id="00000000-0000-0000-0000-000000000303",
+            external_id="noleagues@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -42,12 +45,12 @@ class TestNoYahooLeagues:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
         )
 

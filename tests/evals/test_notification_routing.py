@@ -95,12 +95,12 @@ class TestNotificationRouting:
         )
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
-    def test_notification_tool_receives_correct_user_email(
+    def test_notification_tool_does_not_request_user_identity(
         self,
         mock_user_state: AgentState,
         mock_yahoo_tools: dict[str, Any],
     ) -> None:
-        """manage_notifications receives the correct user_email from state."""
+        """manage_notifications uses injected identity rather than LLM-visible user args."""
         mock_user_state["messages"] = [HumanMessage(content="Stop sending me the weekly digest")]
         result = supervisor_node(mock_user_state)
 
@@ -114,9 +114,8 @@ class TestNotificationRouting:
             f"Expected manage_notifications tool call, got: {[tc['name'] for tc in tool_calls]}"
         )
         call_args = notification_calls[0]["args"]
-        assert call_args.get("user_email") == "test@example.com", (
-            f"Expected user_email='test@example.com', got: {call_args}"
-        )
+        assert "user_email" not in call_args
+        assert "user_id" not in call_args
 
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_notification_tool_receives_correct_league_id(

@@ -5,13 +5,14 @@ from agent.prompts.analyst_identity import ANALYST_IDENTITY
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.rules import RULES
 from agent.prompts.sport_context import get_sport_context, get_sport_label
+from data.models import Medium
 
 
 def _build_context_section(state: AgentState) -> str:
-    user_email = state.get("user_email", "")
+    user_id = state.get("user_id", "")
     context_status: ContextStatus = state.get("context_status", "error")
 
-    parts = ["# CONTEXT", f"User email: {user_email}", ""]
+    parts = ["# CONTEXT", f"User ID: {user_id}", ""]
 
     if context_status == "validated":
         parts.append("Context validated. Proceed with the user's request.")
@@ -76,8 +77,8 @@ The user has authenticated with Yahoo. Here are their available Fantasy teams:
 Your response MUST:
 1. Ask them which team they want to track with Gordie
 2. Once they indicate their choice, call the 'onboard_user_team' tool with:
-   - user_email: {user_email}
    - game_key: (from the team they selected)
+   - game_code: (from the sport tag for the team they selected, e.g. nhl/mlb)
    - league_id: (from the team they selected)
    - team_name: (from the team they selected)
    - team_id: (from the team they selected)
@@ -144,7 +145,7 @@ Do NOT proceed with their request.""")
 
 
 def assemble_system_prompt(state: AgentState) -> str:
-    channel = state.get("channel", "email")
+    channel = state.get("channel", Medium.EMAIL)
     sport = state.get("sport")
     channel_guidelines = get_channel_guidelines(channel)
     context_section = _build_context_section(state)

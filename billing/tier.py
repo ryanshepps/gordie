@@ -3,11 +3,14 @@
 import time
 from datetime import UTC, datetime
 from typing import Literal, TypedDict
+from uuid import UUID
 
 from requests.exceptions import RequestException
 
 from billing.repository import SubscriptionRepository
+from data.models import Medium
 from data.repository import DatabaseRow
+from data.user_repository import UserRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.llm import make_llm
 from module.logger import get_logger
@@ -39,6 +42,10 @@ DIGEST_ALLOWED_TIERS = frozenset({"free", HOSTED_TIER})
 
 _tier_cache: dict[str, tuple[str, float]] = {}
 _CACHE_TTL_SECONDS = 60
+
+
+def _coerce_medium(channel: Medium | str) -> Medium:
+    return channel if isinstance(channel, Medium) else Medium(channel)
 
 
 class BillingStatus(TypedDict):
@@ -87,6 +94,24 @@ def _fetch_tier_from_db(email: str) -> str:
         repo.close()
 
 
+def _fetch_tier_from_db_by_user_id(user_id: str) -> str:
+    repo = SubscriptionRepository()
+    try:
+        sub = repo.get_subscription_by_user_id(UUID(user_id))
+        tier, _ = _resolve_billing_state(sub)
+        return tier
+    finally:
+        repo.close()
+
+
+def _email_for_user_id(user_id: str) -> str | None:
+    repo = UserRepository()
+    try:
+        return repo.get_identity_external_id(UUID(user_id), Medium.EMAIL)
+    finally:
+        repo.close()
+
+
 def get_billing_status(email: str) -> BillingStatus:
     sub_repo = SubscriptionRepository()
     team_repo = YahooUserTeamRepository()
@@ -115,6 +140,35 @@ def get_billing_status(email: str) -> BillingStatus:
         team_repo.close()
 
 
+def get_billing_status_by_user_id(user_id: str) -> BillingStatus:
+    sub_repo = SubscriptionRepository()
+    team_repo = YahooUserTeamRepository()
+    user_uuid = UUID(user_id)
+    try:
+        sub = sub_repo.get_subscription_by_user_id(user_uuid)
+        tier, status = _resolve_billing_state(sub)
+
+        current_period_ends_at: datetime | None = sub[5] if sub else None
+
+        leagues_connected = len(team_repo.get_user_teams_with_league_info_by_user_id(user_uuid))
+
+        period_end: str | None = None
+        if current_period_ends_at and tier == HOSTED_TIER:
+            period_end = current_period_ends_at.strftime("%Y-%m-%d")
+
+        return BillingStatus(
+            tier=tier,
+            status=status,
+            current_period_ends=period_end,
+            questions_allowed=tier == HOSTED_TIER,
+            leagues_connected=leagues_connected,
+            leagues_allowed=LEAGUE_LIMITS.get(tier),
+        )
+    finally:
+        sub_repo.close()
+        team_repo.close()
+
+
 def get_user_tier(email: str) -> str:
     now = time.time()
     cached = _tier_cache.get(email)
@@ -125,6 +179,20 @@ def get_user_tier(email: str) -> str:
 
     tier = _fetch_tier_from_db(email)
     _tier_cache[email] = (tier, now)
+    return tier
+
+
+def get_user_tier_by_user_id(user_id: str) -> str:
+    now = time.time()
+    cache_key = f"user_id:{user_id}"
+    cached = _tier_cache.get(cache_key)
+    if cached:
+        tier, cached_at = cached
+        if now - cached_at < _CACHE_TTL_SECONDS:
+            return tier
+
+    tier = _fetch_tier_from_db_by_user_id(user_id)
+    _tier_cache[cache_key] = (tier, now)
     return tier
 
 
@@ -198,7 +266,30 @@ def check_league_limit(email: str) -> tuple[bool, str]:
     return (True, "")
 
 
-def build_billing_context(email: str, reason: str, channel: str) -> str:
+def check_league_limit_by_user_id(user_id: str) -> tuple[bool, str]:
+    tier = get_user_tier_by_user_id(user_id)
+    limit = LEAGUE_LIMITS.get(tier)
+
+    if limit is None:
+        return (True, "")
+
+    team_repo = YahooUserTeamRepository()
+    try:
+        count = len(team_repo.get_user_teams_with_league_info_by_user_id(UUID(user_id)))
+    finally:
+        team_repo.close()
+
+    if count >= limit:
+        return (
+            False,
+            f"You're maxed out at {limit} team{'s' if limit > 1 else ''}. "
+            f"Upgrade to {HOSTED_PLAN_LABEL} for {HOSTED_PLAN_PRICE} to connect up to three teams.",
+        )
+
+    return (True, "")
+
+
+def build_billing_context(email: str, reason: str, channel: Medium | str) -> str:
     try:
         from billing.creem_client import create_checkout_session
 
@@ -217,20 +308,24 @@ def build_billing_context(email: str, reason: str, channel: str) -> str:
     ]
 
     if hosted_url:
-        lines.append(
-            f"\n{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and questions: {hosted_url}"
+        medium = _coerce_medium(channel)
+        link_label = (
+            "Upgrade link"
+            if medium is Medium.SMS
+            else (f"{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and questions")
         )
+        lines.append(f"\n{link_label}: {hosted_url}")
 
     return "\n".join(lines)
 
 
-def build_upgrade_message(email: str, reason: str, channel: str) -> str:
+def build_upgrade_message(email: str, reason: str, channel: Medium | str) -> str:
     try:
         from billing.creem_client import create_checkout_session
 
         hosted_url = create_checkout_session("hosted_monthly", email)
 
-        if channel == "sms":
+        if _coerce_medium(channel) is Medium.SMS:
             return f"{reason}\n\nHere's the link to upgrade: {hosted_url}"
 
         return (
@@ -240,3 +335,10 @@ def build_upgrade_message(email: str, reason: str, channel: str) -> str:
     except (RequestException, ValueError) as e:
         logger.warning(f"Failed to generate checkout links for {email}: {e}")
         return reason
+
+
+def build_upgrade_message_by_user_id(user_id: str, reason: str, channel: Medium | str) -> str:
+    email = _email_for_user_id(user_id)
+    if not email:
+        return reason
+    return build_upgrade_message(email, reason, channel)

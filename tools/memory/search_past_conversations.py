@@ -1,11 +1,13 @@
 """Tool to search past conversations for relevant context."""
 
-from langchain.tools import tool
+from typing import Annotated
+
+from langchain.tools import InjectedState, tool
 from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field
 
-from agent.memory_store import _sanitize_namespace_label
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
@@ -19,7 +21,6 @@ class SearchPastConversationsInput(BaseModel):
             "(e.g., 'dropping McDavid', 'trade advice for centers')"
         )
     )
-    user_email: str = Field(description="The user's email address")
 
 
 def create_search_past_conversations_tool(store: BaseStore, *, enabled: bool = True):
@@ -34,7 +35,10 @@ def create_search_past_conversations_tool(store: BaseStore, *, enabled: bool = T
     """
 
     @tool(args_schema=SearchPastConversationsInput)
-    def search_past_conversations(query: str, user_email: str) -> str:
+    def search_past_conversations(
+        query: str,
+        state: Annotated[dict[str, object], InjectedState] | None = None,
+    ) -> str:
         """
         Search past conversations with this user for relevant context.
 
@@ -46,8 +50,6 @@ def create_search_past_conversations_tool(store: BaseStore, *, enabled: bool = T
 
         Args:
             query: What to search for in past conversations
-            user_email: The user's email address
-
         Returns:
             Relevant past conversation summaries, or a message if none found
         """
@@ -55,10 +57,7 @@ def create_search_past_conversations_tool(store: BaseStore, *, enabled: bool = T
             return "Past conversation search is currently unavailable."
 
         try:
-            # Search the store using the user's namespace
-            # Sanitize email for namespace (can't contain periods)
-            safe_email = _sanitize_namespace_label(user_email)
-            namespace = ("memories", safe_email)
+            namespace = ("memories", get_user_id(state))
 
             results = store.search(
                 namespace,

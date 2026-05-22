@@ -1,10 +1,12 @@
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
 from module.logger import get_logger
 from tools.hockey.player.get_team_schedule import get_team_schedule
+from tools.user_context import get_user_id
 from tools.yahoo.get_player_season_rank import get_player_season_rank
 
 logger = get_logger(__name__)
@@ -58,7 +60,6 @@ class CalculateMLBUndervaluedInput(BaseModel):
     pitcher_stats: PitcherStats | None = Field(
         default=None, description="Pre-fetched pitcher stats"
     )
-    user_email: str = Field(description="User's email address for Yahoo authentication")
     league_id: str = Field(description="Yahoo fantasy league ID")
 
 
@@ -296,14 +297,14 @@ def _apply_schedule(
 
 
 def _enrich_with_yahoo(
-    user_email: str, league_id: str, player_name: str
+    user_id: str, league_id: str, player_name: str
 ) -> tuple[dict[str, str | int | None], list[str]]:
     yahoo_fields: dict[str, str | int | None] = {}
     warnings: list[str] = []
 
     try:
         yahoo_response = get_player_season_rank(
-            user_email=user_email,
+            user_id=user_id,
             league_id=league_id,
             player_name=player_name,
         )
@@ -354,7 +355,7 @@ def _enrich_with_schedule(team: str, player_name: str) -> tuple[dict[str, int | 
     return schedule_fields, warnings
 
 
-def _score_batter(stats: BatterStats, user_email: str, league_id: str) -> str:
+def _score_batter(stats: BatterStats, user_id: str, league_id: str) -> str:
     score, reasons = _calculate_batter_score(stats)
 
     result: dict[str, str | int | float | list[str] | None] = {
@@ -383,7 +384,7 @@ def _score_batter(stats: BatterStats, user_email: str, league_id: str) -> str:
 
     warnings: list[str] = []
 
-    yahoo_fields, yahoo_warnings = _enrich_with_yahoo(user_email, league_id, stats.player_name)
+    yahoo_fields, yahoo_warnings = _enrich_with_yahoo(user_id, league_id, stats.player_name)
     result.update(yahoo_fields)
     warnings.extend(yahoo_warnings)
 
@@ -410,7 +411,7 @@ def _score_batter(stats: BatterStats, user_email: str, league_id: str) -> str:
     return json.dumps(result, indent=2)
 
 
-def _score_pitcher(stats: PitcherStats, user_email: str, league_id: str) -> str:
+def _score_pitcher(stats: PitcherStats, user_id: str, league_id: str) -> str:
     score, reasons = _calculate_pitcher_score(stats)
 
     result: dict[str, str | int | float | list[str] | None] = {
@@ -436,7 +437,7 @@ def _score_pitcher(stats: PitcherStats, user_email: str, league_id: str) -> str:
 
     warnings: list[str] = []
 
-    yahoo_fields, yahoo_warnings = _enrich_with_yahoo(user_email, league_id, stats.player_name)
+    yahoo_fields, yahoo_warnings = _enrich_with_yahoo(user_id, league_id, stats.player_name)
     result.update(yahoo_fields)
     warnings.extend(yahoo_warnings)
 
@@ -465,10 +466,10 @@ def _score_pitcher(stats: PitcherStats, user_email: str, league_id: str) -> str:
 
 @tool(args_schema=CalculateMLBUndervaluedInput)
 def calculate_mlb_undervalued_score(
-    user_email: str,
     league_id: str,
     batter_stats: BatterStats | None = None,
     pitcher_stats: PitcherStats | None = None,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """Calculate an undervalued score for an MLB player using pre-fetched stats.
 
@@ -492,8 +493,9 @@ def calculate_mlb_undervalued_score(
     if batter_stats is None and pitcher_stats is None:
         return json.dumps({"error": "Provide exactly one of batter_stats or pitcher_stats"})
 
+    user_id = get_user_id(state)
     if batter_stats is not None:
-        return _score_batter(batter_stats, user_email, league_id)
+        return _score_batter(batter_stats, user_id, league_id)
 
     assert pitcher_stats is not None
-    return _score_pitcher(pitcher_stats, user_email, league_id)
+    return _score_pitcher(pitcher_stats, user_id, league_id)

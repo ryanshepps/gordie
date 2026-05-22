@@ -6,9 +6,11 @@ from langchain_core.messages import HumanMessage
 from agent.agent_state import AgentState
 from agent.context_node import context_node
 from agent.SupervisorAgent import supervisor_node
+from data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 CONNECT_KEYWORDS = ("connect", "link", "authorize", "sign in", "log in", "login")
+NEW_USER_ID = "00000000-0000-0000-0000-000000000201"
 
 
 def _run_through_context_and_supervisor(state: AgentState):
@@ -23,7 +25,9 @@ class TestOnboardingOAuth:
     def unauthenticated_user_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="newuser@example.com",
+            user_id=NEW_USER_ID,
+            external_id="newuser@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -37,8 +41,11 @@ class TestOnboardingOAuth:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
+        )
+        mocker.patch(
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
         )
 
         mock_memory_store = mocker.MagicMock()

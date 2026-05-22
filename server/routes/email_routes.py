@@ -113,7 +113,7 @@ def register_email_routes(app):
                 billing_ctx = None
                 allowed, reason = gateway.check_question_allowed(sender_email, message_body)
                 if not allowed:
-                    billing_ctx = gateway.build_billing_context(sender_email, reason, "email")
+                    billing_ctx = gateway.build_billing_context(sender_email, reason, Medium.EMAIL)
 
                 from scripts.message_agent import message_agent
 
@@ -121,8 +121,9 @@ def register_email_routes(app):
                 message_agent(
                     message=message_body,
                     thread_id=thread_info.thread_id,
-                    channel="email",
-                    user_email=sender_email,
+                    channel=Medium.EMAIL,
+                    user_id=str(user_id),
+                    external_id=sender_email,
                     original_subject=subject,
                     original_message=message_body,
                     billing_context=billing_ctx,

@@ -23,7 +23,6 @@ class TestToolInputValidation:
         """
         with pytest.raises(ValidationError) as exc_info:
             GetRosterInput(
-                user_email="test@example.com",
                 league_id="",  # Empty string should be rejected
                 team_id="1",
             )
@@ -35,7 +34,6 @@ class TestToolInputValidation:
         """Verify get_roster validates team_id is not empty."""
         with pytest.raises(ValidationError) as exc_info:
             GetRosterInput(
-                user_email="test@example.com",
                 league_id="12345",
                 team_id="",  # Empty string should be rejected
             )
@@ -47,7 +45,6 @@ class TestToolInputValidation:
         """Verify get_roster validates league_id is a valid number."""
         with pytest.raises(ValidationError) as exc_info:
             GetRosterInput(
-                user_email="test@example.com",
                 league_id="not-a-number",
                 team_id="1",
             )
@@ -59,11 +56,9 @@ class TestToolInputValidation:
         """Verify get_roster accepts valid inputs."""
         # This should not raise
         valid_input = GetRosterInput(
-            user_email="test@example.com",
             league_id="12345",
             team_id="1",
         )
 
         assert valid_input.league_id == "12345"
         assert valid_input.team_id == "1"
-        assert valid_input.user_email == "test@example.com"

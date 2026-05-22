@@ -286,16 +286,16 @@ def register_sms_routes(app):
                 billing_ctx = None
                 allowed, reason = gateway.check_question_allowed(user_email, message_body)
                 if not allowed:
-                    billing_ctx = gateway.build_billing_context(user_email, reason, "sms")
+                    billing_ctx = gateway.build_billing_context(user_email, reason, Medium.SMS)
 
                 from scripts.message_agent import message_agent
 
                 message_agent(
                     message=message_body,
                     thread_id=thread_info.thread_id,
-                    channel="sms",
-                    user_email=user_email,
-                    phone_number=phone_number,
+                    channel=Medium.SMS,
+                    user_id=str(user_id),
+                    external_id=phone_number,
                     billing_context=billing_ctx,
                 )
                 logger.info(f"Agent processing complete for SMS from {phone_number}")

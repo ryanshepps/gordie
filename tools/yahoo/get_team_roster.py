@@ -1,20 +1,22 @@
 """Tool to get any team's roster in a fantasy league."""
 
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
 
 @tool
 def get_team_roster(
-    user_email: str,
     league_id: str,
     team_id: str,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """
     Get the roster for any team in the fantasy league.
@@ -24,7 +26,6 @@ def get_team_roster(
     any team's roster by team_id.
 
     Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
         league_id: Yahoo league ID
         team_id: The team ID to fetch roster for (can be any team in the league)
 
@@ -32,7 +33,7 @@ def get_team_roster(
         JSON string with roster information including player names, positions,
         NHL teams, fantasy points, and injury status.
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=get_user_id(state))
 
     try:
         roster = yahoo_client.query.get_team_roster_player_stats(team_id)

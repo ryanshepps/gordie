@@ -22,7 +22,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class Medium(StrEnum):
     EMAIL = "email"
     SMS = "sms"
-    WEB = "web"
     TELEGRAM = "telegram"
     DISCORD = "discord"
 

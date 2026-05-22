@@ -297,7 +297,7 @@ class TestEnrichEmailWithPlayerStats:
         with patch("agent.email_enrichment.search_player", return_value=[]):
             markdown, html = enrich_email_with_player_stats(
                 message_content="No players mentioned here.",
-                user_email="test@example.com",
+                user_id="00000000-0000-0000-0000-000000000301",
                 league_id="12345",
             )
         assert markdown == ""
@@ -334,7 +334,7 @@ class TestEnrichEmailWithPlayerStats:
         ):
             markdown, html = enrich_email_with_player_stats(
                 message_content="Check out Leon Draisaitl!",
-                user_email="test@example.com",
+                user_id="00000000-0000-0000-0000-000000000301",
                 league_id="12345",
             )
 
@@ -388,7 +388,7 @@ class TestEnrichEmailWithPlayerStats:
         ):
             markdown, html = enrich_email_with_player_stats(
                 message_content="Compare Leon Draisaitl and Auston Matthews",
-                user_email="test@example.com",
+                user_id="00000000-0000-0000-0000-000000000301",
                 league_id="12345",
             )
 

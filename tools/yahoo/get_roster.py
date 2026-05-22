@@ -1,10 +1,13 @@
 """Tool to get your current fantasy roster."""
 
-from langchain.tools import tool
+from typing import Annotated
+
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field, field_validator
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
@@ -12,9 +15,6 @@ logger = get_logger(__name__)
 class GetRosterInput(BaseModel):
     """Input schema for get_roster tool."""
 
-    user_email: str = Field(
-        description="User's email address (used to look up OAuth tokens in database)"
-    )
     league_id: str = Field(description="Yahoo league ID (must be a valid number)")
     team_id: str = Field(description="Yahoo team ID")
 
@@ -40,12 +40,15 @@ class GetRosterInput(BaseModel):
 
 
 @tool(args_schema=GetRosterInput)
-def get_roster(user_email: str, league_id: str, team_id: str) -> str:
+def get_roster(
+    league_id: str,
+    team_id: str,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
+) -> str:
     """
     Get the current roster for a fantasy team with player stats and positions.
 
     Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
         league_id: Yahoo league ID
         team_id: Yahoo team ID
 
@@ -53,7 +56,7 @@ def get_roster(user_email: str, league_id: str, team_id: str) -> str:
         JSON string with roster information including player names, positions,
         NHL teams, fantasy points, and injury status.
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=get_user_id(state))
     yahoo_query = yahoo_client.query
 
     try:

@@ -1,5 +1,7 @@
 """Repository class for Yahoo OAuth token records."""
 
+from uuid import UUID
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -39,6 +41,25 @@ class YahooTokenRepository(Repository):
             token_type: Token type (default: "Bearer")
         """
         user_id = UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
+        self.save_token_by_user_id(
+            user_id=user_id,
+            yahoo_email=yahoo_email,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_time=token_time,
+            token_type=token_type,
+        )
+
+    def save_token_by_user_id(
+        self,
+        user_id: UUID,
+        yahoo_email: str,
+        access_token: str,
+        refresh_token: str,
+        token_time: str,
+        token_type: str = "Bearer",
+    ) -> None:
+        """Save or update Yahoo OAuth tokens for a canonical user."""
         self.upsert(
             ["user_id"],
             user_id=user_id,
@@ -80,6 +101,27 @@ class YahooTokenRepository(Repository):
             {"medium": Medium.EMAIL.value, "user_email": user_email},
         ).fetchone()
 
+    def get_token_by_user_id(self, user_id: UUID) -> DatabaseRow | None:
+        """Get OAuth tokens for a canonical user."""
+        return self.session.execute(
+            text(
+                """
+                SELECT
+                    yt.user_id,
+                    yt.yahoo_email,
+                    yt.access_token,
+                    yt.refresh_token,
+                    yt.token_time,
+                    yt.token_type,
+                    yt.updated_at,
+                    yt.created_at
+                FROM yahoo_tokens yt
+                WHERE yt.user_id = :user_id
+                """
+            ),
+            {"user_id": user_id},
+        ).fetchone()
+
 
 def load_tokens_from_db(user_email: str) -> dict[str, str] | None:
     """
@@ -106,6 +148,23 @@ def load_tokens_from_db(user_email: str) -> dict[str, str] | None:
         repo.close()
 
 
+def load_tokens_from_db_by_user_id(user_id: str) -> dict[str, str] | None:
+    """Load OAuth tokens from database by canonical user ID."""
+    repo = YahooTokenRepository()
+    try:
+        result = repo.get_token_by_user_id(UUID(user_id))
+        if result:
+            return {
+                "access_token": result[2],
+                "refresh_token": result[3],
+                "token_time": result[4],
+                "token_type": result[5],
+            }
+        return None
+    finally:
+        repo.close()
+
+
 def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, str]) -> None:
     """Save OAuth tokens to database.
 
@@ -118,6 +177,22 @@ def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, str]) -
     try:
         repo.save_token(
             user_email=user_email,
+            yahoo_email=yahoo_email,
+            access_token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            token_time=token_data["token_time"],
+            token_type=token_data.get("token_type", "Bearer"),
+        )
+    finally:
+        repo.close()
+
+
+def save_tokens_by_user_id(user_id: str, yahoo_email: str, token_data: dict[str, str]) -> None:
+    """Save OAuth tokens to database by canonical user ID."""
+    repo = YahooTokenRepository()
+    try:
+        repo.save_token_by_user_id(
+            user_id=UUID(user_id),
             yahoo_email=yahoo_email,
             access_token=token_data["access_token"],
             refresh_token=token_data["refresh_token"],

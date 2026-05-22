@@ -72,7 +72,7 @@ def _add_error_response(state: AgentState, error_message: str) -> None:
 
 
 def _invoke_billing_response(
-    state: AgentState, user_email: str
+    state: AgentState,
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
     try:
         system_prompt = assemble_system_prompt(state)
@@ -103,7 +103,7 @@ def _invoke_billing_response(
 
 
 def _invoke_supervisor(
-    state: AgentState, user_email: str
+    state: AgentState,
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
     try:
         system_prompt = assemble_system_prompt(state)
@@ -145,10 +145,10 @@ def supervisor_node(
     state: AgentState,
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
     messages = state.get("messages", [])
-    user_email = state.get("user_email") or ""
+    user_id = state.get("user_id") or ""
 
-    if not messages or not user_email:
-        logger.warning(f"Missing {'messages' if not messages else 'user_email'} in state")
+    if not messages or not user_id:
+        logger.warning(f"Missing {'messages' if not messages else 'user_id'} in state")
         return Command(goto=END_NODE, update=state)
 
     last_message = messages[-1]
@@ -159,6 +159,6 @@ def supervisor_node(
     logger.info(f"Supervisor processing: {message_content}...")
 
     if state.get("context_status") == "billing_blocked":
-        return _invoke_billing_response(state, user_email)
+        return _invoke_billing_response(state)
 
-    return _invoke_supervisor(state, user_email)
+    return _invoke_supervisor(state)

@@ -51,6 +51,26 @@ class SubscriptionRepository(Repository):
             {"medium": Medium.EMAIL.value, "user_email": user_email},
         ).fetchone()
 
+    def get_subscription_by_user_id(self, user_id: UUID) -> DatabaseRow | None:
+        return self.session.execute(
+            text(
+                """
+                SELECT
+                    us.user_id,
+                    us.creem_customer_id,
+                    us.creem_subscription_id,
+                    us.tier,
+                    us.status,
+                    us.current_period_ends_at,
+                    us.digest_count,
+                    us.created_at
+                FROM user_subscriptions us
+                WHERE us.user_id = :user_id
+                """
+            ),
+            {"user_id": user_id},
+        ).fetchone()
+
     def activate_subscription(
         self,
         user_email: str,

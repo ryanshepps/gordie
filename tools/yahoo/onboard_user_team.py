@@ -1,21 +1,23 @@
 """Tool to onboard a user's selected Yahoo Fantasy team to the database."""
 
 import json
+from typing import Annotated
+from uuid import UUID
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
-from billing.tier import build_upgrade_message, check_league_limit
+from billing.tier import build_upgrade_message_by_user_id, check_league_limit_by_user_id
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
 
 class OnboardUserTeamInput(BaseModel):
-    user_email: str = Field(description="User's email address")
     game_key: str = Field(
         description="Numeric Yahoo Fantasy game key from get_user_leagues (e.g., '423', '465')"
     )
@@ -33,19 +35,18 @@ class OnboardUserTeamInput(BaseModel):
 
 @tool(args_schema=OnboardUserTeamInput)
 def onboard_user_team(
-    user_email: str,
     game_key: str,
     game_code: str,
     league_id: int,
     team_name: str,
     team_id: int,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """
     Onboard a user's selected Yahoo Fantasy team to the database.
     This will fetch league details and save both the league and the user's team.
 
     Args:
-        user_email: User's email address
         game_key: Numeric Yahoo Fantasy game key from get_user_leagues (e.g., "423", "465")
         game_code: Yahoo Fantasy sport code (e.g., "nhl", "mlb", "nfl", "nba")
         league_id: Yahoo Fantasy league ID from get_user_leagues (just the numeric ID, e.g., "26455")
@@ -54,13 +55,14 @@ def onboard_user_team(
     Returns:
         Confirmation message about the saved team.
     """
-    allowed, reason = check_league_limit(user_email)
+    user_id = get_user_id(state)
+    allowed, reason = check_league_limit_by_user_id(user_id)
     if not allowed:
-        return build_upgrade_message(user_email, reason, "email")
+        return build_upgrade_message_by_user_id(user_id, reason, "email")
 
     try:
         yahoo_client = AuthenticatedYahooClient(
-            user_email=user_email, league_id=league_id, game_code=game_code, game_key=game_key
+            user_id=user_id, league_id=league_id, game_code=game_code, game_key=game_key
         )
         yahoo_query = yahoo_client.query
 
@@ -93,14 +95,14 @@ def onboard_user_team(
 
         # Save user team to database
         team_repo = YahooUserTeamRepository()
-        team_repo.add_team(
+        team_repo.add_team_by_user_id(
             league_id=str(league_id),
             team_id=str(team_id),
-            user_email=user_email,
+            user_id=UUID(user_id),
             team_name=team_name,
         )
         team_repo.close()
-        logger.info(f"Saved team {team_name} for user {user_email}")
+        logger.info(f"Saved team {team_name} for user_id={user_id}")
 
         return f"Successfully saved your team '{team_name}' in league '{league_name}'! You're all set up and ready to roll."
 

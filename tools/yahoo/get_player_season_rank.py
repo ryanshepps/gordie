@@ -78,7 +78,7 @@ def _extract_player_with_rank(player_data: list[object], rank: int) -> dict[str,
 
 
 def get_player_season_rank(
-    user_email: str,
+    user_id: str,
     league_id: str,
     player_name: str,
 ) -> str:
@@ -91,7 +91,7 @@ def get_player_season_rank(
     fantasy point production.
 
     Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
+        user_id: Canonical user UUID used to look up OAuth tokens
         league_id: Yahoo league ID
         player_name: The name of the player to search for (e.g., "Connor McDavid", "McDavid")
 
@@ -99,7 +99,7 @@ def get_player_season_rank(
         JSON string with the player's rank and information, or an error if not found.
         The rank field indicates the player's current season position (1 = best).
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=user_id)
 
     try:
         league_key = yahoo_client.query.get_league_key()
