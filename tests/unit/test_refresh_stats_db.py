@@ -51,30 +51,3 @@ class TestRefreshStatsDb:
             refresh_stats_db()
 
         assert isolate_db.read_text() == "existing"
-
-    def test_metrics_incremented_on_success(self, isolate_db):
-        with (
-            patch("scheduled.refresh_stats_db._download_csv", side_effect=_fake_download_csv),
-            patch("scheduled.refresh_stats_db.stats_db_refresh_total") as mock_counter,
-            patch("scheduled.refresh_stats_db.stats_db_last_refresh_timestamp") as mock_gauge,
-            patch("scheduled.refresh_stats_db.reset_stats_connection"),
-        ):
-            refresh_stats_db()
-
-        mock_counter.labels.assert_called_with(status="success")
-        mock_counter.labels(status="success").inc.assert_called_once()
-        mock_gauge.set.assert_called_once()
-
-    def test_metrics_incremented_on_error(self, isolate_db):
-        with (
-            patch(
-                "scheduled.refresh_stats_db._download_csv",
-                side_effect=Exception("fail"),
-            ),
-            patch("scheduled.refresh_stats_db.stats_db_refresh_total") as mock_counter,
-            pytest.raises(Exception, match="fail"),
-        ):
-            refresh_stats_db()
-
-        mock_counter.labels.assert_called_with(status="error")
-        mock_counter.labels(status="error").inc.assert_called_once()

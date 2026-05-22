@@ -82,38 +82,6 @@ class TestRefreshMlbStatsDb:
 
         assert isolate_db.read_text() == "existing"
 
-    def test_metrics_incremented_on_success(self, isolate_db):
-        with (
-            patch("scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
-            patch("scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching),
-            patch("scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting),
-            patch("scheduled.refresh_mlb_stats_db.team_pitching", side_effect=_fake_team_pitching),
-            patch("scheduled.refresh_mlb_stats_db.mlb_stats_db_refresh_total") as mock_counter,
-            patch(
-                "scheduled.refresh_mlb_stats_db.mlb_stats_db_last_refresh_timestamp"
-            ) as mock_gauge,
-            patch("scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection"),
-        ):
-            refresh_mlb_stats_db()
-
-        mock_counter.labels.assert_called_with(status="success")
-        mock_counter.labels(status="success").inc.assert_called_once()
-        mock_gauge.set.assert_called_once()
-
-    def test_metrics_incremented_on_error(self, isolate_db):
-        with (
-            patch(
-                "scheduled.refresh_mlb_stats_db.batting_stats",
-                side_effect=Exception("fail"),
-            ),
-            patch("scheduled.refresh_mlb_stats_db.mlb_stats_db_refresh_total") as mock_counter,
-            pytest.raises(RuntimeError, match="No MLB data fetched for any season"),
-        ):
-            refresh_mlb_stats_db()
-
-        mock_counter.labels.assert_called_with(status="error")
-        mock_counter.labels(status="error").inc.assert_called_once()
-
     def test_team_table_merges_batting_and_pitching(self, isolate_db):
         with (
             patch("scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),

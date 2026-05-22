@@ -1,19 +1,12 @@
 import argparse
 from uuid import UUID
 
-# Initialize tracing BEFORE any application imports so that
-# Logfire's auto-tracing can rewrite modules at import time.
-from module.tracing import init
+from langchain_core.runnables import RunnableConfig
 
-init()
-
-from langchain_core.runnables import RunnableConfig  # noqa: E402
-
-from agent.agent_state import AgentState  # noqa: E402
-from agent.graph_builder import agent  # noqa: E402
-from data.conversation_repository import ConversationRepository  # noqa: E402
-from module.logger import get_logger  # noqa: E402
-from module.tracing import create_span  # noqa: E402
+from agent.agent_state import AgentState
+from agent.graph_builder import agent
+from data.conversation_repository import ConversationRepository
+from module.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -87,93 +80,92 @@ def message_agent(
         logger.error(f"Could not resolve user email for channel={channel}")
         return ""
 
-    with create_span("agent.message", {"user.email": email, "thread.id": thread_id}):
+    try:
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+
+        # Build message payload
+        message_payload = {"role": "user", "content": message}
+        if team_context:
+            message_payload["team_context"] = team_context
+
+        # Build initial state
+        initial_state: AgentState = {
+            "user_email": email,
+            "thread_id": thread_id,
+            "channel": channel,
+            "messages": [message_payload],
+            "user_teams": [],
+            "league_id": None,
+            "team_id": None,
+            "response": None,
+            "route_to": None,
+            "agent_flow": [],
+            "current_agent_index": 0,
+            "flow_complete": False,
+            "flow_reasoning": None,
+            "original_subject": original_subject,
+            "original_message": original_message or message,
+            "billing_context": billing_context,
+        }
+
+        # Persist user message before invoking graph
+        repo = ConversationRepository()
         try:
-            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+            repo.add_message(
+                thread_id=thread_id,
+                checkpoint_id="pending",
+                role="human",
+                content=message,
+                message_type="standard",
+            )
+            repo.commit()
+        finally:
+            repo.close()
 
-            # Build message payload
-            message_payload = {"role": "user", "content": message}
-            if team_context:
-                message_payload["team_context"] = team_context
+        response = agent.invoke(initial_state, config)
 
-            # Build initial state
-            initial_state: AgentState = {
-                "user_email": email,
-                "thread_id": thread_id,
-                "channel": channel,
-                "messages": [message_payload],
-                "user_teams": [],
-                "league_id": None,
-                "team_id": None,
-                "response": None,
-                "route_to": None,
-                "agent_flow": [],
-                "current_agent_index": 0,
-                "flow_complete": False,
-                "flow_reasoning": None,
-                "original_subject": original_subject,
-                "original_message": original_message or message,
-                "billing_context": billing_context,
-            }
+        logger.info("\nGordie's Response:\n")
 
-            # Persist user message before invoking graph
+        # Extract response text
+        response_text = ""
+
+        # Check for direct response first (from clarification node)
+        if response and response.get("response"):
+            response_text = response["response"]
+            logger.info(response_text)
+        # Otherwise check messages - only extract NEW agent messages (not entire history)
+        elif response and "messages" in response:
+            response_parts = []
+            # The initial_state contains 1 user message
+            # So we want messages AFTER the first one (index 0)
+            new_messages = response["messages"][len(initial_state["messages"]) :]
+            for msg in new_messages:
+                # Only include assistant/AI messages, not user messages
+                if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
+                    response_parts.append(msg.content)
+                    logger.info(msg.content)
+            response_text = "\n".join(response_parts)
+
+        # Persist AI response after graph completes
+        if response_text.strip():
             repo = ConversationRepository()
             try:
                 repo.add_message(
                     thread_id=thread_id,
-                    checkpoint_id="pending",
-                    role="human",
-                    content=message,
+                    checkpoint_id="complete",
+                    role="ai",
+                    content=response_text.strip(),
                     message_type="standard",
                 )
                 repo.commit()
             finally:
                 repo.close()
 
-            response = agent.invoke(initial_state, config)
+        return response_text.strip()
 
-            logger.info("\nGordie's Response:\n")
-
-            # Extract response text
-            response_text = ""
-
-            # Check for direct response first (from clarification node)
-            if response and response.get("response"):
-                response_text = response["response"]
-                logger.info(response_text)
-            # Otherwise check messages - only extract NEW agent messages (not entire history)
-            elif response and "messages" in response:
-                response_parts = []
-                # The initial_state contains 1 user message
-                # So we want messages AFTER the first one (index 0)
-                new_messages = response["messages"][len(initial_state["messages"]) :]
-                for msg in new_messages:
-                    # Only include assistant/AI messages, not user messages
-                    if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
-                        response_parts.append(msg.content)
-                        logger.info(msg.content)
-                response_text = "\n".join(response_parts)
-
-            # Persist AI response after graph completes
-            if response_text.strip():
-                repo = ConversationRepository()
-                try:
-                    repo.add_message(
-                        thread_id=thread_id,
-                        checkpoint_id="complete",
-                        role="ai",
-                        content=response_text.strip(),
-                        message_type="standard",
-                    )
-                    repo.commit()
-                finally:
-                    repo.close()
-
-            return response_text.strip()
-
-        except Exception as e:
-            logger.error(f"\n✗ Failed to send message to agent: {e}")
-            return ""
+    except Exception as e:
+        logger.error(f"\n✗ Failed to send message to agent: {e}")
+        return ""
 
 
 def main():

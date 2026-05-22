@@ -7,8 +7,6 @@ Every runtime knob is an environment variable read at process start. `.env.examp
 | Var | Required | Default | Notes |
 |-----|----------|---------|-------|
 | `DATABASE_URL` | Yes | `postgresql://localhost:5432/fantasy_agent` | psycopg v3 driver is injected automatically — no need to write `postgresql+psycopg://`. |
-| `ADMIN_API_KEY` | Yes (if using `/admin/*`) | empty | Generate with `openssl rand -hex 32`. Empty value → all admin endpoints return 401. |
-| `ENVIRONMENT` | No | `development` | Affects tracing init + log verbosity. Values: `development`, `production`. |
 | `OAUTH_BASE_URL` | Yes (for Yahoo) | `http://localhost:8000` | Public HTTPS URL Yahoo redirects to. Must match the redirect URI on your Yahoo app. |
 | `SERVER_HOST` | No | `localhost` | Bind address. Set to `0.0.0.0` inside Docker (already set in the image). |
 | `SERVER_PORT` | No | `8000` | |
@@ -34,7 +32,6 @@ See per-service setup docs:
 - `yahoo-oauth.md` — `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`
 - `email-mailgun.md` — `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM_EMAIL`, `MAILGUN_WEBHOOK_SIGNING_KEY`
 - `sms-sinch.md` — `SINCH_SERVICE_PLAN_ID`, `SINCH_API_TOKEN`, `SINCH_FROM_NUMBER`, `SINCH_WEBHOOK_TOKEN`
-- `cloudflare-tunnel.md` — `CLOUDFLARE_API_TOKEN`, `CF_TUNNEL_ID`, `CF_TUNNEL_HOSTNAME`
 
 ## Billing (Creem)
 

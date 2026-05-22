@@ -6,11 +6,8 @@ from typing import Any
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import AgentState as BaseAgentState
 from langgraph.runtime import Runtime
-from opentelemetry import trace
 
 from module.logger import get_logger
-from module.metrics import agent_execution_duration_seconds, agent_invocations_total
-from module.tracing import create_span, get_current_span, set_span_ok
 
 logger = get_logger(__name__)
 
@@ -51,8 +48,6 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
         """
         self.agent_name = agent_name
         self.start_time = None
-        self._agent_span: trace.Span | None = None
-        self._span_context = None
 
     def before_model(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Log state before each model call."""
@@ -60,13 +55,6 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
         logger.info(
             f"[{self.agent_name}:BEFORE_MODEL] {state_str}", extra={"agent_name": self.agent_name}
         )
-
-        current_span = get_current_span()
-        if current_span.is_recording():
-            current_span.add_event(
-                "model_call_started",
-                {"agent_name": self.agent_name},
-            )
 
         return None
 
@@ -111,13 +99,6 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
                         extra={"agent_name": self.agent_name, "tool_name": tool_name},
                     )
 
-        current_span = get_current_span()
-        if current_span.is_recording():
-            event_attrs = {"agent_name": self.agent_name}
-            if tool_decisions:
-                event_attrs["tools_called"] = ",".join(tool_decisions)
-            current_span.add_event("model_call_completed", event_attrs)
-
         return None
 
     def before_agent(self, state: _BaseState, runtime: Runtime[Any]) -> dict[str, Any] | None:
@@ -126,15 +107,6 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
         state_str = _format_state(state)
 
         user_email = state.get("user_email", "unknown")
-
-        self._span_context = create_span(
-            f"agent.{self.agent_name}",
-            {
-                "agent_name": self.agent_name,
-                "user_email": user_email,
-            },
-        )
-        self._agent_span = self._span_context.__enter__()
 
         logger.info(
             f"[{self.agent_name}:AGENT_START] {state_str}",
@@ -150,24 +122,6 @@ class StateLoggingMiddleware(AgentMiddleware[_BaseState, Any]):
         user_email = state.get("user_email", "unknown")
 
         status = "success" if state.get("response") else "error"
-        agent_invocations_total.labels(agent_name=self.agent_name, status=status).inc()
-        agent_execution_duration_seconds.labels(agent_name=self.agent_name).observe(duration)
-
-        if self._agent_span is not None:
-            self._agent_span.set_attribute("duration_ms", duration * 1000)
-            self._agent_span.set_attribute("status", status)
-
-            if status == "success":
-                set_span_ok(self._agent_span)
-            else:
-                self._agent_span.set_status(
-                    trace.Status(trace.StatusCode.ERROR, "Agent execution failed")
-                )
-
-            if self._span_context is not None:
-                self._span_context.__exit__(None, None, None)
-                self._span_context = None
-            self._agent_span = None
 
         logger.info(
             f"[{self.agent_name}:AGENT_END] {state_str}",

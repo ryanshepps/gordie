@@ -17,11 +17,6 @@ from data.processed_inbound_message_repository import ProcessedInboundMessageRep
 from data.thread_repository import ThreadRepository
 from data.user_repository import UserRepository
 from module.logger import get_logger
-from module.metrics import (
-    http_request_duration_seconds,
-    sms_rate_limited_total,
-    sms_webhook_requests_total,
-)
 from server.sms_service import SmsService
 from server.webhook_verification import verify_sinch_webhook_token
 
@@ -107,20 +102,18 @@ def register_sms_routes(app):
     @app.route("/sms/webhook", methods=["POST"])
     async def sms_webhook():
         """Handle incoming SMS from Sinch webhook."""
-        start_time = time.time()
         logger = get_logger(__name__, log_file="server.log")
 
         try:
-            return await _handle_sms_webhook(start_time, logger)
+            return await _handle_sms_webhook(logger)
         except Exception as exc:
             logger.error(f"SMS webhook failed: {exc}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
-    async def _handle_sms_webhook(start_time: float, logger):
+    async def _handle_sms_webhook(logger):
         data = await request.get_json()
 
         if not data:
-            sms_webhook_requests_total.labels(status="invalid").inc()
             logger.error("Empty or invalid JSON body")
             return jsonify({"error": "Invalid request"}), 400
 
@@ -131,17 +124,11 @@ def register_sms_routes(app):
         sinch_message_id = data.get("id")
 
         if not raw_phone or not sinch_message_id:
-            sms_webhook_requests_total.labels(status="invalid").inc()
             logger.error("Missing required SMS webhook fields")
             return jsonify({"error": "Missing required fields"}), 400
 
         auth_token = request.args.get("auth_token", "")
         if not verify_sinch_webhook_token(auth_token):
-            duration = time.time() - start_time
-            sms_webhook_requests_total.labels(status="invalid_signature").inc()
-            http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
-                duration
-            )
             logger.error(f"Invalid Sinch webhook credentials from {phone_number}")
             return jsonify({"error": "Invalid signature"}), 403
 
@@ -149,15 +136,12 @@ def register_sms_routes(app):
         try:
             if not processed_repo.claim(Medium.SMS, str(sinch_message_id), phone_number):
                 logger.info(f"Duplicate SMS {sinch_message_id}, skipping")
-                sms_webhook_requests_total.labels(status="duplicate").inc()
                 return jsonify({"status": "duplicate"}), 200
         finally:
             processed_repo.close()
 
         # Rate limiting
         if _is_rate_limited(phone_number):
-            sms_webhook_requests_total.labels(status="rate_limited").inc()
-            sms_rate_limited_total.labels(phone_number=phone_number).inc()
             logger.warning(f"Rate limited SMS from {phone_number}")
             return jsonify({"status": "rate_limited"}), 200
 
@@ -181,7 +165,6 @@ def register_sms_routes(app):
             except Exception as e:
                 logger.error(f"Failed to send opt-out confirmation: {e}")
 
-            sms_webhook_requests_total.labels(status="opt_out").inc()
             logger.info(f"SMS opt-out from {phone_number}")
             return jsonify({"status": "opt_out"}), 200
 
@@ -201,7 +184,6 @@ def register_sms_routes(app):
             except Exception as e:
                 logger.error(f"Failed to send opt-in confirmation: {e}")
 
-            sms_webhook_requests_total.labels(status="opt_in").inc()
             logger.info(f"SMS opt-in from {phone_number}")
             return jsonify({"status": "opt_in"}), 200
 
@@ -209,7 +191,6 @@ def register_sms_routes(app):
         user_repo = UserRepository()
         try:
             if user_repo.is_sms_opted_out(phone_number):
-                sms_webhook_requests_total.labels(status="opted_out").inc()
                 logger.info(f"SMS from opted-out user {phone_number}, skipping")
                 return jsonify({"status": "opted_out"}), 200
 
@@ -253,11 +234,6 @@ def register_sms_routes(app):
             except Exception as e:
                 logger.error(f"Failed to send cold-start OAuth SMS to {phone_number}: {e}")
 
-            duration = time.time() - start_time
-            sms_webhook_requests_total.labels(status="cold_start").inc()
-            http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
-                duration
-            )
             return jsonify({"status": "cold_start"}), 200
 
         user_id = UUID(str(user[0]))
@@ -285,11 +261,6 @@ def register_sms_routes(app):
             except Exception as e:
                 logger.error(f"Failed to send cold-start OAuth SMS to {phone_number}: {e}")
 
-            duration = time.time() - start_time
-            http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
-                duration
-            )
-            sms_webhook_requests_total.labels(status="cold_start").inc()
             logger.info(f"SMS identity {phone_number} has no email identity yet")
             return jsonify({"status": "cold_start"}), 200
 
@@ -333,11 +304,5 @@ def register_sms_routes(app):
 
         thread = threading.Thread(target=process_sms, daemon=True)
         thread.start()
-
-        duration = time.time() - start_time
-        sms_webhook_requests_total.labels(status="success").inc()
-        http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
-            duration
-        )
 
         return jsonify({"status": "received"}), 200

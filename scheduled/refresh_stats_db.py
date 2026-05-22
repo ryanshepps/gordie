@@ -2,14 +2,12 @@
 
 import os
 import tempfile
-import time
 from pathlib import Path
 
 import duckdb
 import requests
 
 from module.logger import get_logger
-from module.metrics import stats_db_last_refresh_timestamp, stats_db_refresh_total
 from tools.hockey.stats.duckdb_connection import reset_stats_connection
 from tools.hockey.stats.duckdb_schema import DB_PATH, MONEYPUCK_BASE_URL, SEASONS
 
@@ -81,12 +79,8 @@ def refresh_stats_db() -> None:
 
         reset_stats_connection()
 
-        stats_db_refresh_total.labels(status="success").inc()
-        stats_db_last_refresh_timestamp.set(time.time())
-
     except Exception:
         logger.exception("Failed to refresh stats database")
-        stats_db_refresh_total.labels(status="error").inc()
         if tmp_path.exists():
             tmp_path.unlink()
         raise

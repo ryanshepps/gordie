@@ -2,7 +2,7 @@
 
 Handles the common pattern of:
 1. Fetching opted-in user+league pairs
-2. Iterating with traced spans (user.email, league.id)
+2. Iterating over eligible users
 3. Counting success/failed/skipped results
 """
 
@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from billing.repository import SubscriptionRepository
 from data.notification_preference_repository import NotificationPreferenceRepository
 from module.logger import get_logger
-from module.tracing import create_span
 
 logger = get_logger(__name__)
 
@@ -47,10 +46,9 @@ def run_per_user_job(
     notification_type: str,
     handler: Callable[[str, str], bool],
 ) -> JobResult:
-    """Run a job for each opted-in user+league pair with automatic tracing.
+    """Run a job for each opted-in user+league pair.
 
-    Each invocation of `handler` is wrapped in a span with `user.email`
-    and `league.id` attributes. New jobs only need to provide the handler.
+    New jobs only need to provide the handler.
 
     Args:
         job_name: Name used for logging and the span (e.g. "news_digest")
@@ -85,20 +83,16 @@ def run_per_user_job(
             result.skipped += 1
             continue
 
-        with create_span(
-            f"{job_name}.user",
-            {"user.email": user_email, "league.id": league_id},
-        ):
-            try:
-                sent = handler(user_email, league_id)
-                if sent:
-                    result.success += 1
-                    _record_digest_delivery(user_email)
-                else:
-                    result.skipped += 1
-            except Exception as e:
-                result.failed += 1
-                logger.error(f"{job_name} failed for {user_email}/{league_id}: {e}")
+        try:
+            sent = handler(user_email, league_id)
+            if sent:
+                result.success += 1
+                _record_digest_delivery(user_email)
+            else:
+                result.skipped += 1
+        except Exception as e:
+            result.failed += 1
+            logger.error(f"{job_name} failed for {user_email}/{league_id}: {e}")
 
     logger.info(
         f"{job_name} complete: {result.success} sent, "

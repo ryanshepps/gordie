@@ -34,7 +34,6 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
 
     plain_text = strip_markdown(message_content)
 
-    from module.metrics import sms_sent_total
     from server.sms_service import SmsService
 
     try:
@@ -42,12 +41,9 @@ def send_sms_response(state: AgentState, message_content: str) -> None:
         result = sms_service.send_sms(phone_number, plain_text)
 
         if result.success:
-            sms_sent_total.labels(status="success").inc()
             logger.info(f"SMS sent to {phone_number}, batch_id: {result.batch_id}")
         else:
-            sms_sent_total.labels(status="failure").inc()
             logger.error(f"Failed to send SMS to {phone_number}: {result.error}")
 
     except Exception as e:
-        sms_sent_total.labels(status="failure").inc()
         logger.error(f"Failed to send SMS: {e}")

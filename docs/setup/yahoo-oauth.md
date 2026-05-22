@@ -10,19 +10,13 @@ Gordie reads your Yahoo Fantasy league via the Yahoo Fantasy Sports API. You nee
    - **Application Name:** anything (e.g. "Gordie local")
    - **Application Type:** Web Application
    - **Redirect URI(s):** `https://your-public-host/callback`
-     - For local dev, this **must be HTTPS** — see step 2 for the ngrok/cloudflared trick.
+     - For local dev, this **must be HTTPS** — see step 2 for the ngrok option.
    - **API Permissions:** check **Fantasy Sports — Read**
 4. Submit. Yahoo issues a **Client ID (Consumer Key)** and **Client Secret (Consumer Secret)**.
 
 ## 2. Local HTTPS for the callback
 
-Yahoo refuses plain HTTP callback URLs even in dev. Two easy options:
-
-### Option A — Cloudflare tunnel (free, your own subdomain)
-
-See `docs/setup/cloudflare-tunnel.md`. End result: `https://fantasy.example.com/callback → http://localhost:8000/callback`.
-
-### Option B — ngrok (fastest)
+Yahoo refuses plain HTTP callback URLs even in dev. The fastest local option is ngrok:
 
 ```bash
 brew install ngrok
