@@ -94,6 +94,7 @@ def upgrade() -> None:
     op.drop_constraint(
         "user_subscriptions_user_email_fkey", "user_subscriptions", type_="foreignkey"
     )
+    op.drop_constraint("usage_tracking_user_email_fkey", "usage_tracking", type_="foreignkey")
     op.drop_constraint(
         "digest_injury_states_user_email_fkey", "digest_injury_states", type_="foreignkey"
     )
@@ -148,6 +149,7 @@ def upgrade() -> None:
         new_index_name="idx_conversation_summaries_user_id",
     )
     _replace_user_email_with_user_id("user_subscriptions", ["user_id"])
+    _replace_user_email_with_user_id("usage_tracking", ["user_id", "week_start"])
     _replace_user_email_with_user_id("digest_injury_states", ["user_id", "player_name"])
 
     op.create_table(
@@ -263,6 +265,7 @@ def downgrade() -> None:
     op.drop_table("conversation_threads")
 
     _restore_user_email_column("digest_injury_states", ["user_email", "player_name"])
+    _restore_user_email_column("usage_tracking", ["user_email", "week_start"])
     _restore_user_email_column("user_subscriptions", ["user_email"])
     _restore_user_email_column(
         "conversation_summaries",
