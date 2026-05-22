@@ -22,7 +22,7 @@ class SearchPastConversationsInput(BaseModel):
     user_email: str = Field(description="The user's email address")
 
 
-def create_search_past_conversations_tool(store: BaseStore):
+def create_search_past_conversations_tool(store: BaseStore, *, enabled: bool = True):
     """
     Factory function to create the search tool with access to the store.
 
@@ -51,6 +51,9 @@ def create_search_past_conversations_tool(store: BaseStore):
         Returns:
             Relevant past conversation summaries, or a message if none found
         """
+        if not enabled:
+            return "Past conversation search is currently unavailable."
+
         try:
             # Search the store using the user's namespace
             # Sanitize email for namespace (can't contain periods)
