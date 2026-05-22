@@ -7,9 +7,9 @@ import os
 from collections.abc import Mapping
 from typing import cast
 
-from quart import jsonify, request
+from quart import Quart, jsonify, request
 
-from data.subscription_repository import SubscriptionRepository
+from billing.repository import SubscriptionRepository
 from data.user_repository import UserRepository
 from module.logger import get_logger
 from server.sms_service import SmsService
@@ -81,7 +81,7 @@ def _extract_period_end(obj: WebhookObject) -> str | None:
     return None
 
 
-def register_webhook_routes(app):
+def register_routes(app: Quart) -> None:
     @app.route("/webhooks/creem", methods=["POST"])
     async def creem_webhook():
         logger = get_logger(__name__, log_file="server.log")
@@ -131,7 +131,7 @@ def register_webhook_routes(app):
 def _handle_checkout_completed(
     repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    from server.creem_client import tier_from_product_id
+    from billing.creem_client import tier_from_product_id
 
     email = _extract_customer_email(obj)
     customer_id = _extract_customer_id(obj)
@@ -159,7 +159,7 @@ def _handle_checkout_completed(
 def _handle_subscription_active(
     repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    from server.creem_client import tier_from_product_id
+    from billing.creem_client import tier_from_product_id
 
     email = _extract_customer_email(obj)
     customer_id = _extract_customer_id(obj)
@@ -196,7 +196,7 @@ def _handle_subscription_paid(
     if not existing:
         email = _extract_customer_email(obj)
         if email:
-            from server.creem_client import tier_from_product_id
+            from billing.creem_client import tier_from_product_id
 
             customer_id = _extract_customer_id(obj)
             product_id = _extract_product_id(obj)

@@ -11,8 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from billing.repository import SubscriptionRepository
 from data.notification_preference_repository import NotificationPreferenceRepository
-from data.subscription_repository import SubscriptionRepository
 from module.logger import get_logger
 from module.tracing import create_span
 
@@ -37,7 +37,7 @@ class JobResult:
 
 
 def is_user_eligible_for_digest(user_email: str) -> bool:
-    from server.tier_enforcement import DIGEST_ALLOWED_TIERS, get_user_tier
+    from billing.tier import DIGEST_ALLOWED_TIERS, get_user_tier
 
     return get_user_tier(user_email) in DIGEST_ALLOWED_TIERS
 
@@ -76,7 +76,7 @@ def run_per_user_job(
 
     logger.info(f"Processing {job_name} for {len(user_leagues)} user+league combinations")
 
-    from server.tier_enforcement import DIGEST_ALLOWED_TIERS, get_user_tier
+    from billing.tier import DIGEST_ALLOWED_TIERS, get_user_tier
 
     result = JobResult()
     for user_email, league_id in user_leagues:

@@ -130,12 +130,13 @@ def register_email_routes(app):
         # Process in background thread
         def process_email():
             try:
-                from server.tier_enforcement import build_billing_context, check_question_allowed
+                from billing import get_gateway
 
+                gateway = get_gateway()
                 billing_ctx = None
-                allowed, reason = check_question_allowed(sender_email, message_body)
+                allowed, reason = gateway.check_question_allowed(sender_email, message_body)
                 if not allowed:
-                    billing_ctx = build_billing_context(sender_email, reason, "email")
+                    billing_ctx = gateway.build_billing_context(sender_email, reason, "email")
 
                 from scripts.message_agent import message_agent
 

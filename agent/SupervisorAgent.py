@@ -11,14 +11,12 @@ from agent.prompts.assemble import assemble_system_prompt
 from agent.subagents.available import available_players
 from agent.subagents.statistician import statistician
 from agent.subagents.trade import trade
+from billing import billing_enabled
 from middleware.sport_tool_filter import sport_tool_filter
 from middleware.state_logger import StateLoggingMiddleware
 from middleware.tool_call_error_wrapper import handle_tool_errors
 from module.llm import make_llm
 from module.logger import get_logger
-from tools.billing.generate_checkout_link import generate_checkout_link
-from tools.billing.generate_portal_link import generate_portal_link
-from tools.billing.get_subscription_status import get_subscription_status
 from tools.hockey.stats.query_stats_db import query_hockey_stats_db
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
@@ -44,10 +42,14 @@ def create_supervisor_agent(system_prompt: str):
         onboard_user_team,
         search_past_conversations,
         manage_notifications,
-        get_subscription_status,
-        generate_checkout_link,
-        generate_portal_link,
     ]
+
+    if billing_enabled:
+        from billing.tools.generate_checkout_link import generate_checkout_link
+        from billing.tools.generate_portal_link import generate_portal_link
+        from billing.tools.get_subscription_status import get_subscription_status
+
+        tools += [get_subscription_status, generate_checkout_link, generate_portal_link]
 
     return create_agent(
         model=make_llm(temperature=0),

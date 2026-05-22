@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch
 
-from server.tier_enforcement import BillingStatus
+from billing.tier import BillingStatus
 
 
 def _billing_status(
@@ -29,13 +29,13 @@ def _billing_status(
 
 
 class TestGetSubscriptionStatus:
-    @patch("tools.billing.get_subscription_status.get_billing_status")
+    @patch("billing.tools.get_subscription_status.get_billing_status")
     def test_free_user_includes_question_fields(self, mock_billing):
         mock_billing.return_value = _billing_status(
             questions_used_this_week=2, questions_remaining=1, leagues_connected=1
         )
 
-        from tools.billing.get_subscription_status import get_subscription_status
+        from billing.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
 
@@ -45,7 +45,7 @@ class TestGetSubscriptionStatus:
         assert "plans" in result
         assert result["plans"]["standard"]["price"] == "$10/mo or $80/yr"
 
-    @patch("tools.billing.get_subscription_status.get_billing_status")
+    @patch("billing.tools.get_subscription_status.get_billing_status")
     def test_paid_user_omits_question_fields(self, mock_billing):
         mock_billing.return_value = _billing_status(
             tier="standard",
@@ -55,20 +55,20 @@ class TestGetSubscriptionStatus:
             leagues_allowed=3,
         )
 
-        from tools.billing.get_subscription_status import get_subscription_status
+        from billing.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
 
         assert "questions_used_this_week" not in result
         assert result["current_period_ends"] == "2026-04-15"
 
-    @patch("tools.billing.get_subscription_status.get_billing_status")
+    @patch("billing.tools.get_subscription_status.get_billing_status")
     def test_unlimited_leagues_serialized_as_string(self, mock_billing):
         mock_billing.return_value = _billing_status(
             tier="allstar", status="active", leagues_allowed=None
         )
 
-        from tools.billing.get_subscription_status import get_subscription_status
+        from billing.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
 
@@ -76,11 +76,11 @@ class TestGetSubscriptionStatus:
 
 
 class TestGenerateCheckoutLink:
-    @patch("tools.billing.generate_checkout_link.create_checkout_session")
+    @patch("billing.tools.generate_checkout_link.create_checkout_session")
     def test_valid_plan_returns_url(self, mock_checkout):
         mock_checkout.return_value = "https://checkout.creem.io/sess_abc"
 
-        from tools.billing.generate_checkout_link import generate_checkout_link
+        from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
             {"user_email": "user@test.com", "plan": "standard_monthly"}
@@ -90,11 +90,11 @@ class TestGenerateCheckoutLink:
         assert "$10/mo" in result
         mock_checkout.assert_called_once_with("standard_monthly", "user@test.com")
 
-    @patch("tools.billing.generate_checkout_link.create_checkout_session")
+    @patch("billing.tools.generate_checkout_link.create_checkout_session")
     def test_annual_plan_shows_savings(self, mock_checkout):
         mock_checkout.return_value = "https://checkout.creem.io/sess_def"
 
-        from tools.billing.generate_checkout_link import generate_checkout_link
+        from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
             {"user_email": "user@test.com", "plan": "standard_annual"}
@@ -104,18 +104,18 @@ class TestGenerateCheckoutLink:
         assert "$80/yr" in result
 
     def test_invalid_plan_returns_error(self):
-        from tools.billing.generate_checkout_link import generate_checkout_link
+        from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke({"user_email": "user@test.com", "plan": "platinum"})
 
         assert "Invalid plan" in result
 
     @patch(
-        "tools.billing.generate_checkout_link.create_checkout_session",
+        "billing.tools.generate_checkout_link.create_checkout_session",
         side_effect=Exception("API error"),
     )
     def test_api_failure_returns_friendly_error(self, mock_checkout):
-        from tools.billing.generate_checkout_link import generate_checkout_link
+        from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
             {"user_email": "user@test.com", "plan": "allstar_monthly"}
@@ -125,8 +125,8 @@ class TestGenerateCheckoutLink:
 
 
 class TestGeneratePortalLink:
-    @patch("tools.billing.generate_portal_link.get_billing_portal_link")
-    @patch("tools.billing.generate_portal_link.SubscriptionRepository")
+    @patch("billing.tools.generate_portal_link.get_billing_portal_link")
+    @patch("billing.tools.generate_portal_link.SubscriptionRepository")
     def test_existing_customer_returns_portal_url(self, mock_repo_cls, mock_portal):
         mock_repo_cls.return_value.get_subscription.return_value = (
             "user@test.com",
@@ -140,24 +140,24 @@ class TestGeneratePortalLink:
         )
         mock_portal.return_value = "https://billing.creem.io/portal_abc"
 
-        from tools.billing.generate_portal_link import generate_portal_link
+        from billing.tools.generate_portal_link import generate_portal_link
 
         result = generate_portal_link.invoke({"user_email": "user@test.com"})
 
         assert "https://billing.creem.io/portal_abc" in result
         mock_portal.assert_called_once_with("cus_789")
 
-    @patch("tools.billing.generate_portal_link.SubscriptionRepository")
+    @patch("billing.tools.generate_portal_link.SubscriptionRepository")
     def test_no_subscription_returns_error(self, mock_repo_cls):
         mock_repo_cls.return_value.get_subscription.return_value = None
 
-        from tools.billing.generate_portal_link import generate_portal_link
+        from billing.tools.generate_portal_link import generate_portal_link
 
         result = generate_portal_link.invoke({"user_email": "nobody@test.com"})
 
         assert "No active subscription" in result
 
-    @patch("tools.billing.generate_portal_link.SubscriptionRepository")
+    @patch("billing.tools.generate_portal_link.SubscriptionRepository")
     def test_no_creem_customer_id_returns_error(self, mock_repo_cls):
         mock_repo_cls.return_value.get_subscription.return_value = (
             "user@test.com",
@@ -170,7 +170,7 @@ class TestGeneratePortalLink:
             None,
         )
 
-        from tools.billing.generate_portal_link import generate_portal_link
+        from billing.tools.generate_portal_link import generate_portal_link
 
         result = generate_portal_link.invoke({"user_email": "trial@test.com"})
 

@@ -4,8 +4,8 @@ import time
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal, TypedDict
 
+from billing.repository import SubscriptionRepository, UsageTrackingRepository
 from data.repository import DatabaseRow
-from data.subscription_repository import SubscriptionRepository, UsageTrackingRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.llm import make_llm
 from module.logger import get_logger
@@ -235,7 +235,7 @@ def check_league_limit(email: str) -> tuple[bool, str]:
 
 def build_billing_context(email: str, reason: str, channel: str) -> str:
     try:
-        from server.creem_client import create_checkout_session
+        from billing.creem_client import create_checkout_session
 
         standard_url = create_checkout_session("standard_monthly", email)
         allstar_url = create_checkout_session("allstar_monthly", email)
@@ -264,7 +264,7 @@ def build_billing_context(email: str, reason: str, channel: str) -> str:
 
 def build_upgrade_message(email: str, reason: str, channel: str) -> str:
     try:
-        from server.creem_client import create_checkout_session
+        from billing.creem_client import create_checkout_session
 
         standard_url = create_checkout_session("standard_monthly", email)
 

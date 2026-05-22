@@ -5,7 +5,7 @@ import json
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from server.tier_enforcement import get_billing_status
+from billing.tier import get_billing_status
 
 PLAN_DETAILS: dict[str, dict[str, str | int]] = {
     "free": {

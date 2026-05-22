@@ -8,62 +8,9 @@ logger = get_logger(__name__)
 
 
 def expire_trials_and_notify() -> None:
-    from data.subscription_repository import SubscriptionRepository, UsageTrackingRepository
-    from data.yahoo_user_team_repository import YahooUserTeamRepository
-    from server.creem_client import create_checkout_session
-    from server.email_service import EmailService, TrialUsageSummary
+    from billing import expire_trials_and_notify as _billing_expire
 
-    sub_repo = SubscriptionRepository()
-    try:
-        expired_emails = sub_repo.expire_trials()
-    finally:
-        sub_repo.close()
-
-    if not expired_emails:
-        logger.info("No trials to expire")
-        return
-
-    logger.info(f"Expired {len(expired_emails)} trials, sending notification emails")
-
-    email_service = EmailService()
-
-    for user_email in expired_emails:
-        usage_repo = UsageTrackingRepository()
-        team_repo = YahooUserTeamRepository()
-        sub_repo = SubscriptionRepository()
-        try:
-            total_questions = usage_repo.get_total_questions(user_email)
-            leagues_connected = len(team_repo.get_user_teams(user_email))
-            digests_received = sub_repo.get_digest_count(user_email)
-
-            usage = TrialUsageSummary(
-                questions_asked=total_questions,
-                digests_received=digests_received,
-                leagues_connected=leagues_connected,
-            )
-
-            standard_url = create_checkout_session("standard_monthly", user_email)
-            allstar_url = create_checkout_session("allstar_monthly", user_email)
-
-            result = email_service.send_trial_expiration_email(
-                to_email=user_email,
-                usage=usage,
-                standard_checkout_url=standard_url,
-                allstar_checkout_url=allstar_url,
-            )
-
-            if result.success:
-                logger.info(f"Sent trial expiration email to {user_email}")
-            else:
-                logger.error(
-                    f"Failed to send trial expiration email to {user_email}: {result.error}"
-                )
-        except Exception as e:
-            logger.error(f"Error processing trial expiration for {user_email}: {e}")
-        finally:
-            usage_repo.close()
-            team_repo.close()
-            sub_repo.close()
+    _billing_expire()
 
 
 def cleanup_expired_pending_oauth() -> None:
