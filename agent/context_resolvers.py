@@ -107,12 +107,12 @@ def auto_onboard_team(user_id: str, team: dict[str, str]) -> dict[str, str]:
 
     onboard_user_team.invoke(
         {
-            "user_id": user_id,
             "game_key": team["game_key"],
             "game_code": team.get("sport", "nhl"),
             "league_id": int(team["league_id"]),
             "team_name": team["team_name"],
             "team_id": int(team["team_id"]),
+            "state": {"user_id": user_id},
         }
     )
 

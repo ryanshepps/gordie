@@ -78,6 +78,7 @@ Your response MUST:
 1. Ask them which team they want to track with Gordie
 2. Once they indicate their choice, call the 'onboard_user_team' tool with:
    - game_key: (from the team they selected)
+   - game_code: (from the sport tag for the team they selected, e.g. nhl/mlb)
    - league_id: (from the team they selected)
    - team_name: (from the team they selected)
    - team_id: (from the team they selected)
