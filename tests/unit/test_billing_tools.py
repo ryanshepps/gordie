@@ -8,21 +8,17 @@ from billing.tier import BillingStatus
 
 def _billing_status(
     tier: str = "free",
-    status: str = "expired",
-    trial_days_remaining: int | None = None,
+    status: str = "active",
     current_period_ends: str | None = None,
-    questions_used_this_week: int = 0,
-    questions_remaining: int | None = None,
+    questions_allowed: bool = False,
     leagues_connected: int = 0,
     leagues_allowed: int | None = 1,
 ) -> BillingStatus:
     return BillingStatus(
         tier=tier,
         status=status,
-        trial_days_remaining=trial_days_remaining,
         current_period_ends=current_period_ends,
-        questions_used_this_week=questions_used_this_week,
-        questions_remaining=questions_remaining,
+        questions_allowed=questions_allowed,
         leagues_connected=leagues_connected,
         leagues_allowed=leagues_allowed,
     )
@@ -30,27 +26,27 @@ def _billing_status(
 
 class TestGetSubscriptionStatus:
     @patch("billing.tools.get_subscription_status.get_billing_status")
-    def test_free_user_includes_question_fields(self, mock_billing):
-        mock_billing.return_value = _billing_status(
-            questions_used_this_week=2, questions_remaining=1, leagues_connected=1
-        )
+    def test_free_user_includes_current_limits(self, mock_billing):
+        mock_billing.return_value = _billing_status(leagues_connected=1)
 
         from billing.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
 
         assert result["tier"] == "free"
-        assert result["questions_used_this_week"] == 2
-        assert result["questions_remaining"] == 1
+        assert result["questions_allowed"] is False
+        assert result["leagues_allowed"] == 1
         assert "plans" in result
-        assert result["plans"]["standard"]["price"] == "$10/mo or $80/yr"
+        assert result["plans"]["hosted"]["price"] == "$10/mo"
+        assert result["plans"]["free"]["digests"] == "Yes"
 
     @patch("billing.tools.get_subscription_status.get_billing_status")
-    def test_paid_user_omits_question_fields(self, mock_billing):
+    def test_hosted_user_includes_period_end(self, mock_billing):
         mock_billing.return_value = _billing_status(
-            tier="standard",
+            tier="hosted",
             status="active",
             current_period_ends="2026-04-15",
+            questions_allowed=True,
             leagues_connected=2,
             leagues_allowed=3,
         )
@@ -59,20 +55,8 @@ class TestGetSubscriptionStatus:
 
         result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
 
-        assert "questions_used_this_week" not in result
+        assert result["questions_allowed"] is True
         assert result["current_period_ends"] == "2026-04-15"
-
-    @patch("billing.tools.get_subscription_status.get_billing_status")
-    def test_unlimited_leagues_serialized_as_string(self, mock_billing):
-        mock_billing.return_value = _billing_status(
-            tier="allstar", status="active", leagues_allowed=None
-        )
-
-        from billing.tools.get_subscription_status import get_subscription_status
-
-        result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
-
-        assert result["leagues_allowed"] == "unlimited"
 
 
 class TestGenerateCheckoutLink:
@@ -83,25 +67,12 @@ class TestGenerateCheckoutLink:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "standard_monthly"}
+            {"user_email": "user@test.com", "plan": "hosted_monthly"}
         )
 
         assert "https://checkout.creem.io/sess_abc" in result
         assert "$10/mo" in result
-        mock_checkout.assert_called_once_with("standard_monthly", "user@test.com")
-
-    @patch("billing.tools.generate_checkout_link.create_checkout_session")
-    def test_annual_plan_shows_savings(self, mock_checkout):
-        mock_checkout.return_value = "https://checkout.creem.io/sess_def"
-
-        from billing.tools.generate_checkout_link import generate_checkout_link
-
-        result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "standard_annual"}
-        )
-
-        assert "save 33%" in result
-        assert "$80/yr" in result
+        mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
     def test_invalid_plan_returns_error(self):
         from billing.tools.generate_checkout_link import generate_checkout_link
@@ -118,7 +89,7 @@ class TestGenerateCheckoutLink:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "allstar_monthly"}
+            {"user_email": "user@test.com", "plan": "hosted_monthly"}
         )
 
         assert "couldn't generate" in result
@@ -132,9 +103,8 @@ class TestGeneratePortalLink:
             "user@test.com",
             "cus_789",
             "sub_123",
-            "standard",
+            "hosted",
             "active",
-            None,
             None,
             None,
         )
@@ -163,15 +133,13 @@ class TestGeneratePortalLink:
             "user@test.com",
             None,
             None,
-            "trialing",
-            "trialing",
-            None,
-            None,
+            "free",
+            "active",
             None,
         )
 
         from billing.tools.generate_portal_link import generate_portal_link
 
-        result = generate_portal_link.invoke({"user_email": "trial@test.com"})
+        result = generate_portal_link.invoke({"user_email": "free@test.com"})
 
         assert "No active subscription" in result

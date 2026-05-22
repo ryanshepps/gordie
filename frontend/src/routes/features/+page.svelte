@@ -28,7 +28,7 @@
 				name: 'Is Gordie free?',
 				acceptedAnswer: {
 					'@type': 'Answer',
-					text: 'Yes — Gordie is free during the beta period. No credit card required.'
+					text: 'Gordie is free for digest updates on one team. The hosted upgrade is $10/month for questions and up to three teams.'
 				}
 			},
 			{
@@ -45,7 +45,7 @@
 	const features = [
 		{
 			title: 'Lineup Optimization',
-			description: 'Gordie analyzes matchups, recent performance, and rest days to recommend your optimal daily lineup. No more second-guessing who to start.',
+			description: 'Hosted users can ask Gordie to analyze matchups, recent performance, and rest days for lineup recommendations.',
 			details: [
 				'Accounts for back-to-back games and rest schedules',
 				'Weights recent hot/cold streaks',
@@ -63,7 +63,7 @@
 		},
 		{
 			title: 'Trade Evaluation',
-			description: 'Describe a trade you\'re considering and Gordie breaks down the value on both sides, factoring in schedule, category impact, and playoff outlook.',
+			description: 'Hosted users can describe a trade they\'re considering and Gordie breaks down the value on both sides, factoring in schedule, category impact, and playoff outlook.',
 			details: [
 				'Category-by-category impact analysis',
 				'Rest-of-season projections for players involved',

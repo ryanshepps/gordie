@@ -8,23 +8,16 @@ from module.logger import get_logger
 
 logger = get_logger(__name__)
 
-VALID_PLANS = frozenset(
-    {"standard_monthly", "standard_annual", "allstar_monthly", "allstar_annual"}
-)
+VALID_PLANS = frozenset({"hosted_monthly"})
 
 PLAN_DESCRIPTIONS: dict[str, str] = {
-    "standard_monthly": "Standard ($10/mo)",
-    "standard_annual": "Standard ($80/yr — save 33%)",
-    "allstar_monthly": "All-Star ($18/mo)",
-    "allstar_annual": "All-Star ($144/yr — save 33%)",
+    "hosted_monthly": "Hosted ($10/mo)",
 }
 
 
 class GenerateCheckoutLinkInput(BaseModel):
     user_email: str = Field(description="User's email address")
-    plan: str = Field(
-        description="Plan to generate checkout for: standard_monthly, standard_annual, allstar_monthly, or allstar_annual"
-    )
+    plan: str = Field(description="Plan to generate checkout for: hosted_monthly")
 
 
 @tool(args_schema=GenerateCheckoutLinkInput)
@@ -34,12 +27,11 @@ def generate_checkout_link(user_email: str, plan: str) -> str:
     Use this tool when:
     - User wants to upgrade to a paid plan
     - User asks how to subscribe or pay
-    - User wants to switch from monthly to annual or vice versa
     - You need to include a checkout link in an upgrade suggestion
 
     Args:
         user_email: User's email address
-        plan: One of: standard_monthly, standard_annual, allstar_monthly, allstar_annual
+        plan: hosted_monthly
 
     Returns:
         Checkout URL the user can visit to complete payment

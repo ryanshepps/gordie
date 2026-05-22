@@ -7,12 +7,6 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
-def expire_trials_and_notify() -> None:
-    from billing import expire_trials_and_notify as _billing_expire
-
-    _billing_expire()
-
-
 def cleanup_expired_pending_oauth() -> None:
     """Delete pending OAuth records older than 24 hours."""
     from data.pending_oauth_repository import PendingOAuthRepository
@@ -129,17 +123,6 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         misfire_grace_time=3600,
     )
     logger.info("Registered scheduled job: news_digest (Daily at 8:00 AM UTC)")
-
-    scheduler.add_job(
-        func=expire_trials_and_notify,
-        trigger="cron",
-        hour=6,
-        minute=0,
-        id="expire_trials",
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
-    logger.info("Registered scheduled job: expire_trials (daily at 6:00 AM UTC)")
 
     scheduler.add_job(
         func=cleanup_expired_pending_oauth,

@@ -14,14 +14,14 @@
 			'@type': 'Offer',
 			price: '0',
 			priceCurrency: 'USD',
-			description: 'Free during beta'
+			description: 'Free digest updates for one team'
 		}
 	};
 
 	const features = [
 		{
 			title: 'Lineup Optimization',
-			description: 'Get daily lineup recommendations based on matchups, recent performance, and rest schedules.',
+			description: 'Upgrade to ask Gordie for lineup recommendations based on matchups, recent performance, and rest schedules.',
 		},
 		{
 			title: 'Waiver Wire Alerts',
@@ -29,7 +29,7 @@
 		},
 		{
 			title: 'Trade Evaluation',
-			description: 'Ask Gordie about any trade and get an honest breakdown of value for both sides.',
+			description: 'Hosted users can ask Gordie about trades and get an honest breakdown of value for both sides.',
 		},
 		{
 			title: 'Weekly Digests',
@@ -53,7 +53,7 @@
 	const steps = [
 		{ step: '1', title: 'Sign up with your email', description: 'Enter your email below and Gordie will reach out.' },
 		{ step: '2', title: 'Connect your league', description: 'Link your Yahoo Fantasy account so Gordie can see your roster.' },
-		{ step: '3', title: 'Email Gordie anytime', description: 'Ask questions, get advice, or just chat fantasy. Gordie replies like a knowledgeable friend.' }
+		{ step: '3', title: 'Get updates or upgrade', description: 'Stay free for one-team digests, or upgrade to ask Gordie questions and connect up to three teams.' }
 	];
 </script>
 
@@ -68,7 +68,7 @@
 	<div class="container hero-inner">
 		<h1 class="gradient-text">Your AI fantasy sports assistant</h1>
 		<p class="hero-sub">
-			Gordie gives you lineup advice, waiver wire picks, trade evaluations, and weekly digests — delivered straight to your inbox.
+			Gordie sends free digest updates for one fantasy team. Upgrade to ask questions and connect up to three teams.
 		</p>
 		<SignupForm />
 	</div>
