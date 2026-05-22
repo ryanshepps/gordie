@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
+from data.models import Medium
 from data.user_repository import UserRepository
 from module.logger import get_logger
 
@@ -26,14 +28,13 @@ DeliveryChannel = EmailDelivery | SmsDelivery
 def resolve_delivery_channel(user_email: str) -> DeliveryChannel:
     repo = UserRepository()
     try:
-        user = repo.get_user(user_email)
+        user = repo.get_by_identity(Medium.EMAIL, user_email)
         if not user:
             return EmailDelivery()
 
-        phone_number = user[2]
-        sms_opted_out = user[3]
+        phone_number = repo.get_identity_external_id(UUID(str(user[0])), Medium.SMS)
 
-        if phone_number and not sms_opted_out:
+        if phone_number and not repo.is_sms_opted_out(phone_number):
             return SmsDelivery(phone_number=phone_number)
 
         return EmailDelivery()

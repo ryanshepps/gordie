@@ -278,12 +278,16 @@ def _handle_subscription_paused(
 
 
 def _send_subscription_confirmation(email: str, tier: str, logger: logging.Logger) -> None:
+    from uuid import UUID
+
+    from data.models import Medium
+
     user_repo = UserRepository()
     try:
-        user = user_repo.get_user(email)
+        user = user_repo.get_by_identity(Medium.EMAIL, email)
         if not user:
             return
-        phone_number = user[1]
+        phone_number = user_repo.get_identity_external_id(UUID(str(user[0])), Medium.SMS)
         if not phone_number:
             return
     finally:

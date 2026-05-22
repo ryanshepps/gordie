@@ -3,7 +3,9 @@
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from data.models import Medium
 from data.repository import DatabaseRow, Repository
+from data.user_repository import UserRepository
 
 
 class YahooUserTeamRepository(Repository):
@@ -26,11 +28,12 @@ class YahooUserTeamRepository(Repository):
             user_email: User's email address
             team_name: Name of the team
         """
+        user_id = UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
         self.upsert(
-            conflict_columns=["league_id", "team_id", "user_email"],
+            conflict_columns=["league_id", "team_id", "user_id"],
             league_id=league_id,
             team_id=team_id,
-            user_email=user_email,
+            user_id=user_id,
             team_name=team_name,
         )
 
@@ -43,7 +46,54 @@ class YahooUserTeamRepository(Repository):
         Returns:
             List of team records
         """
-        return self.get_all(user_email=user_email)
+        return list(
+            self.session.execute(
+                text(
+                    """
+                    SELECT
+                        yut.league_id,
+                        yut.team_id,
+                        ui.external_id AS user_email,
+                        yut.team_name,
+                        yut.created_at
+                    FROM yahoo_user_teams yut
+                    JOIN user_identities ui
+                        ON ui.user_id = yut.user_id
+                        AND ui.medium = :medium
+                    WHERE ui.external_id = :user_email
+                    """
+                ),
+                {"medium": Medium.EMAIL.value, "user_email": user_email},
+            ).fetchall()
+        )
+
+    def get_user_teams_for_league(self, user_email: str, league_id: str) -> list[DatabaseRow]:
+        """Get a user's team records for one league."""
+        return list(
+            self.session.execute(
+                text(
+                    """
+                    SELECT
+                        yut.league_id,
+                        yut.team_id,
+                        ui.external_id AS user_email,
+                        yut.team_name,
+                        yut.created_at
+                    FROM yahoo_user_teams yut
+                    JOIN user_identities ui
+                        ON ui.user_id = yut.user_id
+                        AND ui.medium = :medium
+                    WHERE ui.external_id = :user_email
+                        AND yut.league_id = :league_id
+                    """
+                ),
+                {
+                    "medium": Medium.EMAIL.value,
+                    "user_email": user_email,
+                    "league_id": league_id,
+                },
+            ).fetchall()
+        )
 
     def get_user_teams_with_league_info(self, user_email: str) -> list[dict[str, str]]:
         """Get all teams for a user with league details.
@@ -70,10 +120,13 @@ class YahooUserTeamRepository(Repository):
                     yl.league_type
                 FROM yahoo_user_teams yut
                 JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
-                WHERE yut.user_email = :user_email
+                JOIN user_identities ui
+                    ON ui.user_id = yut.user_id
+                    AND ui.medium = :medium
+                WHERE ui.external_id = :user_email
                 """
             ),
-            {"user_email": user_email},
+            {"medium": Medium.EMAIL.value, "user_email": user_email},
         ).fetchall()
 
         return [

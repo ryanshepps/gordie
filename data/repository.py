@@ -1,6 +1,7 @@
 """Generic repository base class for database operations."""
 
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.engine import Row
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from data.database import get_session
 
-FilterValue = str | int | float | bool | None | datetime
+FilterValue = str | int | float | bool | None | datetime | UUID
 DatabaseRow = Row[tuple[object, ...]]
 
 

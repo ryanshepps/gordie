@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
+from data.models import Medium
 from data.pending_oauth_repository import PendingOAuthRepository
 from module.logger import get_logger
 
@@ -51,8 +52,8 @@ def generate_oauth_link(user_email: str, thread_id: str, channel: str = "email")
         pending_id = repo.create(
             nonce=nonce,
             thread_id=thread_id,
-            channel=channel,
-            user_email=user_email,
+            medium=Medium(channel),
+            external_id=user_email,
         )
     finally:
         repo.close()

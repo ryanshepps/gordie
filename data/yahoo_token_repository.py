@@ -3,8 +3,9 @@
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from data.database import get_session
+from data.models import Medium
 from data.repository import DatabaseRow, Repository
+from data.user_repository import UserRepository
 
 
 class YahooTokenRepository(Repository):
@@ -37,9 +38,10 @@ class YahooTokenRepository(Repository):
             token_time: Timestamp when token was issued
             token_type: Token type (default: "Bearer")
         """
+        user_id = UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
         self.upsert(
-            ["user_email"],
-            user_email=user_email,
+            ["user_id"],
+            user_id=user_id,
             yahoo_email=yahoo_email,
             access_token=access_token,
             refresh_token=refresh_token,
@@ -56,7 +58,27 @@ class YahooTokenRepository(Repository):
         Returns:
             Token record or None if not found
         """
-        return self.get_by(user_email=user_email)
+        return self.session.execute(
+            text(
+                """
+                SELECT
+                    ui.external_id AS user_email,
+                    yt.yahoo_email,
+                    yt.access_token,
+                    yt.refresh_token,
+                    yt.token_time,
+                    yt.token_type,
+                    yt.updated_at,
+                    yt.created_at
+                FROM yahoo_tokens yt
+                JOIN user_identities ui
+                    ON ui.user_id = yt.user_id
+                    AND ui.medium = :medium
+                WHERE ui.external_id = :user_email
+                """
+            ),
+            {"medium": Medium.EMAIL.value, "user_email": user_email},
+        ).fetchone()
 
 
 def load_tokens_from_db(user_email: str) -> dict[str, str] | None:
@@ -92,23 +114,6 @@ def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, str]) -
         yahoo_email: Yahoo email address
         token_data: Dictionary containing access_token, refresh_token, token_time, token_type
     """
-    # Ensure user exists first
-    session = get_session()
-    try:
-        session.execute(
-            text(
-                """
-                INSERT INTO users (email) VALUES (:email)
-                ON CONFLICT (email) DO NOTHING
-                """
-            ),
-            {"email": user_email},
-        )
-        session.commit()
-    finally:
-        session.close()
-
-    # Save tokens using repository
     repo = YahooTokenRepository()
     try:
         repo.save_token(

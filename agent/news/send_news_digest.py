@@ -139,7 +139,7 @@ def _send_user_digest(
 
     team_repo = YahooUserTeamRepository()
     try:
-        teams = team_repo.get_all(user_email=user_email, league_id=league_id)
+        teams = team_repo.get_user_teams_for_league(user_email, league_id)
         if not teams:
             logger.warning(f"No team found for {user_email} in league {league_id}")
             return False

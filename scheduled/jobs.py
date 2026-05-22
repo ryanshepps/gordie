@@ -45,27 +45,18 @@ def cleanup_pending_users() -> None:
 
 
 def cleanup_processed_messages() -> None:
-    """Delete processed_sms and processed_emails records older than 24 hours."""
-    from sqlalchemy import text
+    """Delete processed inbound message records older than 24 hours."""
+    from data.processed_inbound_message_repository import ProcessedInboundMessageRepository
 
-    from data.database import get_session
-
-    session = get_session()
+    repo = ProcessedInboundMessageRepository()
     try:
-        for table in ("processed_sms", "processed_emails"):
-            session.execute(
-                text(
-                    f"DELETE FROM {table} WHERE created_at < NOW() - MAKE_INTERVAL(hours => :hours)"
-                ),
-                {"hours": 24},
-            )
-        session.commit()
+        repo.cleanup_expired(max_age_hours=24)
         logger.info("Cleaned up expired processed message records")
     except Exception as e:
-        session.rollback()
+        repo.session.rollback()
         logger.error(f"Failed to clean up processed messages: {e}")
     finally:
-        session.close()
+        repo.close()
 
 
 def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
