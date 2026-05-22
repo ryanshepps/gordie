@@ -38,7 +38,7 @@ def generate_checkout_link(user_email: str, plan: str) -> str:
         Checkout URL the user can visit to complete payment
     """
     if plan not in VALID_PLANS:
-        return f"Invalid plan '{plan}'. Valid plans: {', '.join(sorted(VALID_PLANS))}"
+        return f"Invalid plan. Valid plans: {', '.join(sorted(VALID_PLANS))}"
 
     try:
         checkout_url = create_checkout_session(plan, user_email)

@@ -83,6 +83,16 @@ class TestGenerateCheckoutLink:
 
         assert "Invalid plan" in result
 
+    def test_allstar_plan_is_not_valid(self) -> None:
+        from billing.tools.generate_checkout_link import generate_checkout_link
+
+        result = generate_checkout_link.invoke(
+            {"user_email": "user@test.com", "plan": "allstar_monthly"}
+        )
+
+        assert "Invalid plan" in result
+        assert "allstar" not in result.lower()
+
     @patch(
         "billing.tools.generate_checkout_link.create_checkout_session",
         side_effect=RequestException("API error"),

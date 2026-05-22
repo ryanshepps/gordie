@@ -58,6 +58,13 @@ class TestGetUserTier:
         assert get_user_tier("user@test.com") == "hosted"
 
     @patch("billing.tier.SubscriptionRepository")
+    def test_unsupported_tier_returns_free(self, mock_repo_cls) -> None:
+        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
+            tier="allstar", status="active"
+        )
+        assert get_user_tier("user@test.com") == "free"
+
+    @patch("billing.tier.SubscriptionRepository")
     def test_canceled_with_future_period_keeps_hosted(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted",
