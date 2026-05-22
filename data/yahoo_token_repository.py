@@ -1,9 +1,7 @@
 """Repository class for Yahoo OAuth token records."""
 
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from data.database import get_session
 from data.repository import DatabaseRow, Repository
 
 
@@ -92,23 +90,6 @@ def save_tokens(user_email: str, yahoo_email: str, token_data: dict[str, str]) -
         yahoo_email: Yahoo email address
         token_data: Dictionary containing access_token, refresh_token, token_time, token_type
     """
-    # Ensure user exists first
-    session = get_session()
-    try:
-        session.execute(
-            text(
-                """
-                INSERT INTO users (email) VALUES (:email)
-                ON CONFLICT (email) DO NOTHING
-                """
-            ),
-            {"email": user_email},
-        )
-        session.commit()
-    finally:
-        session.close()
-
-    # Save tokens using repository
     repo = YahooTokenRepository()
     try:
         repo.save_token(
