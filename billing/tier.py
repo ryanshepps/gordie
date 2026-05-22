@@ -51,6 +51,11 @@ class BillingStatus(TypedDict):
 
 
 def _resolve_billing_state(sub: DatabaseRow | None) -> tuple[str, str]:
+    """Resolve billing state from a subscription row.
+
+    Legacy paid and trial tiers are treated as free for backward compatibility.
+    Only the hosted tier remains a paid tier in the simplified billing model.
+    """
     if not sub:
         return ("free", "expired")
 
