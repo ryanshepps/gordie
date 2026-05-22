@@ -69,7 +69,7 @@ SUPPORTED_SPORTS: set[str] = {"nhl", "mlb", "nfl", "nba"}
 
 
 def fetch_supported_teams(user_id: str) -> list[dict[str, str]]:
-    available_teams_str = get_user_leagues.invoke({"user_id": user_id})
+    available_teams_str = get_user_leagues.invoke({"state": {"user_id": user_id}})
 
     if available_teams_str.startswith("Error"):
         raise RuntimeError(f"Failed to fetch user leagues: {available_teams_str}")
