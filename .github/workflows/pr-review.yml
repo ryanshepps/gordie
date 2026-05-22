@@ -1,0 +1,36 @@
+---
+name: PR Review by OpenHands
+
+on:
+  # pull_request_target lets maintainer-triggered reviews access repository
+  # secrets for fork PRs. Only write-access users can add labels or request
+  # reviewers, so review untrusted PRs before triggering this workflow.
+  pull_request_target:
+    types: [labeled, review_requested]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  pr-review:
+    name: OpenHands PR Review
+    if: |
+      github.event.label.name == 'review-this' ||
+      github.event.requested_reviewer.login == 'openhands-agent' ||
+      github.event.requested_reviewer.login == 'all-hands-bot'
+    concurrency:
+      group: pr-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Run PR Review
+        uses: OpenHands/extensions/plugins/pr-review@main
+        with:
+          llm-model: anthropic/claude-sonnet-4-5-20250929
+          llm-base-url: ''
+          extensions-version: main
+          llm-api-key: ${{ secrets.LLM_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
