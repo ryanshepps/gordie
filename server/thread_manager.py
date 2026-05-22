@@ -3,8 +3,6 @@
 from sqlalchemy import text
 
 from data.database import get_session
-from data.models import Medium
-from data.user_repository import UserRepository
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,15 +50,12 @@ def get_thread_subject(thread_id: str) -> str | None:
 def save_message_id_mapping(
     message_id: str,
     thread_id: str,
-    user_email: str,
+    user_id: str,
     subject: str | None = None,
 ) -> None:
     """Save a Message-ID to thread_id mapping for email threading."""
     session = get_session()
     try:
-        user_repo = UserRepository(session)
-        user_id = user_repo.resolve_user_id(Medium.EMAIL, user_email, user_email)
-
         session.execute(
             text(
                 """

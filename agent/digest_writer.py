@@ -8,6 +8,7 @@ from agent.news.news_digest import NewsDigest
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.persona import PERSONA
 from agent.prompts.phrasebook import PHRASEBOOK
+from data.models import Medium
 from data.pydantic_models import DigestData
 from module.llm import make_llm
 from module.logger import get_logger
@@ -20,18 +21,18 @@ class DigestType(Enum):
     NEWS = "news"
 
 
-WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
-    (DigestType.WEEKLY, "email"): (
+WRITING_INSTRUCTIONS: dict[tuple[DigestType, Medium], str] = {
+    (DigestType.WEEKLY, Medium.EMAIL): (
         "Write like you're texting your fantasy sports buddy after watching a week of games. "
         "Cover matchup, top/bottom performers, injuries, free agent tips, schedule advice. "
         "Keep it under 600 words."
     ),
-    (DigestType.WEEKLY, "sms"): (
+    (DigestType.WEEKLY, Medium.SMS): (
         "Write like you're texting your fantasy sports buddy after watching a week of games. "
         "Cover the most important highlights: matchup, top performers, key injuries. "
         "No markdown. Keep it under 200 words."
     ),
-    (DigestType.NEWS, "email"): (
+    (DigestType.NEWS, Medium.EMAIL): (
         "Write like you're DMing breaking news that affects their team. "
         "Urgent, direct, actionable. Keep it under 400 words.\n\n"
         "RULES:\n"
@@ -44,7 +45,7 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
         "- Use the injury alert fields (has_game_today, is_new_injury, already_on_ir_slot) to guide tone\n"
         '- Do NOT end with questions, offers to help, or calls to action (e.g. "Want me to check waivers?"). Just deliver the news and sign off.'
     ),
-    (DigestType.NEWS, "sms"): (
+    (DigestType.NEWS, Medium.SMS): (
         "Write like you're DMing breaking news that affects their team. "
         "Urgent, direct, actionable. No markdown. Keep it under 150 words.\n\n"
         "RULES:\n"
@@ -59,16 +60,21 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, str], str] = {
 }
 
 
-def _build_system_prompt(digest_type: DigestType, channel: str = "email") -> str:
-    channel_guidelines = get_channel_guidelines(channel)
-    instructions = WRITING_INSTRUCTIONS[(digest_type, channel)]
+def _coerce_medium(channel: Medium | str) -> Medium:
+    return channel if isinstance(channel, Medium) else Medium(channel)
+
+
+def _build_system_prompt(digest_type: DigestType, channel: Medium | str = Medium.EMAIL) -> str:
+    medium = _coerce_medium(channel)
+    channel_guidelines = get_channel_guidelines(medium)
+    instructions = WRITING_INSTRUCTIONS[(digest_type, medium)]
     return f"{PERSONA}\n{PHRASEBOOK}\n\n{channel_guidelines}\n\n# TASK\n{instructions}"
 
 
 def write_digest_content(
     digest_data: DigestData | NewsDigest,
     digest_type: DigestType,
-    channel: str = "email",
+    channel: Medium | str = Medium.EMAIL,
 ) -> str:
     system_prompt = _build_system_prompt(digest_type, channel)
     user_message = (

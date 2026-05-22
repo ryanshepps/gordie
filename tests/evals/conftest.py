@@ -8,9 +8,18 @@ from typing import Any
 
 import pytest
 from langchain_core.messages import AIMessage
+from langgraph.checkpoint.memory import InMemorySaver
 from pytest_mock import MockerFixture
 
 from agent.agent_state import AgentState
+from data.models import Medium
+
+EVAL_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+
+@pytest.fixture(autouse=True)
+def in_memory_supervisor_checkpointer(mocker: MockerFixture) -> None:
+    mocker.patch("agent.SupervisorAgent.checkpointer", InMemorySaver())
 
 
 def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):
@@ -150,13 +159,13 @@ def mock_yahoo_tools(
         }
     ]
     mock_get_user_teams = mocker.patch(
-        "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+        "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
         return_value=mock_teams,
     )
 
     # Mock OAuth tokens to simulate authenticated user
     mocker.patch(
-        "data.yahoo_token_repository.load_tokens_from_db",
+        "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
         return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
     )
 
@@ -219,7 +228,9 @@ def mock_user_state() -> AgentState:
     """Base user state for evals."""
     return AgentState(
         messages=[],
-        user_email="test@example.com",
+        user_id=EVAL_USER_ID,
+        external_id="test@example.com",
+        channel=Medium.EMAIL,
         league_id="12345",
         team_id="1",
         thread_id=str(uuid.uuid4()),

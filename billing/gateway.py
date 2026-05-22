@@ -2,6 +2,8 @@
 
 from typing import Protocol, runtime_checkable
 
+from data.models import Medium
+
 
 @runtime_checkable
 class BillingGateway(Protocol):
@@ -9,8 +11,8 @@ class BillingGateway(Protocol):
     def check_usage_allowed(self, email: str, action: str) -> tuple[bool, str]: ...
     def check_league_limit(self, email: str) -> tuple[bool, str]: ...
     def get_user_tier(self, email: str) -> str: ...
-    def build_billing_context(self, email: str, reason: str, channel: str) -> str: ...
-    def build_upgrade_message(self, email: str, reason: str, channel: str) -> str: ...
+    def build_billing_context(self, email: str, reason: str, channel: Medium | str) -> str: ...
+    def build_upgrade_message(self, email: str, reason: str, channel: Medium | str) -> str: ...
 
 
 class NullBillingGateway:
@@ -31,10 +33,10 @@ class NullBillingGateway:
     def get_user_tier(self, email: str) -> str:
         return "free"
 
-    def build_billing_context(self, email: str, reason: str, channel: str) -> str:
+    def build_billing_context(self, email: str, reason: str, channel: Medium | str) -> str:
         return ""
 
-    def build_upgrade_message(self, email: str, reason: str, channel: str) -> str:
+    def build_upgrade_message(self, email: str, reason: str, channel: Medium | str) -> str:
         return reason
 
 
@@ -61,12 +63,12 @@ class CreemBillingGateway:
 
         return get_user_tier(email)
 
-    def build_billing_context(self, email: str, reason: str, channel: str) -> str:
+    def build_billing_context(self, email: str, reason: str, channel: Medium | str) -> str:
         from billing.tier import build_billing_context
 
         return build_billing_context(email, reason, channel)
 
-    def build_upgrade_message(self, email: str, reason: str, channel: str) -> str:
+    def build_upgrade_message(self, email: str, reason: str, channel: Medium | str) -> str:
         from billing.tier import build_upgrade_message
 
         return build_upgrade_message(email, reason, channel)

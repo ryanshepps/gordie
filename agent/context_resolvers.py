@@ -14,16 +14,15 @@ def sanitize_namespace_label(label: str) -> str:
     return label.replace(".", "_dot_")
 
 
-def is_first_time_user(user_email: str, memory_store: BaseStore) -> bool:
+def is_first_time_user(user_id: str, memory_store: BaseStore) -> bool:
     try:
-        sanitized_email = sanitize_namespace_label(user_email)
-        namespace = ("memories", sanitized_email)
+        namespace = ("memories", user_id)
         results = memory_store.search(namespace, query="", limit=1)
 
         if results and len(results) > 0:
             return False
 
-        logger.info(f"First time user: {user_email}")
+        logger.info(f"First time user: {user_id}")
         return True
 
     except Exception as e:
@@ -31,10 +30,10 @@ def is_first_time_user(user_email: str, memory_store: BaseStore) -> bool:
         return False
 
 
-def check_oauth_status(user_email: str) -> bool:
-    from data.yahoo_token_repository import load_tokens_from_db
+def check_oauth_status(user_id: str) -> bool:
+    from data.yahoo_token_repository import load_tokens_from_db_by_user_id
 
-    user_tokens = load_tokens_from_db(user_email)
+    user_tokens = load_tokens_from_db_by_user_id(user_id)
     return user_tokens is not None
 
 
@@ -69,8 +68,8 @@ def resolve_team_context(
 SUPPORTED_SPORTS: set[str] = {"nhl", "mlb", "nfl", "nba"}
 
 
-def fetch_supported_teams(user_email: str) -> list[dict[str, str]]:
-    available_teams_str = get_user_leagues.invoke({"user_email": user_email})
+def fetch_supported_teams(user_id: str) -> list[dict[str, str]]:
+    available_teams_str = get_user_leagues.invoke({"user_id": user_id})
 
     if available_teams_str.startswith("Error"):
         raise RuntimeError(f"Failed to fetch user leagues: {available_teams_str}")
@@ -103,12 +102,12 @@ def format_teams_for_display(teams: list[dict[str, str]]) -> str:
     return "\n\n".join(teams_list)
 
 
-def auto_onboard_team(user_email: str, team: dict[str, str]) -> dict[str, str]:
-    logger.info(f"Auto-onboarding single active team '{team['team_name']}' for {user_email}")
+def auto_onboard_team(user_id: str, team: dict[str, str]) -> dict[str, str]:
+    logger.info(f"Auto-onboarding single active team '{team['team_name']}' for user_id={user_id}")
 
     onboard_user_team.invoke(
         {
-            "user_email": user_email,
+            "user_id": user_id,
             "game_key": team["game_key"],
             "game_code": team.get("sport", "nhl"),
             "league_id": int(team["league_id"]),

@@ -1,11 +1,13 @@
 """Yahoo Fantasy scoring, matchup, and standings data tool."""
 
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 from tools.yahoo_stats.serializer import (
     serialize_generic,
     serialize_matchup,
@@ -27,10 +29,10 @@ VALID_METHODS = {
 
 @tool
 def yahoo_scoring(
-    user_email: str,
     league_id: str,
     method: str,
     params_json: str = "{}",
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """Query Yahoo Fantasy scoring, matchup, and standings data.
 
@@ -65,7 +67,6 @@ def yahoo_scoring(
       Returns: Standings for the specified team.
 
     Args:
-        user_email: User's email for OAuth token lookup.
         league_id: Yahoo league ID.
         method: One of the available methods listed above.
         params_json: JSON string of method parameters (default: "{}").
@@ -78,7 +79,7 @@ def yahoo_scoring(
             {"error": f"Invalid method '{method}'. Valid methods: {sorted(VALID_METHODS)}"}
         )
 
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=get_user_id(state))
     params: dict[str, str | int | float] = json.loads(params_json)
 
     try:

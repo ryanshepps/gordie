@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 
-from agent.channels.text_utils import strip_markdown
 from agent.context_types import Sport
 from agent.digest_writer import DigestType, write_digest_content
 from agent.news.lineup_analyzer import analyze_lineup, parse_roster_position_configs
@@ -13,12 +12,15 @@ from agent.prompts.sport_context import get_digest_label
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.news.sport_clients import get_news_clients
 from data.digest_injury_state_repository import DigestInjuryStateRepository
+from data.models import Medium
 from data.notification_preference_repository import NotificationPreferenceRepository
+from data.user_repository import UserRepository
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
 from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
 from scheduled.job_runner import JobResult, _record_digest_delivery, is_user_eligible_for_digest
+from server.adapters.text_utils import strip_markdown
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
 from server.sms_service import SmsService
@@ -228,10 +230,11 @@ def _send_news_email(
     if result.success:
         if result.message_id:
             thread_id = f"{user_email}:{uuid.uuid4().hex[:12]}"
+            user_id = UserRepository().resolve_user_id(Medium.EMAIL, user_email, user_email)
             save_message_id_mapping(
                 message_id=result.message_id,
                 thread_id=thread_id,
-                user_email=user_email,
+                user_id=str(user_id),
                 subject=f"Daily {digest_label} News - {league_name}",
             )
         logger.info(f"Sent news digest to {user_email} for league {league_name}")

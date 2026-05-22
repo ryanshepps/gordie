@@ -1,13 +1,14 @@
 """Tool to get Yahoo Fantasy league-specific information for players."""
 
 import json
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import quote
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
@@ -119,9 +120,9 @@ def _find_player_rank(
 
 @tool
 def get_player_yahoo_info(
-    user_email: str,
     league_id: str,
     player_names: list[str],
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """
     Get Yahoo Fantasy league-specific information for players.
@@ -129,7 +130,6 @@ def get_player_yahoo_info(
     This tool looks up fantasy-specific data that varies by league.
 
     Args:
-        user_email: User's email for Yahoo authentication
         league_id: Yahoo league ID
         player_names: List of player names to look up
 
@@ -145,7 +145,7 @@ def get_player_yahoo_info(
         yahoo_rank is specific to this league's scoring settings.
         A player ranked #50 in one league may be #100 in another.
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=get_user_id(state))
 
     try:
         league_key = yahoo_client.query.get_league_key()

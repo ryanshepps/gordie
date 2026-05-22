@@ -90,8 +90,9 @@ def register_signup_routes(app):
                     message_agent(
                         message="Hi! I just signed up on the website. I'd like to get started with Gordie.",
                         thread_id=thread_info.thread_id,
-                        channel="email",
-                        user_email=email,
+                        channel=Medium.EMAIL,
+                        user_id=str(user_id),
+                        external_id=email,
                         original_subject="Welcome to Gordie",
                     )
                     logger.info(f"Signup agent processing complete for {email}")

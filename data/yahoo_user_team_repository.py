@@ -1,5 +1,7 @@
 """Repository class for Yahoo user team records."""
 
+from uuid import UUID
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -29,6 +31,12 @@ class YahooUserTeamRepository(Repository):
             team_name: Name of the team
         """
         user_id = UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
+        self.add_team_by_user_id(league_id, team_id, user_id, team_name)
+
+    def add_team_by_user_id(
+        self, league_id: str, team_id: str, user_id: UUID, team_name: str
+    ) -> None:
+        """Add a user's Yahoo Fantasy team by canonical user ID."""
         self.upsert(
             conflict_columns=["league_id", "team_id", "user_id"],
             league_id=league_id,
@@ -127,6 +135,38 @@ class YahooUserTeamRepository(Repository):
                 """
             ),
             {"medium": Medium.EMAIL.value, "user_email": user_email},
+        ).fetchall()
+
+        return [
+            {
+                "league_id": str(row[0]),
+                "team_id": str(row[1]),
+                "team_name": str(row[2]),
+                "game_key": str(row[3]),
+                "league_name": str(row[4]),
+                "sport": str(row[5]),
+            }
+            for row in result
+        ]
+
+    def get_user_teams_with_league_info_by_user_id(self, user_id: UUID) -> list[dict[str, str]]:
+        """Get all teams for a canonical user with league details."""
+        result = self.session.execute(
+            text(
+                """
+                SELECT
+                    yut.league_id,
+                    yut.team_id,
+                    yut.team_name,
+                    yl.game_key,
+                    yl.league_name,
+                    yl.league_type
+                FROM yahoo_user_teams yut
+                JOIN yahoo_leagues yl ON yut.league_id = yl.league_id
+                WHERE yut.user_id = :user_id
+                """
+            ),
+            {"user_id": user_id},
         ).fetchall()
 
         return [

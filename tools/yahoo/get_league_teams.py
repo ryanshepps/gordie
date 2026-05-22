@@ -1,19 +1,21 @@
 """Tool to get all teams in a fantasy league with their managers."""
 
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
 
 @tool
 def get_league_teams(
-    user_email: str,
     league_id: str,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """
     Get all teams in a fantasy league with their managers.
@@ -22,14 +24,13 @@ def get_league_teams(
     for proposing trades to specific managers.
 
     Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
         league_id: Yahoo league ID
 
     Returns:
         JSON string with all teams in the league including team names, manager names,
         team IDs, and standings information.
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=get_user_id(state))
 
     try:
         teams = yahoo_client.query.get_league_teams()

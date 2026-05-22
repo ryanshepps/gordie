@@ -26,14 +26,19 @@ def _billing_status(
     )
 
 
+USER_STATE = {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}}
+
+
 class TestGetSubscriptionStatus:
-    @patch("billing.tools.get_subscription_status.get_billing_status")
+    @patch("billing.tools.get_subscription_status.get_billing_status_by_user_id")
     def test_free_user_includes_current_limits(self, mock_billing) -> None:
         mock_billing.return_value = _billing_status(leagues_connected=1)
 
         from billing.tools.get_subscription_status import get_subscription_status
 
-        result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
+        result = json.loads(
+            get_subscription_status.func(state=USER_STATE["state"])  # pyright: ignore[reportAttributeAccessIssue]
+        )
 
         assert result["tier"] == "free"
         assert result["questions_allowed"] is False
@@ -42,7 +47,7 @@ class TestGetSubscriptionStatus:
         assert result["plans"]["hosted"]["price"] == "$10/mo"
         assert result["plans"]["free"]["digests"] == "Yes"
 
-    @patch("billing.tools.get_subscription_status.get_billing_status")
+    @patch("billing.tools.get_subscription_status.get_billing_status_by_user_id")
     def test_hosted_user_includes_period_end(self, mock_billing) -> None:
         mock_billing.return_value = _billing_status(
             tier="hosted",
@@ -55,21 +60,24 @@ class TestGetSubscriptionStatus:
 
         from billing.tools.get_subscription_status import get_subscription_status
 
-        result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
+        result = json.loads(
+            get_subscription_status.func(state=USER_STATE["state"])  # pyright: ignore[reportAttributeAccessIssue]
+        )
 
         assert result["questions_allowed"] is True
         assert result["current_period_ends"] == "2026-04-15"
 
 
 class TestGenerateCheckoutLink:
+    @patch("billing.tools.generate_checkout_link._email_for_user_id", return_value="user@test.com")
     @patch("billing.tools.generate_checkout_link.create_checkout_session")
-    def test_valid_plan_returns_url(self, mock_checkout) -> None:
+    def test_valid_plan_returns_url(self, mock_checkout, _mock_email) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/sess_abc"
 
         from billing.tools.generate_checkout_link import generate_checkout_link
 
-        result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "hosted_monthly"}
+        result = generate_checkout_link.func(  # pyright: ignore[reportAttributeAccessIssue]
+            "hosted_monthly", state=USER_STATE["state"]
         )
 
         assert "https://checkout.creem.io/sess_abc" in result
@@ -79,29 +87,30 @@ class TestGenerateCheckoutLink:
     def test_invalid_plan_returns_error(self) -> None:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
-        result = generate_checkout_link.invoke({"user_email": "user@test.com", "plan": "platinum"})
+        result = generate_checkout_link.invoke({**USER_STATE, "plan": "platinum"})
 
         assert "Invalid plan" in result
 
     def test_allstar_plan_is_not_valid(self) -> None:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
-        result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "allstar_monthly"}
+        result = generate_checkout_link.func(  # pyright: ignore[reportAttributeAccessIssue]
+            "allstar_monthly", state=USER_STATE["state"]
         )
 
         assert "Invalid plan" in result
         assert "allstar" not in result.lower()
 
+    @patch("billing.tools.generate_checkout_link._email_for_user_id", return_value="user@test.com")
     @patch(
         "billing.tools.generate_checkout_link.create_checkout_session",
         side_effect=RequestException("API error"),
     )
-    def test_api_failure_returns_friendly_error(self, mock_checkout) -> None:
+    def test_api_failure_returns_friendly_error(self, mock_checkout, _mock_email) -> None:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
-        result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "hosted_monthly"}
+        result = generate_checkout_link.func(  # pyright: ignore[reportAttributeAccessIssue]
+            "hosted_monthly", state=USER_STATE["state"]
         )
 
         assert "couldn't generate" in result
@@ -111,8 +120,8 @@ class TestGeneratePortalLink:
     @patch("billing.tools.generate_portal_link.get_billing_portal_link")
     @patch("billing.tools.generate_portal_link.SubscriptionRepository")
     def test_existing_customer_returns_portal_url(self, mock_repo_cls, mock_portal) -> None:
-        mock_repo_cls.return_value.get_subscription.return_value = (
-            "user@test.com",
+        mock_repo_cls.return_value.get_subscription_by_user_id.return_value = (
+            "00000000-0000-0000-0000-000000000001",
             "cus_789",
             "sub_123",
             "hosted",
@@ -124,25 +133,29 @@ class TestGeneratePortalLink:
 
         from billing.tools.generate_portal_link import generate_portal_link
 
-        result = generate_portal_link.invoke({"user_email": "user@test.com"})
+        result = generate_portal_link.func(  # pyright: ignore[reportAttributeAccessIssue]
+            state=USER_STATE["state"]
+        )
 
         assert "https://billing.creem.io/portal_abc" in result
         mock_portal.assert_called_once_with("cus_789")
 
     @patch("billing.tools.generate_portal_link.SubscriptionRepository")
     def test_no_subscription_returns_error(self, mock_repo_cls) -> None:
-        mock_repo_cls.return_value.get_subscription.return_value = None
+        mock_repo_cls.return_value.get_subscription_by_user_id.return_value = None
 
         from billing.tools.generate_portal_link import generate_portal_link
 
-        result = generate_portal_link.invoke({"user_email": "nobody@test.com"})
+        result = generate_portal_link.func(  # pyright: ignore[reportAttributeAccessIssue]
+            state=USER_STATE["state"]
+        )
 
         assert "No active subscription" in result
 
     @patch("billing.tools.generate_portal_link.SubscriptionRepository")
     def test_no_creem_customer_id_returns_error(self, mock_repo_cls) -> None:
-        mock_repo_cls.return_value.get_subscription.return_value = (
-            "user@test.com",
+        mock_repo_cls.return_value.get_subscription_by_user_id.return_value = (
+            "00000000-0000-0000-0000-000000000001",
             None,
             None,
             "free",
@@ -152,6 +165,8 @@ class TestGeneratePortalLink:
 
         from billing.tools.generate_portal_link import generate_portal_link
 
-        result = generate_portal_link.invoke({"user_email": "free@test.com"})
+        result = generate_portal_link.func(  # pyright: ignore[reportAttributeAccessIssue]
+            state=USER_STATE["state"]
+        )
 
         assert "No active subscription" in result

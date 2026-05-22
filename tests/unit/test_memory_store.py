@@ -39,11 +39,8 @@ def test_memory_search_tool_is_cleanly_disabled():
     store = InMemoryStore()
     search_tool = create_search_past_conversations_tool(store, enabled=False)
 
-    result = search_tool.invoke(
-        {
-            "query": "McDavid trade",
-            "user_email": "user@example.com",
-        }
+    result = search_tool.func(  # pyright: ignore[reportAttributeAccessIssue]
+        "McDavid trade", state={"user_id": "user-123"}
     )
 
     assert result == "Past conversation search is currently unavailable."

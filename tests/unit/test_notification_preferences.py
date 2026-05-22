@@ -152,18 +152,14 @@ class TestManageNotificationsTool:
             "tools.notifications.manage_notifications.NotificationPreferenceRepository",
             return_value=mock_repo,
         ):
-            result = manage_notifications.invoke(
-                {
-                    "user_email": "user@test.com",
-                    "league_id": "12345",
-                    "notification_type": "weekly_digest",
-                    "enabled": False,
-                }
+            result = manage_notifications.func(  # pyright: ignore[reportAttributeAccessIssue]
+                league_id="12345",
+                notification_type="weekly_digest",
+                enabled=False,
+                state={"user_id": "00000000-0000-0000-0000-000000000001"},
             )
 
-        mock_repo.set_preference.assert_called_once_with(
-            "user@test.com", "12345", "weekly_digest", False
-        )
+        mock_repo.set_preference_by_user_id.assert_called_once()
         assert "disabled" in result.lower()
 
     def test_enable_notification_returns_confirmation(self, mock_repo):
@@ -174,18 +170,14 @@ class TestManageNotificationsTool:
             "tools.notifications.manage_notifications.NotificationPreferenceRepository",
             return_value=mock_repo,
         ):
-            result = manage_notifications.invoke(
-                {
-                    "user_email": "user@test.com",
-                    "league_id": "12345",
-                    "notification_type": "weekly_digest",
-                    "enabled": True,
-                }
+            result = manage_notifications.func(  # pyright: ignore[reportAttributeAccessIssue]
+                league_id="12345",
+                notification_type="weekly_digest",
+                enabled=True,
+                state={"user_id": "00000000-0000-0000-0000-000000000001"},
             )
 
-        mock_repo.set_preference.assert_called_once_with(
-            "user@test.com", "12345", "weekly_digest", True
-        )
+        mock_repo.set_preference_by_user_id.assert_called_once()
         assert "enabled" in result.lower()
 
     def test_tool_closes_repository_connection(self, mock_repo):
@@ -196,13 +188,11 @@ class TestManageNotificationsTool:
             "tools.notifications.manage_notifications.NotificationPreferenceRepository",
             return_value=mock_repo,
         ):
-            manage_notifications.invoke(
-                {
-                    "user_email": "user@test.com",
-                    "league_id": "12345",
-                    "notification_type": "weekly_digest",
-                    "enabled": True,
-                }
+            manage_notifications.func(  # pyright: ignore[reportAttributeAccessIssue]
+                league_id="12345",
+                notification_type="weekly_digest",
+                enabled=True,
+                state={"user_id": "00000000-0000-0000-0000-000000000001"},
             )
 
         mock_repo.close.assert_called_once()

@@ -18,6 +18,7 @@ from billing.tier import (
     get_billing_status,
     get_user_tier,
 )
+from data.models import Medium
 
 
 @pytest.fixture(autouse=True)
@@ -140,7 +141,7 @@ class TestBuildUpgradeMessage:
     @patch("billing.creem_client.create_checkout_session")
     def test_email_includes_hosted_link(self, mock_checkout) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/hosted"
-        result = build_upgrade_message("user@test.com", "Limit reached.", "email")
+        result = build_upgrade_message("user@test.com", "Limit reached.", Medium.EMAIL)
 
         assert "Hosted" in result
         assert "$10/mo" in result
@@ -150,7 +151,7 @@ class TestBuildUpgradeMessage:
     @patch("billing.creem_client.create_checkout_session")
     def test_sms_includes_hosted_link(self, mock_checkout) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/hosted"
-        result = build_upgrade_message("user@test.com", "Limit reached.", "sms")
+        result = build_upgrade_message("user@test.com", "Limit reached.", Medium.SMS)
 
         assert "https://checkout.creem.io/hosted" in result
 
@@ -159,7 +160,7 @@ class TestBuildUpgradeMessage:
         side_effect=RequestException("API error"),
     )
     def test_fallback_to_reason_on_api_failure(self, _mock_checkout) -> None:
-        result = build_upgrade_message("user@test.com", "Limit reached.", "email")
+        result = build_upgrade_message("user@test.com", "Limit reached.", Medium.EMAIL)
         assert result == "Limit reached."
 
 
@@ -244,7 +245,7 @@ class TestBuildBillingContext:
     @patch("billing.creem_client.create_checkout_session")
     def test_email_includes_hosted_link(self, mock_checkout) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/hosted"
-        result = build_billing_context("user@test.com", "Limit reached.", "email")
+        result = build_billing_context("user@test.com", "Limit reached.", Medium.EMAIL)
 
         assert "BILLING LIMIT REACHED" in result
         assert "Limit reached." in result
@@ -252,12 +253,20 @@ class TestBuildBillingContext:
         assert "Hosted" in result
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
+    @patch("billing.creem_client.create_checkout_session")
+    def test_sms_includes_hosted_link(self, mock_checkout) -> None:
+        mock_checkout.return_value = "https://checkout.creem.io/hosted"
+        result = build_billing_context("user@test.com", "Limit reached.", Medium.SMS)
+
+        assert "Upgrade link:" in result
+        assert "https://checkout.creem.io/hosted" in result
+
     @patch(
         "billing.creem_client.create_checkout_session",
         side_effect=RequestException("API error"),
     )
     def test_fallback_on_api_failure_still_has_context(self, _mock_checkout) -> None:
-        result = build_billing_context("user@test.com", "Limit reached.", "email")
+        result = build_billing_context("user@test.com", "Limit reached.", Medium.EMAIL)
 
         assert "BILLING LIMIT REACHED" in result
         assert "Limit reached." in result

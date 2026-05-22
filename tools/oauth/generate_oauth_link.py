@@ -15,13 +15,20 @@ logger = get_logger(__name__)
 
 
 class GenerateOAuthLinkInput(BaseModel):
-    user_email: str = Field(description="User's email address to associate with the OAuth flow")
+    external_id: str = Field(description="Medium-native identifier to resume after OAuth")
     thread_id: str = Field(description="Thread ID to resume after OAuth completes")
-    channel: str = Field(default="email", description="Channel type: email, sms, or web")
+    channel: Medium = Field(
+        default=Medium.EMAIL,
+        description="Channel type: email, sms, telegram, or discord",
+    )
 
 
 @tool(args_schema=GenerateOAuthLinkInput)
-def generate_oauth_link(user_email: str, thread_id: str, channel: str = "email") -> str:
+def generate_oauth_link(
+    external_id: str,
+    thread_id: str,
+    channel: Medium | str = Medium.EMAIL,
+) -> str:
     """
     Generate a Yahoo OAuth authorization link for the user to authenticate.
 
@@ -29,9 +36,9 @@ def generate_oauth_link(user_email: str, thread_id: str, channel: str = "email")
     the application to access their Yahoo Fantasy account.
 
     Args:
-        user_email: User's email address to track the OAuth flow
+        external_id: Medium-native identifier to track the OAuth flow
         thread_id: Thread ID to resume after OAuth completes
-        channel: Channel type (email, sms, or web)
+        channel: Channel medium
 
     Returns:
         The OAuth authorization URL as a string, or an error message if configuration is missing.
@@ -52,8 +59,8 @@ def generate_oauth_link(user_email: str, thread_id: str, channel: str = "email")
         pending_id = repo.create(
             nonce=nonce,
             thread_id=thread_id,
-            medium=Medium(channel),
-            external_id=user_email,
+            medium=channel if isinstance(channel, Medium) else Medium(channel),
+            external_id=external_id,
         )
     finally:
         repo.close()
@@ -72,6 +79,6 @@ def generate_oauth_link(user_email: str, thread_id: str, channel: str = "email")
 
     auth_url = f"https://api.login.yahoo.com/oauth2/request_auth?{urlencode(params)}"
 
-    logger.info(f"Generated OAuth link for user {user_email} with state={pending_id}")
+    logger.info(f"Generated OAuth link for {channel}:{external_id} with state={pending_id}")
 
     return auth_url

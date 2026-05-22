@@ -67,6 +67,9 @@ def invoke_subagent(
     agent: Any,
     request: str,
     context_parts: list[str],
+    user_id: str | None = None,
+    league_id: str | None = None,
+    team_id: str | None = None,
     thread_id: str | None = None,
     sport: Sport | None = None,
 ) -> dict[str, Any]:
@@ -78,6 +81,12 @@ def invoke_subagent(
     }
     if sport is not None:
         input_state["sport"] = sport
+    if user_id is not None:
+        input_state["user_id"] = user_id
+    if league_id is not None:
+        input_state["league_id"] = league_id
+    if team_id is not None:
+        input_state["team_id"] = team_id
 
     config: RunnableConfig = {}
     if thread_id:

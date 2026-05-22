@@ -7,6 +7,7 @@ import json
 import os
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from langgraph.store.memory import InMemoryStore
 from pydantic import BaseModel, Field
@@ -14,7 +15,6 @@ from sqlalchemy import text
 
 from data.database import get_session
 from data.models import Medium
-from data.user_repository import UserRepository
 from module.llm import make_llm
 from module.logger import get_logger
 
@@ -103,13 +103,12 @@ class ConversationSummary(BaseModel):
 
 def _persist_summary(
     thread_id: str,
-    user_email: str,
+    user_id: str,
     summary: ConversationSummary,
 ) -> None:
     """Persist a conversation summary to the database for durable storage."""
     try:
         session = get_session()
-        user_id = UserRepository(session).resolve_user_id(Medium.EMAIL, user_email, user_email)
         now = datetime.now().isoformat()
         session.execute(
             text(
@@ -127,7 +126,7 @@ def _persist_summary(
             ),
             {
                 "thread_id": thread_id,
-                "user_id": user_id,
+                "user_id": UUID(user_id),
                 "summary": summary.summary,
                 "key_topics": json.dumps(summary.key_topics),
                 "players_mentioned": json.dumps(summary.players_mentioned),
@@ -188,7 +187,7 @@ def get_conversation_summaries_by_email(user_email: str) -> list[dict[str, Any]]
 def summarize_and_store_conversation(
     messages: list[Any],
     thread_id: str,
-    user_email: str,
+    user_id: str,
     store: InMemoryStore,
 ) -> bool:
     """
@@ -197,7 +196,7 @@ def summarize_and_store_conversation(
     Args:
         messages: List of conversation messages
         thread_id: The conversation thread ID
-        user_email: The user's email address
+        user_id: Canonical user UUID
         store: The LangGraph memory store
 
     Returns:
@@ -209,8 +208,7 @@ def summarize_and_store_conversation(
         return False
 
     # Check if we already have a memory for this thread
-    safe_email = _sanitize_namespace_label(user_email)
-    namespace = ("memories", safe_email)
+    namespace = ("memories", user_id)
     existing = store.get(namespace, thread_id)
     if existing:
         logger.debug(f"Memory already exists for thread {thread_id}")
@@ -268,7 +266,7 @@ Generate a summary that captures:
         )
 
         # Persist to database (durable storage, survives restarts)
-        _persist_summary(thread_id, user_email, result)
+        _persist_summary(thread_id, user_id, result)
 
         logger.info(f"Stored conversation memory for thread {thread_id}")
         logger.debug(f"Summary: {result.summary}")

@@ -1,11 +1,13 @@
 """Tool to find players with similar or worse rankings for trade comparison."""
 
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
@@ -81,7 +83,7 @@ def _extract_player_with_rank(player_data: list[object], rank: int) -> dict[str,
 
 
 def _find_similar_ranked_players_impl(
-    user_email: str,
+    user_id: str,
     league_id: str,
     target_rank: int,
     position: str = "",
@@ -90,7 +92,7 @@ def _find_similar_ranked_players_impl(
     exclude_my_team_id: str = "",
 ) -> str:
     """Internal implementation for find_similar_ranked_players."""
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=user_id)
 
     try:
         league_key = yahoo_client.query.get_league_key()
@@ -191,13 +193,13 @@ find_similar_ranked_players_internal = _find_similar_ranked_players_impl
 
 @tool
 def find_similar_ranked_players(
-    user_email: str,
     league_id: str,
     target_rank: int,
     position: str = "",
     rank_range: int = 20,
     only_rostered: bool = True,
     exclude_my_team_id: str = "",
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """
     Find players with similar or worse rankings for trade comparison.
@@ -207,7 +209,6 @@ def find_similar_ranked_players(
     better advanced stats (xGoals, Fenwick, TOI) may have higher upside potential.
 
     Args:
-        user_email: User's email address (used to look up OAuth tokens in database)
         league_id: Yahoo league ID
         target_rank: The rank to search around
         position: Optional position filter (e.g., "C", "LW", "RW", "D", "G", "F")
@@ -219,5 +220,11 @@ def find_similar_ranked_players(
         JSON string with list of players in the rank range, sorted by rank.
     """
     return _find_similar_ranked_players_impl(
-        user_email, league_id, target_rank, position, rank_range, only_rostered, exclude_my_team_id
+        get_user_id(state),
+        league_id,
+        target_rank,
+        position,
+        rank_range,
+        only_rostered,
+        exclude_my_team_id,
     )

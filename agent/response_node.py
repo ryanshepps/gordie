@@ -1,17 +1,18 @@
 """Response node for the fantasy sports assistant graph.
 
-Dispatches responses to the appropriate channel (email, SMS, web).
+Dispatches responses through the configured channel adapter.
 """
 
+from collections.abc import Callable
 from typing import Literal
 
 from langgraph.types import Command
 
 from agent.agent_state import AgentState
-from agent.channels.email_channel import send_email_response
-from agent.channels.sms_channel import send_sms_response
 from agent.memory_store import get_memory_store, summarize_and_store_conversation
+from data.models import Medium
 from module.logger import get_logger
+from server.adapters.base import AdapterRegistry
 
 logger = get_logger(__name__)
 
@@ -38,44 +39,46 @@ def _get_last_ai_message(messages: list[object]) -> tuple[str | None, object | N
 def _store_conversation_memory(state: AgentState, messages: list[object]) -> None:
     """Store conversation summary after response dispatch."""
     thread_id = state.get("thread_id")
-    user_email = state.get("user_email")
-    if thread_id and user_email:
+    user_id = state.get("user_id")
+    if thread_id and user_id:
         try:
             summarize_and_store_conversation(
                 messages=messages,
                 thread_id=thread_id,
-                user_email=user_email,
+                user_id=user_id,
                 store=get_memory_store(),
             )
         except Exception as e:
             logger.error(f"Failed to store conversation memory: {e}")
 
 
-def response_node(state: AgentState) -> Command[Literal["__end__"]]:
-    """Dispatch the agent response to the appropriate channel and end the flow."""
-    messages = state.get("messages", [])
-    channel = state.get("channel", "email")
+def make_response_node(
+    registry: AdapterRegistry,
+) -> Callable[[AgentState], Command[Literal["__end__"]]]:
+    def response_node(state: AgentState) -> Command[Literal["__end__"]]:
+        """Dispatch the agent response to the appropriate channel and end the flow."""
+        messages = state.get("messages", [])
+        channel = state.get("channel")
+        external_id = state.get("external_id")
 
-    if channel == "sms":
         message_content, _ = _get_last_ai_message(messages)
-        if message_content:
-            send_sms_response(state, message_content)
+        if not message_content:
+            logger.warning("No AI message found to send")
+            return Command(goto=END_NODE, update=state)
+
+        if not channel:
+            logger.error("No channel found in state")
+        elif not external_id:
+            logger.error("No external_id found in state")
         else:
-            logger.warning("No AI message found to send via SMS")
+            medium = channel if isinstance(channel, Medium) else Medium(str(channel))
+            adapter = registry.get(medium)
+            if adapter:
+                adapter.send(external_id, message_content, state)
+            else:
+                logger.error(f"No adapter configured for channel: {medium.value}")
+
         _store_conversation_memory(state, messages)
         return Command(goto=END_NODE, update=state)
 
-    message_content, _ = _get_last_ai_message(messages)
-
-    if not message_content:
-        logger.warning("No AI message found to send")
-        return Command(goto=END_NODE, update=state)
-
-    if channel == "email":
-        send_email_response(state, message_content)
-    elif channel != "cli":
-        logger.error(f"Unknown channel: {channel}")
-
-    _store_conversation_memory(state, messages)
-
-    return Command(goto=END_NODE, update=state)
+    return response_node

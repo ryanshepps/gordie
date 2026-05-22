@@ -28,13 +28,17 @@ class AuthenticatedYahooClient:
 
     def __init__(
         self,
-        user_email: str,
+        user_email: str | None = None,
+        user_id: str | None = None,
         league_id: int | None = None,
         access_token_json: str | None = None,
         game_code: str = "nhl",
         game_key: str | None = None,
     ):
+        if not user_email and not user_id:
+            raise ValueError("Either user_id or user_email is required")
         self.user_email = user_email
+        self.user_id = user_id
         self.league_id = league_id
         self.consumer_key = os.getenv("YAHOO_CLIENT_ID")
         self.consumer_secret = os.getenv("YAHOO_CLIENT_SECRET")
@@ -57,7 +61,11 @@ class AuthenticatedYahooClient:
 
         self.game_code = game_code
         self.game_key = game_key
-        self.access_token_json = self._fetch_tokens_from_db(user_email)
+        self.access_token_json = (
+            self._fetch_tokens_from_db_by_user_id(user_id)
+            if user_id
+            else self._fetch_tokens_from_db(str(user_email))
+        )
         self._query = None
 
     @staticmethod
@@ -95,8 +103,11 @@ class AuthenticatedYahooClient:
                 text(
                     """
                     SELECT access_token, refresh_token, token_time, token_type
-                    FROM yahoo_tokens
-                    WHERE user_email = :user_email
+                    FROM yahoo_tokens yt
+                    JOIN user_identities ui
+                        ON ui.user_id = yt.user_id
+                        AND ui.medium = 'email'
+                    WHERE ui.external_id = :user_email
                     """
                 ),
                 {"user_email": user_email},
@@ -125,6 +136,43 @@ class AuthenticatedYahooClient:
             logger.info(f"Loaded OAuth tokens from database for user: {user_email}")
             return json.dumps(token_data)
 
+        finally:
+            session.close()
+
+    def _fetch_tokens_from_db_by_user_id(self, user_id: str) -> str:
+        """Fetch Yahoo OAuth tokens from database for the canonical user ID."""
+        session = get_session()
+        try:
+            result = session.execute(
+                text(
+                    """
+                    SELECT access_token, refresh_token, token_time, token_type
+                    FROM yahoo_tokens
+                    WHERE user_id = :user_id
+                    """
+                ),
+                {"user_id": user_id},
+            ).fetchone()
+
+            if not result:
+                raise ValueError(
+                    f"No auth token found for user_id: {user_id}. "
+                    "User must authenticate first using the OAuth flow."
+                )
+
+            access_token, refresh_token, token_time, token_type = result
+            token_time_float = (
+                token_time.timestamp() if hasattr(token_time, "timestamp") else float(token_time)
+            )
+            token_data = {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_time": token_time_float,
+                "token_type": token_type,
+            }
+
+            logger.info(f"Loaded OAuth tokens from database for user_id: {user_id}")
+            return json.dumps(token_data)
         finally:
             session.close()
 
@@ -224,26 +272,50 @@ class AuthenticatedYahooClient:
 
                 session = get_session()
                 try:
-                    session.execute(
-                        text(
-                            """
-                            UPDATE yahoo_tokens
-                            SET access_token = :access_token,
-                                refresh_token = :refresh_token,
-                                token_time = :token_time,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE user_email = :user_email
-                            """
-                        ),
-                        {
-                            "access_token": oauth.access_token,
-                            "refresh_token": oauth.refresh_token,
-                            "token_time": token_time,
-                            "user_email": self.user_email,
-                        },
-                    )
+                    if self.user_id:
+                        session.execute(
+                            text(
+                                """
+                                UPDATE yahoo_tokens
+                                SET access_token = :access_token,
+                                    refresh_token = :refresh_token,
+                                    token_time = :token_time,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE user_id = :user_id
+                                """
+                            ),
+                            {
+                                "access_token": oauth.access_token,
+                                "refresh_token": oauth.refresh_token,
+                                "token_time": token_time,
+                                "user_id": self.user_id,
+                            },
+                        )
+                    elif self.user_email:
+                        session.execute(
+                            text(
+                                """
+                                UPDATE yahoo_tokens
+                                SET access_token = :access_token,
+                                    refresh_token = :refresh_token,
+                                    token_time = :token_time,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE user_id = (
+                                    SELECT user_id
+                                    FROM user_identities
+                                    WHERE medium = 'email' AND external_id = :user_email
+                                )
+                                """
+                            ),
+                            {
+                                "access_token": oauth.access_token,
+                                "refresh_token": oauth.refresh_token,
+                                "token_time": token_time,
+                                "user_email": self.user_email,
+                            },
+                        )
                     session.commit()
-                    logger.info(f"Updated refreshed tokens in database for user: {self.user_email}")
+                    logger.info("Updated refreshed tokens in database")
                 finally:
                     session.close()
         except Exception as e:

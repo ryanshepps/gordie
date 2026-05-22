@@ -7,11 +7,22 @@ from langchain_core.messages import HumanMessage
 from agent.agent_state import AgentState
 from agent.context_node import context_node
 from agent.SupervisorAgent import supervisor_node
+from data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 CONNECT_KEYWORDS = ("connect", "link", "authorize", "sign in", "log in", "login")
 ONBOARDING_KEYWORDS = ("connect", "link", "authorize", "onboard", "sign in", "log in")
 CAPABILITY_KEYWORDS = ("roster", "trade", "player", "advice", "fantasy", "lineup", "matchup")
+
+FIRST_TIME_USER_ID = "00000000-0000-0000-0000-000000000101"
+RETURNING_USER_ID = "00000000-0000-0000-0000-000000000102"
+MULTI_USER_ID = "00000000-0000-0000-0000-000000000103"
+SINGLE_USER_ID = "00000000-0000-0000-0000-000000000104"
+NO_TEAMS_USER_ID = "00000000-0000-0000-0000-000000000105"
+SELECT_TEAM_USER_ID = "00000000-0000-0000-0000-000000000106"
+AUTO_ONBOARD_USER_ID = "00000000-0000-0000-0000-000000000107"
+ERROR_USER_ID = "00000000-0000-0000-0000-000000000108"
+URL_TEST_USER_ID = "00000000-0000-0000-0000-000000000109"
 
 
 def _run_through_context_and_supervisor(state: AgentState):
@@ -26,7 +37,9 @@ class TestFirstTimeUser:
     def first_time_user_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="firsttime@example.com",
+            user_id=FIRST_TIME_USER_ID,
+            external_id="firsttime@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -39,8 +52,9 @@ class TestFirstTimeUser:
         first_time_user_state: AgentState,
         mocker,
     ):
+        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
@@ -83,7 +97,9 @@ class TestReturningUserNoTeams:
     def returning_user_no_teams_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="returning@example.com",
+            user_id=RETURNING_USER_ID,
+            external_id="returning@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -96,8 +112,9 @@ class TestReturningUserNoTeams:
         returning_user_no_teams_state: AgentState,
         mocker,
     ):
+        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
@@ -142,7 +159,9 @@ class TestMultipleTeamsClarification:
     def multi_team_user_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="multiuser@example.com",
+            user_id=MULTI_USER_ID,
+            external_id="multiuser@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -171,12 +190,12 @@ class TestMultipleTeamsClarification:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=multi_team_user_state.get("user_teams", []),
         )
 
@@ -208,7 +227,9 @@ class TestSingleTeamProceeds:
     def single_team_user_state(self, mock_yahoo_tools) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="singleuser@example.com",
+            user_id=SINGLE_USER_ID,
+            external_id="singleuser@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -231,12 +252,12 @@ class TestSingleTeamProceeds:
         mock_yahoo_tools,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=single_team_user_state.get("user_teams", []),
         )
 
@@ -274,7 +295,9 @@ class TestNoTeamsAvailable:
     def no_teams_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="noteams@example.com",
+            user_id=NO_TEAMS_USER_ID,
+            external_id="noteams@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -288,11 +311,11 @@ class TestNoTeamsAvailable:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
@@ -346,7 +369,9 @@ class TestTeamSelectionNeeded:
     def team_selection_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="selectteam@example.com",
+            user_id=SELECT_TEAM_USER_ID,
+            external_id="selectteam@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -360,11 +385,11 @@ class TestTeamSelectionNeeded:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
@@ -407,7 +432,9 @@ class TestAutoOnboarded:
     def auto_onboard_state(self) -> AgentState:
         return AgentState(
             messages=[],
-            user_email="autoonboard@example.com",
+            user_id=AUTO_ONBOARD_USER_ID,
+            external_id="autoonboard@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -421,11 +448,11 @@ class TestAutoOnboarded:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
@@ -464,11 +491,11 @@ class TestContextError:
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_api_failure_returns_error_response(self, mocker):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db",
+            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
@@ -482,7 +509,9 @@ class TestContextError:
 
         state = AgentState(
             messages=[HumanMessage(content="Help me with my roster")],
-            user_email="erroruser@example.com",
+            user_id=ERROR_USER_ID,
+            external_id="erroruser@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),
@@ -507,8 +536,9 @@ class TestContextError:
 class TestOAuthURLPresence:
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_oauth_url_never_paraphrased(self, mocker):
+        mocker.patch("data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None)
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info",
+            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
@@ -526,7 +556,9 @@ class TestOAuthURLPresence:
 
         state = AgentState(
             messages=[HumanMessage(content="Help me with fantasy hockey")],
-            user_email="urltest@example.com",
+            user_id=URL_TEST_USER_ID,
+            external_id="urltest@example.com",
+            channel=Medium.EMAIL,
             league_id=None,
             team_id=None,
             thread_id=str(uuid.uuid4()),

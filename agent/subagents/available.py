@@ -59,7 +59,7 @@ When making recommendations, cite the sport-specific advanced metrics provided i
 - Give exactly one final answer. Do not present a correct answer and then override
   it with a weaker reinterpretation.
 
-User: {user_email} | League: {league_id} | Team: {team_id}
+League: {league_id} | Team: {team_id}
 """
 
 agent = create_subagent(
@@ -82,7 +82,6 @@ agent = create_subagent(
 @tool
 def available_players(
     request: str,
-    user_email: str,
     league_id: str,
     team_id: str,
     state: Annotated[dict[str, Any], InjectedState] | None = None,
@@ -98,7 +97,6 @@ def available_players(
 
     Args:
         request: The user's request in natural language
-        user_email: The email address of the user
         league_id: The ID of the fantasy league
         team_id: The ID of the team
         state: The agent state (injected)
@@ -109,15 +107,19 @@ def available_players(
     logger.info(f"Available players sub-agent invoked with request: {request}")
 
     sport = cast(Sport | None, state.get("sport")) if state else None
+    user_id = str(state.get("user_id")) if state and state.get("user_id") else None
     result = invoke_subagent(
         agent=agent,
         request=request,
         context_parts=[
-            f"User email: {user_email}",
+            f"User ID: {user_id}",
             f"League ID: {league_id}",
             f"Team ID: {team_id}",
             get_sport_context(sport),
         ],
+        user_id=user_id,
+        league_id=league_id,
+        team_id=team_id,
         sport=sport,
     )
 

@@ -82,7 +82,7 @@ but have BETTER advanced stats indicating they'll improve:
 Return TradeResponse with complete player_stats for subject + all targets, and trade_targets
 with detailed pitches and reasoning. The summary MUST cite specific advanced stats from the sport context - summaries using only rank will be rejected.
 
-User: {user_email} | League: {league_id} | Team: {team_id}
+League: {league_id} | Team: {team_id}
 """
 
 agent = create_subagent(
@@ -104,7 +104,6 @@ agent = create_subagent(
 @tool
 def trade(
     request: str,
-    user_email: str,
     league_id: str,
     team_id: str,
     state: Annotated[dict[str, Any], InjectedState] | None = None,
@@ -123,7 +122,6 @@ def trade(
 
     Args:
         request (str): The user's trade request in natural language.
-        user_email (str): The email address of the user.
         league_id (str): The ID of the fantasy league.
         team_id (str): The ID of the team.
         state: The state of the agent. Defaults to None.
@@ -134,15 +132,19 @@ def trade(
     logger.info(f"Trade sub-agent invoked with request: {request}")
 
     sport = cast(Sport | None, state.get("sport")) if state else None
+    user_id = str(state.get("user_id")) if state and state.get("user_id") else None
     result = invoke_subagent(
         agent=agent,
         request=request,
         context_parts=[
-            f"User email: {user_email}",
+            f"User ID: {user_id}",
             f"League ID: {league_id}",
             f"Team ID: {team_id}",
             get_sport_context(sport),
         ],
+        user_id=user_id,
+        league_id=league_id,
+        team_id=team_id,
         sport=sport,
     )
 

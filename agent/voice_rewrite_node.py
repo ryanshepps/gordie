@@ -1,5 +1,6 @@
 """Voice rewrite node that rewrites the supervisor's response in Gordie's persona."""
 
+from collections.abc import Callable
 from typing import Literal
 
 from langchain_core.messages import AIMessage
@@ -9,12 +10,12 @@ from agent.agent_state import AgentState
 from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.persona import PERSONA
 from agent.prompts.phrasebook import PHRASEBOOK
+from data.models import Medium
 from module.llm import make_llm
 from module.logger import get_logger
+from server.adapters.base import AdapterRegistry
 
 logger = get_logger(__name__)
-
-SMS_MAX_LENGTH = 800
 
 _REWRITE_BASE = """You are a voice rewriter. Your ONLY job is to rewrite the draft response below in Gordie's voice.
 
@@ -24,10 +25,10 @@ Rules:
 - If the draft is already in Gordie's voice, still punch it up. Make it hit harder.
 - Do NOT add new analysis or opinions. Only rewrite what's there."""
 
-_SMS_RULES = """
+_SMS_RULES_TEMPLATE = """
 - Aggressively condense. Cut all supporting detail that isn't essential.
 - Lead with the recommendation, back it up with the one or two numbers that matter most.
-- Never exceed 600 characters. Treat this as a hard limit."""
+- Never exceed {limit} characters. Treat this as a hard limit."""
 
 _EMAIL_RULES = """
 - Preserve the overall structure and information — just change the voice."""
@@ -42,9 +43,13 @@ _CONDENSE_INSTRUCTION = (
 _LLM = make_llm(temperature=0.5)
 
 
-def _build_rewrite_prompt(channel: str) -> str:
+def _build_rewrite_prompt(channel: Medium, max_length: int | None) -> str:
     channel_guidelines = get_channel_guidelines(channel)
-    channel_rules = _SMS_RULES if channel == "sms" else _EMAIL_RULES
+    channel_rules = (
+        _SMS_RULES_TEMPLATE.format(limit=max_length)
+        if channel == Medium.SMS and max_length is not None
+        else _EMAIL_RULES
+    )
     return f"{PERSONA}\n{PHRASEBOOK}\n{channel_guidelines}\n\n{_REWRITE_BASE}{channel_rules}"
 
 
@@ -73,42 +78,50 @@ def _get_last_ai_content(messages: list[object]) -> tuple[str | None, int | None
     return None, None
 
 
-def voice_rewrite_node(state: AgentState) -> Command[Literal["response"]]:
-    """Rewrite the supervisor's response in Gordie's voice before dispatching."""
-    messages = list(state.get("messages", []))
-    channel = state.get("channel", "email")
+def make_voice_rewrite_node(
+    registry: AdapterRegistry,
+) -> Callable[[AgentState], Command[Literal["response"]]]:
+    def voice_rewrite_node(state: AgentState) -> Command[Literal["response"]]:
+        """Rewrite the supervisor's response in Gordie's voice before dispatching."""
+        messages = list(state.get("messages", []))
+        raw_channel = state.get("channel", Medium.EMAIL)
+        channel = raw_channel if isinstance(raw_channel, Medium) else Medium(str(raw_channel))
+        adapter = registry.get(channel)
+        max_length = adapter.constraints.max_length if adapter else None
 
-    draft, msg_index = _get_last_ai_content(messages)
+        draft, msg_index = _get_last_ai_content(messages)
 
-    if not draft or msg_index is None:
-        logger.warning("No AI message found to rewrite")
-        return Command(goto="response", update=state)
+        if not draft or msg_index is None:
+            logger.warning("No AI message found to rewrite")
+            return Command(goto="response", update=state)
 
-    system_prompt = _build_rewrite_prompt(channel)
+        system_prompt = _build_rewrite_prompt(channel, max_length)
 
-    try:
-        rewritten = _invoke_rewrite(system_prompt, draft)
+        try:
+            rewritten = _invoke_rewrite(system_prompt, draft)
 
-        if channel == "sms" and len(rewritten) > SMS_MAX_LENGTH:
-            logger.info(
-                f"SMS rewrite too long ({len(rewritten)} chars), retrying with condense instruction"
-            )
-            condense_prompt = (
-                f"{system_prompt}\n\n"
-                f"{_CONDENSE_INSTRUCTION.format(length=len(rewritten), limit=SMS_MAX_LENGTH)}"
-            )
-            rewritten = _invoke_rewrite(condense_prompt, rewritten)
-            logger.info(f"SMS condense retry result: {len(rewritten)} chars")
+            if max_length is not None and len(rewritten) > max_length:
+                logger.info(
+                    f"{channel.value} rewrite too long ({len(rewritten)} chars), retrying with condense instruction"
+                )
+                condense_prompt = (
+                    f"{system_prompt}\n\n"
+                    f"{_CONDENSE_INSTRUCTION.format(length=len(rewritten), limit=max_length)}"
+                )
+                rewritten = _invoke_rewrite(condense_prompt, rewritten)
+                logger.info(f"{channel.value} condense retry result: {len(rewritten)} chars")
 
-        messages[msg_index] = AIMessage(content=rewritten)
-        state_update: dict[str, object] = {
-            "messages": messages,
-            "response": rewritten,
-        }
+            messages[msg_index] = AIMessage(content=rewritten)
+            state_update: dict[str, object] = {
+                "messages": messages,
+                "response": rewritten,
+            }
 
-        logger.info(f"Voice rewrite complete ({len(rewritten)} chars): {rewritten[:200]}...")
-    except Exception as e:
-        logger.error(f"Voice rewrite failed, using original: {e}")
-        state_update = {"messages": messages}
+            logger.info(f"Voice rewrite complete ({len(rewritten)} chars): {rewritten[:200]}...")
+        except Exception as e:
+            logger.error(f"Voice rewrite failed, using original: {e}")
+            state_update = {"messages": messages}
 
-    return Command(goto="response", update={**state, **state_update})
+        return Command(goto="response", update={**state, **state_update})
+
+    return voice_rewrite_node

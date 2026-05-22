@@ -246,7 +246,7 @@ def format_stats_table_html(stats: list[dict[str, Any]]) -> str:
 
 def enrich_email_with_player_stats(
     message_content: str,
-    user_email: str,
+    user_id: str,
     league_id: str,
 ) -> tuple[str, str]:
     """Extract players from email and generate stats tables.
@@ -256,12 +256,12 @@ def enrich_email_with_player_stats(
     2. Fetches MoneyPuck statistics for matched players
     3. Returns formatted tables to append to the email
 
-    Note: user_email and league_id are kept for API compatibility but
+    Note: user_id and league_id are kept for API compatibility but
     are no longer used since we now use only MoneyPuck stats (no Yahoo data).
 
     Args:
         message_content: The email message content
-        user_email: User's email (unused, kept for compatibility)
+        user_id: Canonical user UUID (unused, kept for compatibility)
         league_id: Yahoo fantasy league ID (unused, kept for compatibility)
 
     Returns:

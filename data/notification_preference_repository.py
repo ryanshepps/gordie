@@ -1,6 +1,7 @@
 """Repository class for notification preference records."""
 
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -88,6 +89,12 @@ class NotificationPreferenceRepository(Repository):
             enabled: Whether to enable or disable the notification
         """
         user_id = UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
+        self.set_preference_by_user_id(user_id, league_id, notification_type, enabled)
+
+    def set_preference_by_user_id(
+        self, user_id: UUID, league_id: str, notification_type: str, enabled: bool
+    ) -> None:
+        """Set user preference by canonical user ID."""
         self.upsert(
             conflict_columns=["user_id", "league_id", "notification_type"],
             user_id=user_id,

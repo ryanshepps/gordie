@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import uuid
 
-from agent.channels.text_utils import strip_markdown
 from agent.digest_writer import DigestType, write_digest_content
 from agent.email_enrichment import enrich_email_with_player_stats
 from agent.prompts.sport_context import get_sport_label
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.moneypuck_cli import get_player_stats_by_names
+from data.models import Medium
 from data.pydantic_models import (
     DigestData,
     EnrichedFreeAgent,
@@ -18,11 +18,13 @@ from data.pydantic_models import (
     RosterPerformance,
     ScheduleTip,
 )
+from data.user_repository import UserRepository
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
 from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
 from scheduled.job_runner import run_per_user_job
+from server.adapters.text_utils import strip_markdown
 from server.email_formatter import FooterType, format_email
 from server.email_service import EmailService
 from server.sms_service import SmsService
@@ -141,10 +143,11 @@ def _send_digest_email(
     if result.success:
         if result.message_id:
             thread_id = f"{user_email}:{uuid.uuid4().hex[:12]}"
+            user_id = UserRepository().resolve_user_id(Medium.EMAIL, user_email, user_email)
             save_message_id_mapping(
                 message_id=result.message_id,
                 thread_id=thread_id,
-                user_email=user_email,
+                user_id=str(user_id),
                 subject=f"Weekly {sport_label} Digest - {league_name}",
             )
         logger.info(f"Sent weekly digest to {user_email} for league {league_name}")

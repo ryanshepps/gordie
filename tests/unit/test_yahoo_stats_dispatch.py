@@ -17,7 +17,7 @@ class TestYahooScoringDispatch:
         from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         result = yahoo_scoring.invoke(
-            {"user_email": "test@test.com", "league_id": "123", "method": "bad_method"}
+            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "bad_method"}
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -45,7 +45,7 @@ class TestYahooScoringDispatch:
 
         result = yahoo_scoring.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_standings",
             }
@@ -93,7 +93,7 @@ class TestYahooScoringDispatch:
 
         result = yahoo_scoring.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_scoreboard_by_week",
                 "params_json": json.dumps({"week": 5}),
@@ -114,7 +114,7 @@ class TestYahooRosterDispatch:
         from tools.yahoo_stats.yahoo_roster import yahoo_roster
 
         result = yahoo_roster.invoke(
-            {"user_email": "test@test.com", "league_id": "123", "method": "nonexistent"}
+            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "nonexistent"}
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -147,7 +147,7 @@ class TestYahooRosterDispatch:
 
         result = yahoo_roster.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_team_roster_player_stats",
                 "params_json": json.dumps({"team_id": "1"}),
@@ -167,7 +167,7 @@ class TestYahooPlayerDispatch:
         from tools.yahoo_stats.yahoo_player import yahoo_player
 
         result = yahoo_player.invoke(
-            {"user_email": "test@test.com", "league_id": "123", "method": "fake"}
+            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "fake"}
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -197,7 +197,7 @@ class TestYahooPlayerDispatch:
 
         result = yahoo_player.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_player_stats_for_season",
                 "params_json": json.dumps({"player_key": "nhl.p.7890"}),
@@ -215,7 +215,7 @@ class TestYahooLeagueDispatch:
         from tools.yahoo_stats.yahoo_league import yahoo_league
 
         result = yahoo_league.invoke(
-            {"user_email": "test@test.com", "league_id": "123", "method": "nope"}
+            {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}, "league_id": "123", "method": "nope"}
         )
         parsed = json.loads(result)
         assert "error" in parsed
@@ -241,7 +241,7 @@ class TestYahooLeagueDispatch:
 
         result = yahoo_league.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_teams",
             }
@@ -266,7 +266,7 @@ class TestYahooLeagueDispatch:
 
         result = yahoo_league.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_info",
             }
@@ -291,7 +291,7 @@ class TestYahooLeagueDispatch:
 
         result = yahoo_league.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_draft_results",
             }
@@ -313,7 +313,7 @@ class TestParamsJsonParsing:
 
         result = yahoo_scoring.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_standings",
             }
@@ -332,7 +332,7 @@ class TestParamsJsonParsing:
 
         result = yahoo_scoring.invoke(
             {
-                "user_email": "test@test.com",
+                "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
                 "league_id": "123",
                 "method": "get_league_standings",
             }

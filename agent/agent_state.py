@@ -7,6 +7,7 @@ from typing_extensions import TypedDict
 
 from agent.context_types import ContextStatus, Sport
 from agent.response_models import TradeResponse
+from data.models import Medium
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,12 +39,13 @@ class AgentState(_AgentStateRequired, total=False):
     jump_to: JumpTo | None  # Used by middleware for flow control
     structured_response: TradeResponse
     # Custom fields
-    user_email: str
+    user_id: str
+    external_id: str
     league_id: str | None
     team_id: str | None
     thread_id: str
     user_teams: list[dict[str, str]]
-    channel: str
+    channel: Medium
     context_status: ContextStatus
     sport: Sport
     oauth_url: str | None

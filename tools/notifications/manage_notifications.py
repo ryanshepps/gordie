@@ -1,10 +1,13 @@
 """Tool for managing user notification preferences."""
 
-from langchain.tools import tool
+from typing import Annotated
+
+from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
 from data.notification_preference_repository import NotificationPreferenceRepository
 from module.logger import get_logger
+from tools.user_context import get_user_uuid
 
 logger = get_logger(__name__)
 
@@ -12,7 +15,6 @@ logger = get_logger(__name__)
 class ManageNotificationsInput(BaseModel):
     """Input schema for manage_notifications tool."""
 
-    user_email: str = Field(description="User's email address")
     league_id: str = Field(description="Yahoo league ID")
     notification_type: str = Field(description="Type of notification (e.g., 'weekly_digest')")
     enabled: bool = Field(description="Whether to enable or disable the notification")
@@ -20,10 +22,10 @@ class ManageNotificationsInput(BaseModel):
 
 @tool(args_schema=ManageNotificationsInput)
 def manage_notifications(
-    user_email: str,
     league_id: str,
     notification_type: str,
     enabled: bool,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """Enable or disable a notification type for a user's league.
 
@@ -33,7 +35,6 @@ def manage_notifications(
     - User mentions "unsubscribe" or "stop sending" notifications
 
     Args:
-        user_email: User's email address
         league_id: Yahoo league ID
         notification_type: Type of notification (e.g., "weekly_digest")
         enabled: Whether to enable or disable the notification
@@ -43,7 +44,7 @@ def manage_notifications(
     """
     repo = NotificationPreferenceRepository()
     try:
-        repo.set_preference(user_email, league_id, notification_type, enabled)
+        repo.set_preference_by_user_id(get_user_uuid(state), league_id, notification_type, enabled)
     finally:
         repo.close()
 
@@ -51,7 +52,7 @@ def manage_notifications(
     type_display = notification_type.replace("_", " ").title()
 
     logger.info(
-        f"Notification preference updated: {user_email}/{league_id} - "
+        f"Notification preference updated: {league_id} - "
         f"{notification_type} = {enabled}"
     )
 

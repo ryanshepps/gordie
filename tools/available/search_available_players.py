@@ -1,11 +1,13 @@
 """Tool to search for available players (free agents and waivers) in a fantasy league."""
 
 import json
+from typing import Annotated
 
-from langchain.tools import tool
+from langchain.tools import InjectedState, tool
 
 from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from module.logger import get_logger
+from tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
@@ -65,13 +67,13 @@ def _extract_player_info(player_data: list[object]) -> dict[str, str | None]:
 
 @tool
 def search_available_players(
-    user_email: str,
     league_id: str,
     status: str = "A",
     position: str = "",
     sort: str = "AR",
     sort_type: str = "season",
     count: int = 25,
+    state: Annotated[dict[str, object], InjectedState] | None = None,
 ) -> str:
     """
     Search for available players (free agents and/or waivers) in a fantasy league.
@@ -80,7 +82,6 @@ def search_available_players(
     Use query_stats_db to fetch detailed statistics for specific players.
 
     Args:
-        user_email: User's email for Yahoo authentication
         league_id: Yahoo league ID
         status: Availability filter
             - "A" = All available (free agents + waivers)
@@ -108,7 +109,7 @@ def search_available_players(
         - Available centers only: position="C"
         - Free agents only: status="FA"
     """
-    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
+    yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_id=get_user_id(state))
 
     try:
         league_key = yahoo_client.query.get_league_key()
