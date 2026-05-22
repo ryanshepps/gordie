@@ -2,7 +2,7 @@
 
 Text or email Gordie, your fantasy sports AI manager — get roster advice, trade analysis, waiver-wire calls, and weekly digests backed by live league data, advanced stats, and your conversation history.
 
-> ⚠️ **Hosted Gordie is temporarily offline** while the instance migrates to a more secure hosting environment. A self-hosting option will be available soon.
+> ⚠️ **Hosted Gordie is temporarily offline** while the instance migrates to a more secure hosting environment.
 
 ## Showcase
 
@@ -61,7 +61,7 @@ Real conversations with Gordie.
                                                    MLB: pybaseball)
 ```
 
-Scheduled digests (`scheduled/weekly_digest.py`, `agent/news/`) run via APScheduler inside the server process. Observability lives in `docker-compose.monitoring.yml` (Prometheus + Loki + Tempo + Grafana).
+Scheduled digests (`scheduled/weekly_digest.py`, `agent/news/`) run via APScheduler inside the server process.
 
 ## Repo layout
 
@@ -71,7 +71,7 @@ client/        External API clients (Yahoo, ESPN news, MoneyPuck)
 data/          SQLAlchemy models + Alembic migrations
 frontend/      SvelteKit marketing site
 middleware/    Tool-call filters and state-logging middleware
-module/        Config, logging, metrics, tracing, LLM factory
+module/        Config, logging, LLM factory
 scheduled/     APScheduler jobs (stats refresh, weekly digest, news digest)
 server/        Quart app, route registrations, vendor services
 tests/         pytest unit + integration + eval suites

@@ -17,7 +17,6 @@ from data.notification_preference_repository import NotificationPreferenceReposi
 from data.yahoo_league_repository import YahooLeagueRepository
 from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
-from module.tracing import create_span
 from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
 from scheduled.job_runner import JobResult, _record_digest_delivery, is_user_eligible_for_digest
 from server.email_formatter import FooterType, format_email
@@ -103,20 +102,16 @@ def _process_sport_group(
             result.skipped += 1
             continue
 
-        with create_span(
-            "news_digest.user",
-            {"user.email": user_email, "league.id": league_id},
-        ):
-            try:
-                sent = _send_user_digest(raw_news, user_email, league_id, teams_playing, sport)
-                if sent:
-                    result.success += 1
-                    _record_digest_delivery(user_email)
-                else:
-                    result.skipped += 1
-            except Exception as e:
-                result.failed += 1
-                logger.error(f"news_digest failed for {user_email}/{league_id}: {e}")
+        try:
+            sent = _send_user_digest(raw_news, user_email, league_id, teams_playing, sport)
+            if sent:
+                result.success += 1
+                _record_digest_delivery(user_email)
+            else:
+                result.skipped += 1
+        except Exception as e:
+            result.failed += 1
+            logger.error(f"news_digest failed for {user_email}/{league_id}: {e}")
 
 
 def _send_user_digest(

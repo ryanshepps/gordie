@@ -77,9 +77,6 @@ def send_email_response(state: AgentState, message_content: str) -> None:
         )
 
         if result.success:
-            from module.metrics import emails_sent_total
-
-            emails_sent_total.labels(status="success").inc()
             logger.info(f"Email sent successfully to {user_email}, message_id: {result.message_id}")
 
             if result.message_id and thread_id:
@@ -94,9 +91,6 @@ def send_email_response(state: AgentState, message_content: str) -> None:
                 except Exception as e:
                     logger.error(f"Failed to save message_id mapping: {e}")
         else:
-            from module.metrics import emails_sent_total
-
-            emails_sent_total.labels(status="failure").inc()
             logger.error(f"Failed to send email to {user_email}: {result.error}")
 
     except Exception as e:

@@ -45,7 +45,7 @@ class CustomFormatter(logging.Formatter):
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
-    """JSON formatter for structured logging to files (for Loki ingestion)."""
+    """JSON formatter for structured logging to files."""
 
     def add_fields(self, log_data, record, message_dict):
         super().add_fields(log_data, record, message_dict)
@@ -110,7 +110,7 @@ def get_logger(
     if not logger.handlers:
         logger.setLevel(level)
 
-        # File handler (JSON output for Loki)
+        # File handler (JSON output)
         if log_file:
             # Use RotatingFileHandler to limit log file size to 1GB
             # When the file reaches 1GB, it rotates and keeps 2 backup files

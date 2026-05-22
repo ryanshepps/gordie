@@ -24,10 +24,9 @@ Open `.env` and set the bare minimum:
 
 ```bash
 OPENAI_API_KEY=sk-...
-ADMIN_API_KEY=$(openssl rand -hex 32)   # generate one
 ```
 
-You can leave Yahoo, Mailgun, Sinch, Creem, Cloudflare blank for now. Yahoo is required to *talk to a league* but the server boots without it.
+You can leave Yahoo, Mailgun, Sinch, and Creem blank for now. Yahoo is required to *talk to a league* but the server boots without it.
 
 ## 2. Start Postgres + the server
 
@@ -77,12 +76,10 @@ See `tests/README.md` for which suites need which credentials.
 - `docs/setup/yahoo-oauth.md` — register a Yahoo Fantasy app
 - `docs/setup/email-mailgun.md` — wire up inbound/outbound email
 - `docs/setup/sms-sinch.md` — wire up SMS (optional; consider swapping Twilio)
-- `docs/setup/cloudflare-tunnel.md` — expose your local server over HTTPS for OAuth callbacks
 - `docs/setup/configuration.md` — full env-var reference
 
 ## Troubleshooting
 
-- **`{"error":"Unauthorized"}` from `/admin/*`** — set `ADMIN_API_KEY` and pass `X-Admin-Key: <value>` header.
 - **`MAILGUN_API_KEY ... not set` warning** — expected if you haven't configured email. Email send returns `error: email_disabled`.
-- **Yahoo OAuth callback fails** — Yahoo requires HTTPS for production callbacks. For local dev, point `OAUTH_BASE_URL` at an ngrok or cloudflared tunnel pointing to `localhost:8000`.
+- **Yahoo OAuth callback fails** — Yahoo requires HTTPS for production callbacks. For local dev, point `OAUTH_BASE_URL` at an HTTPS tunnel pointing to `localhost:8000`.
 - **`refresh_stats_db` errors on startup** — first boot downloads MoneyPuck NHL CSV (~30 MB) and MLB stats. Slow but non-blocking. Set `ENABLED_SPORTS=nhl` (or `mlb`) to skip the other.

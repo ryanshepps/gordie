@@ -1,13 +1,11 @@
 """Email webhook route handler."""
 
 import threading
-import time
 from uuid import UUID
 
 from quart import jsonify, request
 
 from module.logger import get_logger
-from module.metrics import http_request_duration_seconds, webhook_requests_total
 
 
 def register_email_routes(app):
@@ -21,7 +19,6 @@ def register_email_routes(app):
     @app.route("/email/webhook", methods=["POST"])
     async def email_webhook():
         """Handle incoming emails from Mailgun webhook."""
-        start_time = time.time()
         logger = get_logger(__name__, log_file="server.log")
 
         # Extract webhook data
@@ -39,12 +36,6 @@ def register_email_routes(app):
 
         # Validate required fields
         if not all([sender_email, timestamp, token, signature]):
-            duration = time.time() - start_time
-            webhook_requests_total.labels(webhook_type="email", status="invalid").inc()
-            http_request_duration_seconds.labels(method="POST", endpoint="/email/webhook").observe(
-                duration
-            )
-
             logger.error("Missing required webhook fields")
             return jsonify({"error": "Missing required fields"}), 400
 
@@ -58,22 +49,10 @@ def register_email_routes(app):
         from server.webhook_verification import is_timestamp_fresh, verify_mailgun_webhook
 
         if not is_timestamp_fresh(timestamp):
-            duration = time.time() - start_time
-            webhook_requests_total.labels(webhook_type="email", status="expired").inc()
-            http_request_duration_seconds.labels(method="POST", endpoint="/email/webhook").observe(
-                duration
-            )
-
             logger.error(f"Webhook timestamp too old: {timestamp}")
             return jsonify({"error": "Timestamp too old"}), 403
 
         if not verify_mailgun_webhook(token, timestamp, signature):
-            duration = time.time() - start_time
-            webhook_requests_total.labels(webhook_type="email", status="invalid_signature").inc()
-            http_request_duration_seconds.labels(method="POST", endpoint="/email/webhook").observe(
-                duration
-            )
-
             logger.error(f"Invalid webhook signature from {sender_email}")
             return jsonify({"error": "Invalid signature"}), 403
 
@@ -88,7 +67,6 @@ def register_email_routes(app):
             try:
                 if not processed_repo.claim(Medium.EMAIL, str(message_id), str(sender_email)):
                     logger.info(f"Duplicate email {message_id}, skipping")
-                    webhook_requests_total.labels(webhook_type="email", status="duplicate").inc()
                     return jsonify({"status": "duplicate"}), 200
             finally:
                 processed_repo.close()
@@ -157,13 +135,6 @@ def register_email_routes(app):
         # Start background thread
         thread = threading.Thread(target=process_email, daemon=True)
         thread.start()
-
-        # Record metrics
-        duration = time.time() - start_time
-        webhook_requests_total.labels(webhook_type="email", status="success").inc()
-        http_request_duration_seconds.labels(method="POST", endpoint="/email/webhook").observe(
-            duration
-        )
 
         # Return immediately to Mailgun
         return jsonify({"status": "received"}), 200

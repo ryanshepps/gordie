@@ -13,8 +13,6 @@ import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from quart import Quart, jsonify
 
 import billing
@@ -22,9 +20,7 @@ from agent.checkpointer import (
     checkpointer,  # noqa: F401 — ensures checkpoint tables exist at startup
 )
 from module.logger import get_logger
-from module.metrics import update_business_metrics, update_system_metrics
 from scheduled.jobs import register_scheduled_jobs
-from server.routes.admin_routes import register_admin_routes
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
@@ -62,15 +58,7 @@ class Server:
         self.port = port
         self.app = Quart(__name__)
 
-        # Instrument with OpenTelemetry via ASGI middleware.
-        # Type ignore: OpenTelemetry types ASGI params as MutableMapping[str, Any] while
-        # Quart/Hypercorn use narrower TypedDict aliases — both follow the ASGI 3.0 spec.
-        self.app.asgi_app = OpenTelemetryMiddleware(self.app.asgi_app)  # pyright: ignore[reportAttributeAccessIssue]
-
-        # Set up periodic metrics updates
         self.scheduler = BackgroundScheduler()
-        self.scheduler.add_job(func=update_system_metrics, trigger="interval", seconds=15)
-        self.scheduler.add_job(func=update_business_metrics, trigger="interval", seconds=60)
         self.scheduler.start()
 
         # Register scheduled notification jobs
@@ -119,7 +107,6 @@ class Server:
         register_oauth_routes(self.app)
         register_email_routes(self.app)
         register_signup_routes(self.app)
-        register_admin_routes(self.app)
         register_sms_routes(self.app)
         if billing.billing_enabled:
             billing.register_routes(self.app)
@@ -129,12 +116,6 @@ class Server:
         async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
-
-        # Prometheus metrics endpoint
-        @self.app.route("/metrics")
-        async def metrics():
-            """Prometheus metrics endpoint."""
-            return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
     def run(self):
         """

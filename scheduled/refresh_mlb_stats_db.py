@@ -1,6 +1,5 @@
 import os
 import tempfile
-import time
 from pathlib import Path
 
 import duckdb
@@ -8,7 +7,6 @@ import pandas as pd
 from pybaseball import batting_stats, pitching_stats, team_batting, team_pitching
 
 from module.logger import get_logger
-from module.metrics import mlb_stats_db_last_refresh_timestamp, mlb_stats_db_refresh_total
 from tools.mlb.stats.mlb_connection import reset_mlb_stats_connection
 from tools.mlb.stats.mlb_schema import MLB_DB_PATH, MLB_SEASONS
 
@@ -99,12 +97,8 @@ def refresh_mlb_stats_db() -> None:
 
         reset_mlb_stats_connection()
 
-        mlb_stats_db_refresh_total.labels(status="success").inc()
-        mlb_stats_db_last_refresh_timestamp.set(time.time())
-
     except Exception:
         logger.exception("Failed to refresh MLB stats database")
-        mlb_stats_db_refresh_total.labels(status="error").inc()
         if tmp_path.exists():
             tmp_path.unlink()
         raise

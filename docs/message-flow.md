@@ -78,9 +78,9 @@ Possible `context_status` values: `validated`, `first_time_user`, `no_oauth`, `n
 
 The supervisor (`agent/SupervisorAgent.py`) is a GPT-4o-mini agent with tool-calling capabilities. Three middleware layers wrap the model:
 
-1. `StateLoggingMiddleware` — traces state for debugging
+1. `StateLoggingMiddleware` — logs state for debugging
 2. `sport_tool_filter` — filters tools to only those relevant to the inferred sport (e.g., NHL tools hidden when sport is MLB). Non-sport tools remain available regardless. Filtering rules live in `middleware/sport_tool_filter.py`
-3. `handle_tool_errors` — wraps tool calls with error handling, retries, and metric tracking
+3. `handle_tool_errors` — wraps tool calls with error handling and output truncation
 
 The system prompt is assembled dynamically by `agent/prompts/assemble.py`, combining persona identity, behavioral rules, channel guidelines, context-specific instructions, and sport-specific stats definitions.
 
