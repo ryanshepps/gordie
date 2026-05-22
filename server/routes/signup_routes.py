@@ -50,7 +50,7 @@ def register_signup_routes(app):
         if email:
             logger.info(f"Website signup (email) from {email}")
 
-            from data.subscription_repository import SubscriptionRepository
+            from billing.repository import SubscriptionRepository
 
             sub_repo = SubscriptionRepository()
             try:

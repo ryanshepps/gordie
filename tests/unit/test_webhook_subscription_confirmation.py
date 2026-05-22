@@ -3,7 +3,7 @@
 import logging
 from unittest.mock import MagicMock, patch
 
-from server.routes.webhook_routes import _handle_checkout_completed, _send_subscription_confirmation
+from billing.webhook import _handle_checkout_completed, _send_subscription_confirmation
 
 
 class TestSendSubscriptionConfirmation:
@@ -15,8 +15,8 @@ class TestSendSubscriptionConfirmation:
         mock_sms = MagicMock()
 
         with (
-            patch("server.routes.webhook_routes.UserRepository", return_value=mock_repo),
-            patch("server.routes.webhook_routes.SmsService", return_value=mock_sms),
+            patch("billing.webhook.UserRepository", return_value=mock_repo),
+            patch("billing.webhook.SmsService", return_value=mock_sms),
         ):
             _send_subscription_confirmation("user@test.com", "standard", logging.getLogger())
 
@@ -32,8 +32,8 @@ class TestSendSubscriptionConfirmation:
         mock_repo.get_user.return_value = mock_user
 
         with (
-            patch("server.routes.webhook_routes.UserRepository", return_value=mock_repo),
-            patch("server.routes.webhook_routes.SmsService") as mock_sms_cls,
+            patch("billing.webhook.UserRepository", return_value=mock_repo),
+            patch("billing.webhook.SmsService") as mock_sms_cls,
         ):
             _send_subscription_confirmation("user@test.com", "standard", logging.getLogger())
 
@@ -44,8 +44,8 @@ class TestSendSubscriptionConfirmation:
         mock_repo.get_user.return_value = None
 
         with (
-            patch("server.routes.webhook_routes.UserRepository", return_value=mock_repo),
-            patch("server.routes.webhook_routes.SmsService") as mock_sms_cls,
+            patch("billing.webhook.UserRepository", return_value=mock_repo),
+            patch("billing.webhook.SmsService") as mock_sms_cls,
         ):
             _send_subscription_confirmation("unknown@test.com", "standard", logging.getLogger())
 
@@ -60,8 +60,8 @@ class TestSendSubscriptionConfirmation:
         mock_sms.send_sms.side_effect = RuntimeError("Sinch down")
 
         with (
-            patch("server.routes.webhook_routes.UserRepository", return_value=mock_repo),
-            patch("server.routes.webhook_routes.SmsService", return_value=mock_sms),
+            patch("billing.webhook.UserRepository", return_value=mock_repo),
+            patch("billing.webhook.SmsService", return_value=mock_sms),
         ):
             _send_subscription_confirmation("user@test.com", "standard", logging.getLogger())
 
@@ -76,8 +76,8 @@ class TestCheckoutCompletedTriggersConfirmation:
         mock_repo = MagicMock()
 
         with (
-            patch("server.creem_client.tier_from_product_id", return_value="standard"),
-            patch("server.routes.webhook_routes._send_subscription_confirmation") as mock_confirm,
+            patch("billing.creem_client.tier_from_product_id", return_value="standard"),
+            patch("billing.webhook._send_subscription_confirmation") as mock_confirm,
         ):
             _handle_checkout_completed(mock_repo, obj, logging.getLogger())
 
@@ -93,7 +93,7 @@ class TestCheckoutCompletedTriggersConfirmation:
         mock_repo = MagicMock()
 
         with (
-            patch("server.routes.webhook_routes._send_subscription_confirmation") as mock_confirm,
+            patch("billing.webhook._send_subscription_confirmation") as mock_confirm,
         ):
             _handle_checkout_completed(mock_repo, obj, logging.getLogger())
 

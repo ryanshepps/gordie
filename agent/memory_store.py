@@ -23,10 +23,6 @@ _memory_store: InMemoryStore | None = None
 _memory_search_enabled = False
 
 
-def _memory_enabled() -> bool:
-    return os.getenv("MEMORY_ENABLED", "true").lower() not in {"0", "false", "no", "off"}
-
-
 def is_memory_search_enabled() -> bool:
     """Return whether semantic conversation search is available."""
     return _memory_search_enabled
@@ -37,10 +33,6 @@ def _create_memory_store() -> InMemoryStore:
     global _memory_search_enabled
 
     _memory_search_enabled = False
-    if not _memory_enabled():
-        logger.info("Conversation memory disabled by MEMORY_ENABLED")
-        return InMemoryStore()
-
     llm_provider = os.getenv("LLM_PROVIDER", "openai").lower()
     if llm_provider != "openai":
         logger.info(
@@ -205,10 +197,6 @@ def summarize_and_store_conversation(
     Returns:
         True if stored successfully, False otherwise
     """
-    if not _memory_enabled():
-        logger.debug("Conversation memory is disabled")
-        return False
-
     # Need at least 2 messages (user + assistant) to summarize
     if not messages or len(messages) < 2:
         logger.debug("Not enough messages to summarize")

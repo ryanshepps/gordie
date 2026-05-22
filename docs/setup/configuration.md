@@ -28,12 +28,6 @@ Every runtime knob is an environment variable read at process start. `.env.examp
 |-----|----------|---------|-------|
 | `ENABLED_SPORTS` | No | `nhl,mlb` | Comma-separated. Disables the corresponding stats DB refresh on startup. The agent tools themselves are still registered — sport filtering happens later via `middleware/sport_tool_filter.py`. |
 
-## Memory
-
-| Var | Required | Default | Notes |
-|-----|----------|---------|-------|
-| `MEMORY_ENABLED` | No | `true` | Set to `false` to disable conversation memory. Semantic conversation search uses OpenAI embeddings only when `LLM_PROVIDER=openai` and `OPENAI_API_KEY` is set; Anthropic-only deployments start without OpenAI and report past-conversation search as unavailable. |
-
 ## External services
 
 See per-service setup docs:
