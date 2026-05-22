@@ -30,9 +30,7 @@ def _download_csv(url: str, dest: Path) -> None:
     dest.write_bytes(response.content)
 
 
-def _load_table(
-    conn: duckdb.DuckDBPyConnection, table_type: str, csv_dir: Path
-) -> None:
+def _load_table(conn: duckdb.DuckDBPyConnection, table_type: str, csv_dir: Path) -> None:
     csv_files = sorted(csv_dir.glob(f"{table_type}_*.csv"))
     union_query = " UNION ALL BY NAME ".join(
         f"SELECT * FROM read_csv_auto('{csv_file}')" for csv_file in csv_files

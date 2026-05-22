@@ -41,7 +41,6 @@ def _make_state(ai_response: str, retries: int = 0) -> AgentState:
 
 @pytest.mark.integration
 class TestDataQualityGamesPlayed:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_flags_response_missing_games_played_context(self):
         state = _make_state(RESPONSE_MISSING_GP_CONTEXT)
@@ -66,15 +65,11 @@ class TestDataQualityGamesPlayed:
 
         result = data_quality_node(state)
 
-        assert result.goto == "voice_rewrite", (
-            "Expected pass-through when GP context is present"
-        )
+        assert result.goto == "voice_rewrite", "Expected pass-through when GP context is present"
 
     def test_skips_check_when_retry_limit_reached(self):
         state = _make_state(RESPONSE_MISSING_GP_CONTEXT, retries=1)
 
         result = data_quality_node(state)
 
-        assert result.goto == "voice_rewrite", (
-            "Expected pass-through when retry limit is reached"
-        )
+        assert result.goto == "voice_rewrite", "Expected pass-through when retry limit is reached"

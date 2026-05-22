@@ -36,9 +36,7 @@ OFFSEASON_TEAM = {
 class TestSingleActiveTeamAutoOnboards:
     @patch("agent.context_node.auto_onboard_team")
     @patch("agent.context_node.fetch_supported_teams")
-    def test_one_active_one_offseason_auto_onboards_active(
-        self, mock_fetch, mock_onboard
-    ):
+    def test_one_active_one_offseason_auto_onboards_active(self, mock_fetch, mock_onboard):
         mock_fetch.return_value = [OFFSEASON_TEAM, ACTIVE_TEAM]
         mock_onboard.return_value = ACTIVE_TEAM
 

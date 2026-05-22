@@ -39,9 +39,7 @@ def _fetch_team_pitching(season: int) -> pd.DataFrame:
     return df
 
 
-def _load_dataframe(
-    conn: duckdb.DuckDBPyConnection, table_name: str, df: pd.DataFrame
-) -> None:
+def _load_dataframe(conn: duckdb.DuckDBPyConnection, table_name: str, df: pd.DataFrame) -> None:
     conn.execute(f"CREATE OR REPLACE TABLE {table_name} AS SELECT * FROM df")
     count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
     logger.info(f"Loaded {table_name}: {count[0] if count else 0} rows")

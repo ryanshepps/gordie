@@ -50,7 +50,11 @@ def handle_tool_errors(request, handler):
                     extra={"tool_name": tool_name, "original_chars": original_len},
                 )
 
-            preview = result_content[:500] if isinstance(result_content, str) else str(result_content)[:500]
+            preview = (
+                result_content[:500]
+                if isinstance(result_content, str)
+                else str(result_content)[:500]
+            )
 
             logger.info(
                 f"Tool executed successfully: {tool_name}",

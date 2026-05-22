@@ -60,12 +60,14 @@ print([round(z, 2) for z in zscores])
 df = pd.DataFrame(data['players'])
 print(df[['name', 'points']].to_string(index=False))
 """
-        data = json.dumps({
-            "players": [
-                {"name": "McDavid", "points": 52},
-                {"name": "Draisaitl", "points": 45},
-            ]
-        })
+        data = json.dumps(
+            {
+                "players": [
+                    {"name": "McDavid", "points": 52},
+                    {"name": "Draisaitl", "points": 45},
+                ]
+            }
+        )
         result = execute_python.invoke({"code": code, "data_json": data})
         assert "McDavid" in result
         assert "52" in result

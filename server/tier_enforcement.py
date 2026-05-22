@@ -148,10 +148,12 @@ def get_user_tier(email: str) -> str:
 def classify_message_intent(message: str) -> MessageIntent:
     try:
         llm = make_llm(temperature=0)
-        response = llm.invoke([
-            {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ])
+        response = llm.invoke(
+            [
+                {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
+                {"role": "user", "content": message},
+            ]
+        )
         raw = str(response.content).strip().lower()
         if raw == "general":
             return "general"
@@ -200,7 +202,10 @@ def check_usage_allowed(email: str, action: str) -> tuple[bool, str]:
     if action == "digest":
         if tier in DIGEST_ALLOWED_TIERS:
             return (True, "")
-        return (False, "Digests are a perk for subscribers — upgrade and I'll send you one every week.")
+        return (
+            False,
+            "Digests are a perk for subscribers — upgrade and I'll send you one every week.",
+        )
 
     return (True, "")
 

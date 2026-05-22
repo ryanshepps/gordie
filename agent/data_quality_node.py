@@ -28,6 +28,7 @@ def _get_llm() -> BaseChatModel:
         _llm_instance = make_llm(temperature=0)
     return _llm_instance
 
+
 _SYSTEM_PROMPT = """\
 You are a data-quality reviewer for a fantasy sports AI assistant.
 
@@ -64,9 +65,7 @@ def _get_last_ai_content(messages: list[object]) -> str | None:
             msg_type = msg.get("type")
         if msg_type == "ai":
             content = (
-                getattr(msg, "content", None)
-                if not isinstance(msg, dict)
-                else msg.get("content")
+                getattr(msg, "content", None) if not isinstance(msg, dict) else msg.get("content")
             )
             if content:
                 return str(content)
@@ -110,10 +109,12 @@ def data_quality_node(
         return Command(goto="voice_rewrite", update=state)
 
     try:
-        result = _get_llm().invoke([
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": f"Draft response:\n\n{draft}"},
-        ])
+        result = _get_llm().invoke(
+            [
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": f"Draft response:\n\n{draft}"},
+            ]
+        )
         passed, feedback = _parse_result(str(result.content))
 
         if passed or not feedback:

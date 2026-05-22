@@ -55,9 +55,9 @@ def yahoo_roster(
         JSON string with roster/player data.
     """
     if method not in VALID_METHODS:
-        return json.dumps({
-            "error": f"Invalid method '{method}'. Valid methods: {sorted(VALID_METHODS)}"
-        })
+        return json.dumps(
+            {"error": f"Invalid method '{method}'. Valid methods: {sorted(VALID_METHODS)}"}
+        )
 
     yahoo_client = AuthenticatedYahooClient(league_id=int(league_id), user_email=user_email)
     params: dict[str, str | int | float] = json.loads(params_json)

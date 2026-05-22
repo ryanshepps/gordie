@@ -12,7 +12,10 @@ from tests.evals.conftest import retry_on_rate_limit
 
 
 def _invoke_graph(state: dict[str, Any]) -> str:
-    config = cast(RunnableConfig, cast(object, {"configurable": {"thread_id": state.get("thread_id", "test")}}))
+    config = cast(
+        RunnableConfig,
+        cast(object, {"configurable": {"thread_id": state.get("thread_id", "test")}}),
+    )
     result = agent.invoke(cast(Any, state), config)
     return str(result.get("response", ""))
 
@@ -64,9 +67,9 @@ class TestPersona:
         mock_user_state["messages"] = [HumanMessage(content=user_message)]
         response_text = _invoke_graph(mock_user_state)
 
-        assert "error" not in response_text.lower() and "couldn't process" not in response_text.lower(), (
-            f"Agent returned error response in {scenario} scenario: {response_text[:500]}"
-        )
+        assert (
+            "error" not in response_text.lower() and "couldn't process" not in response_text.lower()
+        ), f"Agent returned error response in {scenario} scenario: {response_text[:500]}"
 
         output_messages = [{"role": "assistant", "content": response_text}]
 
@@ -158,7 +161,7 @@ class TestPersonaEntertainment:
             HumanMessage(content="Give me an honest review of my roster. Don't hold back.")
         ]
         response_text = _invoke_graph(mock_user_state)
-        print(f"\n{'='*60}\nROSTER REVIEW RESPONSE:\n{'='*60}\n{response_text}\n{'='*60}")
+        print(f"\n{'=' * 60}\nROSTER REVIEW RESPONSE:\n{'=' * 60}\n{response_text}\n{'=' * 60}")
 
         eval_result = entertainment_evaluator(
             outputs=[{"role": "assistant", "content": response_text}],
@@ -182,7 +185,7 @@ class TestPersonaEntertainment:
             HumanMessage(content="Timo Meier has been terrible for me. What should I do with him?")
         ]
         response_text = _invoke_graph(mock_user_state)
-        print(f"\n{'='*60}\nCOLD PLAYER ROAST RESPONSE:\n{'='*60}\n{response_text}\n{'='*60}")
+        print(f"\n{'=' * 60}\nCOLD PLAYER ROAST RESPONSE:\n{'=' * 60}\n{response_text}\n{'=' * 60}")
 
         eval_result = roast_evaluator(
             outputs=[{"role": "assistant", "content": response_text}],
@@ -206,7 +209,7 @@ class TestPersonaEntertainment:
             HumanMessage(content="Should I drop Connor McDavid? He's been kinda quiet lately.")
         ]
         response_text = _invoke_graph(mock_user_state)
-        print(f"\n{'='*60}\nBUDDY RIBBING RESPONSE:\n{'='*60}\n{response_text}\n{'='*60}")
+        print(f"\n{'=' * 60}\nBUDDY RIBBING RESPONSE:\n{'=' * 60}\n{response_text}\n{'=' * 60}")
 
         eval_result = buddy_ribbing_evaluator(
             outputs=[{"role": "assistant", "content": response_text}],
@@ -230,7 +233,7 @@ class TestPersonaEntertainment:
             HumanMessage(content="How's McDavid been doing? Give me the rundown.")
         ]
         response_text = _invoke_graph(mock_user_state)
-        print(f"\n{'='*60}\nHOT PLAYER HYPE RESPONSE:\n{'='*60}\n{response_text}\n{'='*60}")
+        print(f"\n{'=' * 60}\nHOT PLAYER HYPE RESPONSE:\n{'=' * 60}\n{response_text}\n{'=' * 60}")
 
         eval_result = entertainment_evaluator(
             outputs=[{"role": "assistant", "content": response_text}],
@@ -254,7 +257,9 @@ class TestPersonaEntertainment:
             HumanMessage(content="Who should I pick up from waivers right now?")
         ]
         response_text = _invoke_graph(mock_user_state)
-        print(f"\n{'='*60}\nPICKUP RECOMMENDATION RESPONSE:\n{'='*60}\n{response_text}\n{'='*60}")
+        print(
+            f"\n{'=' * 60}\nPICKUP RECOMMENDATION RESPONSE:\n{'=' * 60}\n{response_text}\n{'=' * 60}"
+        )
 
         eval_result = entertainment_evaluator(
             outputs=[{"role": "assistant", "content": response_text}],

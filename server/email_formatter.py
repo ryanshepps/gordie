@@ -66,7 +66,6 @@ def wrap_html_document(html_content: str) -> str:
 </html>"""
 
 
-
 def get_beta_footer_html() -> str:
     """Get the beta disclaimer footer HTML.
 

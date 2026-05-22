@@ -33,7 +33,6 @@ TRADE_PATTERNS = [
 ]
 
 
-
 def fetch_trades() -> list[TradeAlert]:
     """Fetch trade alerts from NHL news RSS feeds.
 

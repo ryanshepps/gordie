@@ -43,7 +43,9 @@ def register_oauth_routes(app):
             )
 
         if not code or not state:
-            return _error_html("Invalid Request", "Missing authorization code or state parameter."), 400
+            return _error_html(
+                "Invalid Request", "Missing authorization code or state parameter."
+            ), 400
 
         # Look up pending OAuth record
         from data.pending_oauth_repository import PendingOAuthRepository
@@ -90,7 +92,9 @@ def register_oauth_routes(app):
             yahoo_email = get_yahoo_email(token_data["access_token"])
             if not yahoo_email:
                 logger.error(f"Could not retrieve Yahoo email for state={state}")
-                return _error_html("Authentication Error", "Could not retrieve your Yahoo email."), 500
+                return _error_html(
+                    "Authentication Error", "Could not retrieve your Yahoo email."
+                ), 500
 
             # Account linking for SMS cold-start: phone_number set, user_email is None
             if phone_number and not user_email:

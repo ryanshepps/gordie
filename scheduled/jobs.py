@@ -55,7 +55,9 @@ def expire_trials_and_notify() -> None:
             if result.success:
                 logger.info(f"Sent trial expiration email to {user_email}")
             else:
-                logger.error(f"Failed to send trial expiration email to {user_email}: {result.error}")
+                logger.error(
+                    f"Failed to send trial expiration email to {user_email}: {result.error}"
+                )
         except Exception as e:
             logger.error(f"Error processing trial expiration for {user_email}: {e}")
         finally:
@@ -88,8 +90,7 @@ def cleanup_pending_users() -> None:
 
         repo.session.execute(
             text(
-                "DELETE FROM pending_users "
-                "WHERE created_at < NOW() - MAKE_INTERVAL(days => :days)"
+                "DELETE FROM pending_users WHERE created_at < NOW() - MAKE_INTERVAL(days => :days)"
             ),
             {"days": 7},
         )

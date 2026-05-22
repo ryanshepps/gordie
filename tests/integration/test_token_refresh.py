@@ -67,6 +67,4 @@ def test_token_refresh_persists_to_database(mock_db_session, mock_user_tokens, m
         assert mock_db_session.execute.call_count > execute_count_before_refresh, (
             "Database should receive a write after token refresh"
         )
-        assert mock_db_session.commit.called, (
-            "Database commit should be called after token refresh"
-        )
+        assert mock_db_session.commit.called, "Database commit should be called after token refresh"

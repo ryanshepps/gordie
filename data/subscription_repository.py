@@ -92,17 +92,12 @@ class SubscriptionRepository(Repository):
 
     def get_digest_count(self, user_email: str) -> int:
         result = self.session.execute(
-            text(
-                "SELECT digest_count FROM user_subscriptions "
-                "WHERE user_email = :user_email"
-            ),
+            text("SELECT digest_count FROM user_subscriptions WHERE user_email = :user_email"),
             {"user_email": user_email},
         ).fetchone()
         return int(result[0]) if result else 0
 
-    def find_subscription_by_creem_id(
-        self, creem_subscription_id: str
-    ) -> DatabaseRow | None:
+    def find_subscription_by_creem_id(self, creem_subscription_id: str) -> DatabaseRow | None:
         return self.get_by(creem_subscription_id=creem_subscription_id)
 
 

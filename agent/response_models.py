@@ -122,7 +122,9 @@ class BatterPlayerStats(BaseModel):
     barrel_pct: float = Field(description="Barrel percentage", ge=0, le=30)
     hard_hit_pct: float = Field(description="Hard hit percentage", ge=0, le=70)
 
-    games_remaining_this_week: int | None = Field(default=None, description="Games remaining this week")
+    games_remaining_this_week: int | None = Field(
+        default=None, description="Games remaining this week"
+    )
     games_next_week: int | None = Field(default=None, description="Games next week")
 
     undervalued_score: float | None = Field(default=None, description="Undervalued score")
@@ -153,7 +155,9 @@ class PitcherPlayerStats(BaseModel):
     wins: int = Field(description="Wins", ge=0)
     saves: int = Field(description="Saves", ge=0)
 
-    games_remaining_this_week: int | None = Field(default=None, description="Games remaining this week")
+    games_remaining_this_week: int | None = Field(
+        default=None, description="Games remaining this week"
+    )
     games_next_week: int | None = Field(default=None, description="Games next week")
 
     undervalued_score: float | None = Field(default=None, description="Undervalued score")

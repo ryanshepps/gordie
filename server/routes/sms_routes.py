@@ -259,9 +259,9 @@ def register_sms_routes(app):
 
             duration = time.time() - start_time
             sms_webhook_requests_total.labels(status="cold_start").inc()
-            http_request_duration_seconds.labels(
-                method="POST", endpoint="/sms/webhook"
-            ).observe(duration)
+            http_request_duration_seconds.labels(method="POST", endpoint="/sms/webhook").observe(
+                duration
+            )
             return jsonify({"status": "cold_start"}), 200
 
         user_email = str(user[0])

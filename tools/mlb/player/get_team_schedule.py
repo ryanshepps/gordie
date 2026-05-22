@@ -110,14 +110,8 @@ def _fetch_team_schedule(
         games.sort(key=lambda g: str(g.get("date", "")))
 
         sunday_str = this_sunday.strftime("%Y-%m-%d")
-        this_week_games = [
-            g for g in games
-            if str(g.get("date", "")) <= sunday_str
-        ]
-        next_week_games = [
-            g for g in games
-            if str(g.get("date", "")) > sunday_str
-        ]
+        this_week_games = [g for g in games if str(g.get("date", "")) <= sunday_str]
+        next_week_games = [g for g in games if str(g.get("date", "")) > sunday_str]
 
         result: dict[str, Any] = {
             "status": "success",

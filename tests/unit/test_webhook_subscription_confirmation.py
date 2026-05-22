@@ -77,9 +77,7 @@ class TestCheckoutCompletedTriggersConfirmation:
 
         with (
             patch("server.creem_client.tier_from_product_id", return_value="standard"),
-            patch(
-                "server.routes.webhook_routes._send_subscription_confirmation"
-            ) as mock_confirm,
+            patch("server.routes.webhook_routes._send_subscription_confirmation") as mock_confirm,
         ):
             _handle_checkout_completed(mock_repo, obj, logging.getLogger())
 
@@ -95,9 +93,7 @@ class TestCheckoutCompletedTriggersConfirmation:
         mock_repo = MagicMock()
 
         with (
-            patch(
-                "server.routes.webhook_routes._send_subscription_confirmation"
-            ) as mock_confirm,
+            patch("server.routes.webhook_routes._send_subscription_confirmation") as mock_confirm,
         ):
             _handle_checkout_completed(mock_repo, obj, logging.getLogger())
 

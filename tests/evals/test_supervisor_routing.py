@@ -34,12 +34,11 @@ class TestPlayerDropRouting:
         tool_calls = extract_tool_calls_from_messages(result_messages)
         tool_names = [tc["name"] for tc in tool_calls]
 
-        uses_subagents = any(
-            tool in tool_names
-            for tool in ["trade", "available_players"]
-        )
+        uses_subagents = any(tool in tool_names for tool in ["trade", "available_players"])
 
-        assert uses_subagents, f"Expected 'trade' or 'available_players' subagent, got: {tool_names}"
+        assert uses_subagents, (
+            f"Expected 'trade' or 'available_players' subagent, got: {tool_names}"
+        )
 
 
 @pytest.mark.integration
@@ -82,6 +81,4 @@ class TestTradeRouting:
         tool_calls = extract_tool_calls_from_messages(result_messages)
         tool_names = [tc["name"] for tc in tool_calls]
 
-        assert "trade" in tool_names, (
-            f"Expected 'trade' in tool calls, got: {tool_names}"
-        )
+        assert "trade" in tool_names, f"Expected 'trade' in tool calls, got: {tool_names}"

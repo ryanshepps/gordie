@@ -17,7 +17,6 @@ from tests.evals.conftest import extract_tool_calls_from_messages, retry_on_rate
 
 @pytest.mark.integration
 class TestStatisticianRouting:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_consistency_question_routes_to_statistician(
         self,
@@ -44,9 +43,7 @@ class TestStatisticianRouting:
         mock_user_state: AgentState,
         mock_yahoo_tools: dict[str, Any],
     ) -> None:
-        mock_user_state["messages"] = [
-            HumanMessage(content="Am I lucky or just good this season?")
-        ]
+        mock_user_state["messages"] = [HumanMessage(content="Am I lucky or just good this season?")]
         result = supervisor_node(mock_user_state)
 
         update = result.update or {}
@@ -84,9 +81,7 @@ class TestStatisticianRouting:
         mock_user_state: AgentState,
         mock_yahoo_tools: dict[str, Any],
     ) -> None:
-        mock_user_state["messages"] = [
-            HumanMessage(content="Who should I trade Draisaitl for?")
-        ]
+        mock_user_state["messages"] = [HumanMessage(content="Who should I trade Draisaitl for?")]
         result = supervisor_node(mock_user_state)
 
         update = result.update or {}

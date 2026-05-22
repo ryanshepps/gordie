@@ -23,9 +23,7 @@ def mock_connection():
     conn.execute(
         "CREATE TABLE goalies (name VARCHAR, team VARCHAR, wins INTEGER, situation VARCHAR)"
     )
-    conn.execute(
-        "CREATE TABLE teams (team VARCHAR, wins INTEGER, situation VARCHAR)"
-    )
+    conn.execute("CREATE TABLE teams (team VARCHAR, wins INTEGER, situation VARCHAR)")
     with patch("tools.hockey.stats.query_stats_db.get_stats_connection", return_value=conn):
         yield conn
     conn.close()
@@ -67,9 +65,7 @@ class TestQueryHockeyStatsDb:
         values = ", ".join(f"('Player{i}', 'TST', {i}, 'all')" for i in range(MAX_ROWS + 10))
         mock_connection.execute(f"INSERT INTO skaters VALUES {values}")
 
-        result = query_hockey_stats_db.invoke(
-            {"sql": "SELECT * FROM skaters", "situation": "all"}
-        )
+        result = query_hockey_stats_db.invoke({"sql": "SELECT * FROM skaters", "situation": "all"})
         parsed = json.loads(result)
 
         assert len(parsed["results"]) == MAX_ROWS
@@ -101,10 +97,10 @@ class TestQueryMlbStatsDb:
         conn.execute(
             "CREATE TABLE mlb_pitchers (Name VARCHAR, Team VARCHAR, ERA FLOAT, Season INTEGER)"
         )
-        conn.execute(
-            "CREATE TABLE mlb_teams (Team VARCHAR, Season INTEGER)"
-        )
-        with patch("tools.mlb.stats.query_mlb_stats_db.get_mlb_stats_connection", return_value=conn):
+        conn.execute("CREATE TABLE mlb_teams (Team VARCHAR, Season INTEGER)")
+        with patch(
+            "tools.mlb.stats.query_mlb_stats_db.get_mlb_stats_connection", return_value=conn
+        ):
             yield conn
         conn.close()
 
@@ -122,9 +118,7 @@ class TestQueryMlbStatsDb:
     def test_no_situation_injection(self, mlb_connection):
         from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 
-        result = query_mlb_stats_db.invoke(
-            {"sql": "SELECT Name FROM mlb_batters WHERE HR > 40"}
-        )
+        result = query_mlb_stats_db.invoke({"sql": "SELECT Name FROM mlb_batters WHERE HR > 40"})
         parsed = json.loads(result)
 
         assert len(parsed["results"]) == 1
@@ -133,9 +127,7 @@ class TestQueryMlbStatsDb:
     def test_column_not_found_returns_mlb_columns(self, mlb_connection):
         from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 
-        result = query_mlb_stats_db.invoke(
-            {"sql": "SELECT nonexistent FROM mlb_batters"}
-        )
+        result = query_mlb_stats_db.invoke({"sql": "SELECT nonexistent FROM mlb_batters"})
         parsed = json.loads(result)
 
         assert "error" in parsed

@@ -24,7 +24,6 @@ JOIN_KEYWORDS = ("join", "create", "sign up", "start", "set up")
 
 
 class TestNoYahooLeagues:
-
     @pytest.fixture
     def authenticated_no_leagues_state(self) -> AgentState:
         return AgentState(

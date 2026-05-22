@@ -110,8 +110,13 @@ class TestBatterScoring:
 
     def test_highly_undervalued_batter(self):
         stats = _batter(
-            woba=0.290, xwoba=0.360, barrel_pct=14.0, hard_hit_pct=47.0,
-            bb_pct=13.0, k_pct=16.0, sprint_speed=30.0,
+            woba=0.290,
+            xwoba=0.360,
+            barrel_pct=14.0,
+            hard_hit_pct=47.0,
+            bb_pct=13.0,
+            k_pct=16.0,
+            sprint_speed=30.0,
         )
         score, _ = _calculate_batter_score(stats)
         assert score >= 10

@@ -42,7 +42,9 @@ def register_signup_routes(app):
             return jsonify({"error": "Please provide a valid email address."}), 400
 
         if phone_number and not PHONE_REGEX.match(phone_number):
-            return jsonify({"error": "Please provide a valid phone number (e.g. +12025551234)."}), 400
+            return jsonify(
+                {"error": "Please provide a valid phone number (e.g. +12025551234)."}
+            ), 400
 
         # Email signup path
         if email:
@@ -111,6 +113,8 @@ def register_signup_routes(app):
             except Exception as e:
                 logger.error(f"Failed to send signup OAuth SMS to {phone_number}: {e}")
                 if not email:
-                    return jsonify({"error": "Failed to send verification SMS. Please try again."}), 500
+                    return jsonify(
+                        {"error": "Failed to send verification SMS. Please try again."}
+                    ), 500
 
         return jsonify({"success": True}), 200

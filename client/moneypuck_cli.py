@@ -66,18 +66,14 @@ def get_player_stats(name: str, situation: str = "all") -> PlayerStats:
         Dict of player stats, or empty dict on failure
     """
     try:
-        output = run_cli(
-            f"player stats {shlex.quote(name)} --situation {situation} --json"
-        )
+        output = run_cli(f"player stats {shlex.quote(name)} --situation {situation} --json")
         return json.loads(output)
     except (RuntimeError, json.JSONDecodeError) as e:
         logger.error(f"Player stats failed for '{name}': {e}")
         return {}
 
 
-def get_player_stats_by_names(
-    names: list[str], situation: str = "all"
-) -> dict[str, PlayerStats]:
+def get_player_stats_by_names(names: list[str], situation: str = "all") -> dict[str, PlayerStats]:
     """Get season stats for multiple players by name.
 
     Args:

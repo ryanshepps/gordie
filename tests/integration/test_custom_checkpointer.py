@@ -48,8 +48,12 @@ def checkpointer():
     stored_writes: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
 
     def mock_save_checkpoint(
-        thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id,
-        channel_values, metadata,
+        thread_id,
+        checkpoint_ns,
+        checkpoint_id,
+        parent_checkpoint_id,
+        channel_values,
+        metadata,
     ):
         # psycopg Json wrapper — extract the adapted value
         cv = channel_values.obj if hasattr(channel_values, "obj") else channel_values
@@ -66,8 +70,7 @@ def checkpointer():
 
     def mock_get_latest_checkpoint(thread_id, checkpoint_ns=""):
         matches = [
-            v for k, v in stored_checkpoints.items()
-            if k[0] == thread_id and k[1] == checkpoint_ns
+            v for k, v in stored_checkpoints.items() if k[0] == thread_id and k[1] == checkpoint_ns
         ]
         return matches[-1] if matches else None
 
@@ -75,7 +78,12 @@ def checkpointer():
         return stored_checkpoints.get((thread_id, checkpoint_ns, checkpoint_id))
 
     def mock_save_write(
-        thread_id, checkpoint_ns, checkpoint_id, task_id, channel, value,
+        thread_id,
+        checkpoint_ns,
+        checkpoint_id,
+        task_id,
+        channel,
+        value,
     ):
         from psycopg.types.json import Json
 
@@ -86,6 +94,7 @@ def checkpointer():
             stored_val = value
         else:
             import json
+
             stored_val = json.loads(value) if isinstance(value, str) else value
 
         key = (thread_id, checkpoint_ns, checkpoint_id)
@@ -93,15 +102,18 @@ def checkpointer():
             stored_writes[key] = []
         # Replace existing write for same task_id+channel
         stored_writes[key] = [
-            w for w in stored_writes[key]
+            w
+            for w in stored_writes[key]
             if not (w["task_id"] == task_id and w["channel"] == channel)
         ]
-        stored_writes[key].append({
-            "task_id": task_id,
-            "channel": channel,
-            "value": stored_val,
-            "created_at": None,
-        })
+        stored_writes[key].append(
+            {
+                "task_id": task_id,
+                "channel": channel,
+                "value": stored_val,
+                "created_at": None,
+            }
+        )
 
     def mock_get_writes(thread_id, checkpoint_ns, checkpoint_id):
         return stored_writes.get((thread_id, checkpoint_ns, checkpoint_id), [])
@@ -171,9 +183,7 @@ def test_pending_writes_round_trip(checkpointer):
     )
 
     # Now read it back via get_tuple
-    result = checkpointer.get_tuple(
-        {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
-    )
+    result = checkpointer.get_tuple({"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
 
     assert result is not None
     assert result.pending_writes is not None

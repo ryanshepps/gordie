@@ -481,9 +481,7 @@ class TestWeeklyDigestSmsDelivery:
                 return_value=SmsDelivery(phone_number="+15551234567"),
             ),
             patch("scheduled.weekly_digest.SmsService") as mock_sms_cls,
-            patch(
-                "scheduled.weekly_digest.enrich_email_with_player_stats"
-            ) as mock_enrich,
+            patch("scheduled.weekly_digest.enrich_email_with_player_stats") as mock_enrich,
         ):
             mock_sms = MagicMock()
             mock_sms.send_sms.return_value = SmsResult(success=True, batch_id="b-1")
@@ -507,17 +505,11 @@ class TestDigestContent:
             current_week=15,
             roster_performance=RosterPerformance(
                 top_performers=[
-                    PlayerPerformance(
-                        name="Connor McDavid", position="C", team="EDM", points=25.5
-                    ),
-                    PlayerPerformance(
-                        name="Leon Draisaitl", position="C", team="EDM", points=22.0
-                    ),
+                    PlayerPerformance(name="Connor McDavid", position="C", team="EDM", points=25.5),
+                    PlayerPerformance(name="Leon Draisaitl", position="C", team="EDM", points=22.0),
                 ],
                 underperformers=[
-                    PlayerPerformance(
-                        name="Bench Player", position="RW", team="EDM", points=2.0
-                    ),
+                    PlayerPerformance(name="Bench Player", position="RW", team="EDM", points=2.0),
                 ],
                 injured=[
                     PlayerPerformance(

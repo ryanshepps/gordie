@@ -119,7 +119,6 @@ class TestGetUserTier:
         assert get_user_tier("user@test.com") == "allstar"
 
 
-
 class TestCheckQuestionAllowed:
     @patch("server.tier_enforcement.classify_message_intent")
     @patch("server.tier_enforcement.SubscriptionRepository")
@@ -151,9 +150,7 @@ class TestCheckQuestionAllowed:
     @patch("server.tier_enforcement.UsageTrackingRepository")
     @patch("server.tier_enforcement.classify_message_intent", return_value="analysis")
     @patch("server.tier_enforcement.SubscriptionRepository")
-    def test_free_user_analysis_message_counted(
-        self, mock_sub_cls, mock_classify, mock_usage_cls
-    ):
+    def test_free_user_analysis_message_counted(self, mock_sub_cls, mock_classify, mock_usage_cls):
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="free", status="expired"
         )
@@ -357,7 +354,12 @@ class TestGetBillingStatus:
             current_period_ends_at=datetime(2026, 5, 1, tzinfo=UTC),
         )
         mock_usage_cls.return_value.get_weekly_usage.return_value = 0
-        mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",), ("l3",), ("l4",)]
+        mock_team_cls.return_value.get_user_teams.return_value = [
+            ("l1",),
+            ("l2",),
+            ("l3",),
+            ("l4",),
+        ]
 
         result = get_billing_status("user@test.com")
 
@@ -426,9 +428,7 @@ class TestCheckLeagueLimit:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="allstar", status="active"
         )
-        mock_team_cls.return_value.get_user_teams.return_value = [
-            (f"l{i}",) for i in range(10)
-        ]
+        mock_team_cls.return_value.get_user_teams.return_value = [(f"l{i}",) for i in range(10)]
 
         allowed, reason = check_league_limit("allstar@test.com")
 
@@ -443,9 +443,7 @@ class TestCheckLeagueLimit:
             status="trialing",
             trial_ends_at=datetime.now(UTC) + timedelta(days=7),
         )
-        mock_team_cls.return_value.get_user_teams.return_value = [
-            (f"l{i}",) for i in range(5)
-        ]
+        mock_team_cls.return_value.get_user_teams.return_value = [(f"l{i}",) for i in range(5)]
 
         allowed, reason = check_league_limit("trial@test.com")
 

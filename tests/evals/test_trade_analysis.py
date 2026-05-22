@@ -26,11 +26,17 @@ ADVANCED_STATS_KEYWORDS = ("xgoal", "corsi", "fenwick", "toi", "ice time", "poss
 
 XGOALS_KEYWORDS = ("xgoal", "expected goal", "goals above expected", "gax")
 POSSESSION_KEYWORDS = ("fenwick", "corsi", "possession", "shot share")
-UNDERVALUE_KEYWORDS = ("undervalued", "regression", "unlucky", "due for", "below expected", "underperforming")
+UNDERVALUE_KEYWORDS = (
+    "undervalued",
+    "regression",
+    "unlucky",
+    "due for",
+    "below expected",
+    "underperforming",
+)
 
 
 class TestTradeAnalysisWorkflow:
-
     @pytest.fixture
     def trade_analysis_input(self) -> str:
         return "I want to trade away Draisaitl, who should I target?"
@@ -64,7 +70,6 @@ class TestTradeAnalysisWorkflow:
 
 
 class TestTradeTargetQuality:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_does_not_recommend_obviously_better_players(
         self,
@@ -133,7 +138,6 @@ class TestTradeTargetQuality:
 
 
 class TestTradeAgentUndervaluedIntegration:
-
     @pytest.fixture
     def trade_for_input(self) -> str:
         return "I want to acquire a new center with good underlying stats"

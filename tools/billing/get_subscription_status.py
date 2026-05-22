@@ -8,9 +8,27 @@ from pydantic import BaseModel, Field
 from server.tier_enforcement import get_billing_status
 
 PLAN_DETAILS: dict[str, dict[str, str | int]] = {
-    "free": {"price": "Free", "questions_per_week": 3, "leagues": 1, "digests": "No", "alerts": "No"},
-    "standard": {"price": "$10/mo or $80/yr", "questions_per_week": "Unlimited", "leagues": 3, "digests": "Yes", "alerts": "Yes"},
-    "allstar": {"price": "$18/mo or $144/yr", "questions_per_week": "Unlimited", "leagues": "Unlimited", "digests": "Yes", "alerts": "Yes"},
+    "free": {
+        "price": "Free",
+        "questions_per_week": 3,
+        "leagues": 1,
+        "digests": "No",
+        "alerts": "No",
+    },
+    "standard": {
+        "price": "$10/mo or $80/yr",
+        "questions_per_week": "Unlimited",
+        "leagues": 3,
+        "digests": "Yes",
+        "alerts": "Yes",
+    },
+    "allstar": {
+        "price": "$18/mo or $144/yr",
+        "questions_per_week": "Unlimited",
+        "leagues": "Unlimited",
+        "digests": "Yes",
+        "alerts": "Yes",
+    },
 }
 
 

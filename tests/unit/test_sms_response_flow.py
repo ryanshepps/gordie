@@ -83,5 +83,3 @@ class TestResponseNodeSmsDispatch:
 
         mock_email.assert_called_once()
         assert result.goto == "__end__"
-
-

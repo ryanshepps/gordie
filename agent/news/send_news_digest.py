@@ -149,14 +149,18 @@ def _send_user_digest(
         team_repo.close()
 
     yahoo_client = AuthenticatedYahooClient(
-        user_email=user_email, league_id=int(league_id), game_code=sport,
+        user_email=user_email,
+        league_id=int(league_id),
+        game_code=sport,
     )
     current_roster = yahoo_client.query.get_team_roster_player_stats(team_id)
 
     roster_list = (
         current_roster
         if isinstance(current_roster, list)
-        else [current_roster] if current_roster else []
+        else [current_roster]
+        if current_roster
+        else []
     )
 
     roster_players = _extract_roster_players(roster_list)
@@ -210,7 +214,9 @@ def _send_user_digest(
     return True
 
 
-def _send_news_email(content: str, user_email: str, league_name: str, digest_label: str = "NHL") -> None:
+def _send_news_email(
+    content: str, user_email: str, league_name: str, digest_label: str = "NHL"
+) -> None:
     email_content = format_email(
         content=content,
         footer_type=FooterType.UNSUBSCRIBE,
@@ -239,9 +245,7 @@ def _send_news_email(content: str, user_email: str, league_name: str, digest_lab
         raise RuntimeError(f"Email send failed: {result.error}")
 
 
-def _send_news_sms(
-    content: str, phone_number: str, user_email: str, league_name: str
-) -> None:
+def _send_news_sms(content: str, phone_number: str, user_email: str, league_name: str) -> None:
     plain_text = strip_markdown(content)
     sms_service = SmsService()
     result = sms_service.send_sms(phone_number, plain_text)

@@ -13,11 +13,21 @@ from agent.email_enrichment import (
 
 def _mock_search_player(name):
     players = {
-        "leon draisaitl": [{"name": "Leon Draisaitl", "player_id": 8477934, "team": "EDM", "position": "C"}],
-        "auston matthews": [{"name": "Auston Matthews", "player_id": 8479318, "team": "TOR", "position": "C"}],
-        "connor mcdavid": [{"name": "Connor McDavid", "player_id": 8478402, "team": "EDM", "position": "C"}],
-        "cale makar": [{"name": "Cale Makar", "player_id": 8480069, "team": "COL", "position": "D"}],
-        "nikita kucherov": [{"name": "Nikita Kucherov", "player_id": 8476453, "team": "TBL", "position": "RW"}],
+        "leon draisaitl": [
+            {"name": "Leon Draisaitl", "player_id": 8477934, "team": "EDM", "position": "C"}
+        ],
+        "auston matthews": [
+            {"name": "Auston Matthews", "player_id": 8479318, "team": "TOR", "position": "C"}
+        ],
+        "connor mcdavid": [
+            {"name": "Connor McDavid", "player_id": 8478402, "team": "EDM", "position": "C"}
+        ],
+        "cale makar": [
+            {"name": "Cale Makar", "player_id": 8480069, "team": "COL", "position": "D"}
+        ],
+        "nikita kucherov": [
+            {"name": "Nikita Kucherov", "player_id": 8476453, "team": "TBL", "position": "RW"}
+        ],
     }
     return players.get(name.lower(), [])
 
@@ -113,18 +123,36 @@ class TestFormatStatsTableMarkdown:
         """Should format multiple players in the table."""
         stats = [
             {
-                "name": "Player One", "position": "C", "games_played": 10,
-                "goals": 5, "assists": 7, "points": 12, "points_per_game": 1.2,
-                "toi_per_game_minutes": 18.5, "x_goals": 4.0,
-                "goals_above_expected": 1.0, "fenwick_pct": 50.0,
-                "corsi_pct": 51.0, "shots_on_goal": 40, "high_danger_goals": 2,
+                "name": "Player One",
+                "position": "C",
+                "games_played": 10,
+                "goals": 5,
+                "assists": 7,
+                "points": 12,
+                "points_per_game": 1.2,
+                "toi_per_game_minutes": 18.5,
+                "x_goals": 4.0,
+                "goals_above_expected": 1.0,
+                "fenwick_pct": 50.0,
+                "corsi_pct": 51.0,
+                "shots_on_goal": 40,
+                "high_danger_goals": 2,
             },
             {
-                "name": "Player Two", "position": "LW", "games_played": 10,
-                "goals": 8, "assists": 4, "points": 12, "points_per_game": 1.2,
-                "toi_per_game_minutes": 16.2, "x_goals": 6.0,
-                "goals_above_expected": 2.0, "fenwick_pct": 48.0,
-                "corsi_pct": 47.5, "shots_on_goal": 55, "high_danger_goals": 3,
+                "name": "Player Two",
+                "position": "LW",
+                "games_played": 10,
+                "goals": 8,
+                "assists": 4,
+                "points": 12,
+                "points_per_game": 1.2,
+                "toi_per_game_minutes": 16.2,
+                "x_goals": 6.0,
+                "goals_above_expected": 2.0,
+                "fenwick_pct": 48.0,
+                "corsi_pct": 47.5,
+                "shots_on_goal": 55,
+                "high_danger_goals": 3,
             },
         ]
         result = format_stats_table_markdown(stats)
@@ -135,11 +163,20 @@ class TestFormatStatsTableMarkdown:
         """Should produce valid markdown table structure with correct row count."""
         stats = [
             {
-                "name": f"Player {i}", "position": "C", "games_played": 10,
-                "goals": i, "assists": i, "points": i * 2, "points_per_game": 1.0,
-                "toi_per_game_minutes": 18.0, "x_goals": float(i),
-                "goals_above_expected": 0.0, "fenwick_pct": 50.0,
-                "corsi_pct": 50.0, "shots_on_goal": 30, "high_danger_goals": 1,
+                "name": f"Player {i}",
+                "position": "C",
+                "games_played": 10,
+                "goals": i,
+                "assists": i,
+                "points": i * 2,
+                "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
+                "x_goals": float(i),
+                "goals_above_expected": 0.0,
+                "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 1,
             }
             for i in range(1, 4)
         ]
@@ -160,11 +197,20 @@ class TestFormatStatsTableHtml:
         """Should create a properly formatted HTML table."""
         stats = [
             {
-                "name": "Connor McDavid", "position": "C", "games_played": 30,
-                "goals": 20, "assists": 35, "points": 55, "points_per_game": 1.83,
-                "toi_per_game_minutes": 22.5, "x_goals": 15.5,
-                "goals_above_expected": 4.5, "fenwick_pct": 55.2,
-                "corsi_pct": 54.1, "shots_on_goal": 120, "high_danger_goals": 8,
+                "name": "Connor McDavid",
+                "position": "C",
+                "games_played": 30,
+                "goals": 20,
+                "assists": 35,
+                "points": 55,
+                "points_per_game": 1.83,
+                "toi_per_game_minutes": 22.5,
+                "x_goals": 15.5,
+                "goals_above_expected": 4.5,
+                "fenwick_pct": 55.2,
+                "corsi_pct": 54.1,
+                "shots_on_goal": 120,
+                "high_danger_goals": 8,
             }
         ]
         result = format_stats_table_html(stats)
@@ -180,11 +226,20 @@ class TestFormatStatsTableHtml:
         """Should include explanation of stat abbreviations."""
         stats = [
             {
-                "name": "Test Player", "position": "C", "games_played": 10,
-                "goals": 5, "assists": 5, "points": 10, "points_per_game": 1.0,
-                "toi_per_game_minutes": 18.0, "x_goals": 4.0,
-                "goals_above_expected": 1.0, "fenwick_pct": 50.0,
-                "corsi_pct": 50.0, "shots_on_goal": 30, "high_danger_goals": 2,
+                "name": "Test Player",
+                "position": "C",
+                "games_played": 10,
+                "goals": 5,
+                "assists": 5,
+                "points": 10,
+                "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
+                "x_goals": 4.0,
+                "goals_above_expected": 1.0,
+                "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 2,
             }
         ]
         result = format_stats_table_html(stats)
@@ -267,12 +322,15 @@ class TestEnrichEmailWithPlayerStats:
             }
         }
 
-        with patch(
-            "agent.email_enrichment.search_player",
-            side_effect=_mock_search_player,
-        ), patch(
-            "agent.email_enrichment.get_player_stats_by_names",
-            return_value=mock_stats,
+        with (
+            patch(
+                "agent.email_enrichment.search_player",
+                side_effect=_mock_search_player,
+            ),
+            patch(
+                "agent.email_enrichment.get_player_stats_by_names",
+                return_value=mock_stats,
+            ),
         ):
             markdown, html = enrich_email_with_player_stats(
                 message_content="Check out Leon Draisaitl!",
@@ -289,27 +347,44 @@ class TestEnrichEmailWithPlayerStats:
         """Should include actual player data in enrichment output."""
         mock_stats = {
             "Leon Draisaitl": {
-                "name": "Leon Draisaitl", "position": "C", "games_played": 30,
-                "goals": 20, "points": 55, "points_per_game": 1.83,
-                "toi_per_game_minutes": 21.5, "x_goals": 15.5,
-                "fenwick_pct": 55.2, "corsi_pct": 54.0,
-                "shots_on_goal": 110, "high_danger_goals": 7,
+                "name": "Leon Draisaitl",
+                "position": "C",
+                "games_played": 30,
+                "goals": 20,
+                "points": 55,
+                "points_per_game": 1.83,
+                "toi_per_game_minutes": 21.5,
+                "x_goals": 15.5,
+                "fenwick_pct": 55.2,
+                "corsi_pct": 54.0,
+                "shots_on_goal": 110,
+                "high_danger_goals": 7,
             },
             "Auston Matthews": {
-                "name": "Auston Matthews", "position": "C", "games_played": 30,
-                "goals": 18, "points": 48, "points_per_game": 1.6,
-                "toi_per_game_minutes": 20.5, "x_goals": 14.0,
-                "fenwick_pct": 54.5, "corsi_pct": 53.5,
-                "shots_on_goal": 100, "high_danger_goals": 6,
+                "name": "Auston Matthews",
+                "position": "C",
+                "games_played": 30,
+                "goals": 18,
+                "points": 48,
+                "points_per_game": 1.6,
+                "toi_per_game_minutes": 20.5,
+                "x_goals": 14.0,
+                "fenwick_pct": 54.5,
+                "corsi_pct": 53.5,
+                "shots_on_goal": 100,
+                "high_danger_goals": 6,
             },
         }
 
-        with patch(
-            "agent.email_enrichment.search_player",
-            side_effect=_mock_search_player,
-        ), patch(
-            "agent.email_enrichment.get_player_stats_by_names",
-            return_value=mock_stats,
+        with (
+            patch(
+                "agent.email_enrichment.search_player",
+                side_effect=_mock_search_player,
+            ),
+            patch(
+                "agent.email_enrichment.get_player_stats_by_names",
+                return_value=mock_stats,
+            ),
         ):
             markdown, html = enrich_email_with_player_stats(
                 message_content="Compare Leon Draisaitl and Auston Matthews",
@@ -330,11 +405,20 @@ class TestEmailEnrichmentIntegration:
         """Markdown table should start with newlines for appending."""
         stats = [
             {
-                "name": "Test Player", "position": "C", "games_played": 10,
-                "goals": 5, "assists": 5, "points": 10, "points_per_game": 1.0,
-                "toi_per_game_minutes": 18.0, "x_goals": 4.0,
-                "goals_above_expected": 1.0, "fenwick_pct": 50.0,
-                "corsi_pct": 50.0, "shots_on_goal": 30, "high_danger_goals": 2,
+                "name": "Test Player",
+                "position": "C",
+                "games_played": 10,
+                "goals": 5,
+                "assists": 5,
+                "points": 10,
+                "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
+                "x_goals": 4.0,
+                "goals_above_expected": 1.0,
+                "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 2,
             }
         ]
         result = format_stats_table_markdown(stats)
@@ -344,11 +428,20 @@ class TestEmailEnrichmentIntegration:
         """HTML table should have appropriate wrapper for appending."""
         stats = [
             {
-                "name": "Test Player", "position": "C", "games_played": 10,
-                "goals": 5, "assists": 5, "points": 10, "points_per_game": 1.0,
-                "toi_per_game_minutes": 18.0, "x_goals": 4.0,
-                "goals_above_expected": 1.0, "fenwick_pct": 50.0,
-                "corsi_pct": 50.0, "shots_on_goal": 30, "high_danger_goals": 2,
+                "name": "Test Player",
+                "position": "C",
+                "games_played": 10,
+                "goals": 5,
+                "assists": 5,
+                "points": 10,
+                "points_per_game": 1.0,
+                "toi_per_game_minutes": 18.0,
+                "x_goals": 4.0,
+                "goals_above_expected": 1.0,
+                "fenwick_pct": 50.0,
+                "corsi_pct": 50.0,
+                "shots_on_goal": 30,
+                "high_danger_goals": 2,
             }
         ]
         result = format_stats_table_html(stats)

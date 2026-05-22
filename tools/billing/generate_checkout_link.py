@@ -8,7 +8,9 @@ from server.creem_client import create_checkout_session
 
 logger = get_logger(__name__)
 
-VALID_PLANS = frozenset({"standard_monthly", "standard_annual", "allstar_monthly", "allstar_annual"})
+VALID_PLANS = frozenset(
+    {"standard_monthly", "standard_annual", "allstar_monthly", "allstar_annual"}
+)
 
 PLAN_DESCRIPTIONS: dict[str, str] = {
     "standard_monthly": "Standard ($10/mo)",

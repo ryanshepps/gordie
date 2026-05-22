@@ -113,14 +113,13 @@ def _extract_response(result) -> str:
     update = result.update or {}
     response_text = update.get("response", "")
     assert response_text, "Agent produced no response"
-    assert "error" not in response_text.lower() or "couldn't process" not in response_text.lower(), (
-        f"Agent returned error response: {response_text[:500]}"
-    )
+    assert (
+        "error" not in response_text.lower() or "couldn't process" not in response_text.lower()
+    ), f"Agent returned error response: {response_text[:500]}"
     return response_text.lower()
 
 
 class TestNotificationEvals:
-
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_opt_out_confirms_action(
         self,

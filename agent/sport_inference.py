@@ -81,9 +81,7 @@ def _match_keywords(message_text: str, eligible_sports: set[Sport]) -> Sport | N
     return None
 
 
-def _match_team_names(
-    message_text: str, user_teams: list[dict[str, str]]
-) -> Sport | None:
+def _match_team_names(message_text: str, user_teams: list[dict[str, str]]) -> Sport | None:
     text_lower = message_text.lower()
     matched_sports: set[Sport] = set()
     for team in user_teams:
@@ -92,9 +90,7 @@ def _match_team_names(
         sport = team.get("sport")
         if sport not in ("nhl", "mlb", "nfl", "nba"):
             continue
-        if (team_name and team_name in text_lower) or (
-            league_name and league_name in text_lower
-        ):
+        if (team_name and team_name in text_lower) or (league_name and league_name in text_lower):
             matched_sports.add(sport)  # type: ignore[arg-type]
     if len(matched_sports) == 1:
         return matched_sports.pop()

@@ -13,9 +13,27 @@ from tools.hockey.player.fuzzy_resolve_nhl_api_player_ids import (
 )
 
 MOCK_PLAYERS = [
-    {"player_id": 8478402, "name": "Connor McDavid", "team": "EDM", "position": "C", "games_played": 67},
-    {"player_id": 8477934, "name": "Leon Draisaitl", "team": "EDM", "position": "C", "games_played": 65},
-    {"player_id": 8480069, "name": "Cale Makar", "team": "COL", "position": "D", "games_played": 60},
+    {
+        "player_id": 8478402,
+        "name": "Connor McDavid",
+        "team": "EDM",
+        "position": "C",
+        "games_played": 67,
+    },
+    {
+        "player_id": 8477934,
+        "name": "Leon Draisaitl",
+        "team": "EDM",
+        "position": "C",
+        "games_played": 65,
+    },
+    {
+        "player_id": 8480069,
+        "name": "Cale Makar",
+        "team": "COL",
+        "position": "D",
+        "games_played": 60,
+    },
 ]
 
 
@@ -33,7 +51,6 @@ def mock_moneypuck_search():
 
 
 class TestMoneyPuckLookup:
-
     def test_finds_player_by_full_name(self, mock_moneypuck_search):
         result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Connor McDavid"]))
 
@@ -77,7 +94,6 @@ class TestMoneyPuckLookup:
 
 
 class TestNHLAPIFallback:
-
     @pytest.fixture
     def mock_empty_moneypuck(self):
         with patch(
@@ -129,9 +145,7 @@ class TestNHLAPIFallback:
         assert "NHL API" in result["Crosby"]["message"]
 
     def test_does_not_call_api_when_found_in_moneypuck(self, mock_moneypuck_search):
-        with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get"
-        ) as mock_get:
+        with patch("tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get") as mock_get:
             fuzzy_resolve_nhl_api_player_ids(player_names=["McDavid"])
             mock_get.assert_not_called()
 
@@ -163,12 +177,23 @@ class TestNHLAPIFallback:
 
 
 class TestMultipleMatches:
-
     @pytest.fixture
     def mock_moneypuck_with_similar_names(self):
         similar_players = [
-            {"player_id": 8471675, "name": "Sidney Crosby", "team": "PIT", "position": "C", "games_played": 70},
-            {"player_id": 8471677, "name": "Mike Crosby", "team": "BOS", "position": "R", "games_played": 30},
+            {
+                "player_id": 8471675,
+                "name": "Sidney Crosby",
+                "team": "PIT",
+                "position": "C",
+                "games_played": 70,
+            },
+            {
+                "player_id": 8471677,
+                "name": "Mike Crosby",
+                "team": "BOS",
+                "position": "R",
+                "games_played": 30,
+            },
         ]
 
         def search_func(query: str) -> list[dict[str, str | int]]:
