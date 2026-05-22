@@ -41,6 +41,7 @@ exclude = [
     ".git",
     ".venv",
     ".claude",
+    ".codex",
     "venv",
     "__pycache__",
     ".pytest_cache",
@@ -132,6 +133,7 @@ exclude = [
     "*.egg-info",
     "data_test_examples",
     ".claude",
+    ".codex",
 ]
 
 [tool.uv.sources]
