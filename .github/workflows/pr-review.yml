@@ -5,7 +5,7 @@ on:
   # Use pull_request so untrusted fork PRs cannot access repository secrets.
   # Fork PR reviews are intentionally unsupported for now.
   pull_request:
-    types: [labeled, review_requested]
+    types: [labeled]
 
 permissions:
   contents: read
@@ -15,10 +15,7 @@ permissions:
 jobs:
   pr-review:
     name: OpenHands PR Review
-    if: |
-      github.event.label.name == 'review-this' ||
-      github.event.requested_reviewer.login == 'openhands-agent' ||
-      github.event.requested_reviewer.login == 'all-hands-bot'
+    if: github.event.label.name == 'review-this'
     concurrency:
       group: pr-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
