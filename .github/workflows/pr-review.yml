@@ -2,10 +2,9 @@
 name: PR Review by OpenHands
 
 on:
-  # pull_request_target lets maintainer-triggered reviews access repository
-  # secrets for fork PRs. Only write-access users can add labels or request
-  # reviewers, so review untrusted PRs before triggering this workflow.
-  pull_request_target:
+  # Use pull_request so untrusted fork PRs cannot access repository secrets.
+  # Fork PR reviews are intentionally unsupported for now.
+  pull_request:
     types: [labeled, review_requested]
 
 permissions:
