@@ -22,12 +22,12 @@ PLAN_DETAILS: dict[str, dict[str, str | int]] = {
         "digests": "Yes",
         "alerts": "Yes",
     },
-    "allstar": {
-        "price": "$18/mo or $144/yr",
-        "questions_per_week": "Unlimited",
-        "leagues": "Unlimited",
-        "digests": "Yes",
-        "alerts": "Yes",
+    "contact": {
+        "price": "Custom",
+        "questions_per_week": "Custom",
+        "leagues": "Custom",
+        "digests": "Custom",
+        "alerts": "Custom",
     },
 }
 

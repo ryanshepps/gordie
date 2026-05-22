@@ -60,11 +60,11 @@ class TestGetUserTier:
         assert get_user_tier("user@test.com") == "standard"
 
     @patch("billing.tier.SubscriptionRepository")
-    def test_active_allstar_returns_allstar(self, mock_repo_cls):
+    def test_unsupported_tier_returns_free(self, mock_repo_cls):
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="allstar", status="active"
         )
-        assert get_user_tier("user@test.com") == "allstar"
+        assert get_user_tier("user@test.com") == "free"
 
     @patch("billing.tier.SubscriptionRepository")
     def test_trialing_with_future_end_returns_trialing(self, mock_repo_cls):
@@ -110,13 +110,13 @@ class TestGetUserTier:
         assert get_user_tier("user@test.com") == "free"
 
     @patch("billing.tier.SubscriptionRepository")
-    def test_paused_keeps_tier(self, mock_repo_cls):
+    def test_paused_standard_keeps_tier(self, mock_repo_cls):
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="allstar",
+            tier="standard",
             status="paused",
             current_period_ends_at=datetime.now(UTC) + timedelta(days=10),
         )
-        assert get_user_tier("user@test.com") == "allstar"
+        assert get_user_tier("user@test.com") == "standard"
 
 
 class TestCheckQuestionAllowed:
@@ -177,6 +177,7 @@ class TestCheckQuestionAllowed:
 
         assert allowed is False
         assert "free questions" in reason
+        assert "All-Star" not in reason
         mock_usage_cls.return_value.increment_question_count.assert_not_called()
 
     @patch("billing.tier.UsageTrackingRepository")
@@ -227,17 +228,13 @@ class TestCheckUsageAllowed:
 
 class TestBuildUpgradeMessage:
     @patch("billing.creem_client.create_checkout_session")
-    def test_email_includes_both_plan_links(self, mock_checkout):
-        mock_checkout.side_effect = [
-            "https://checkout.creem.io/standard",
-            "https://checkout.creem.io/allstar",
-        ]
+    def test_email_includes_standard_plan_link(self, mock_checkout):
+        mock_checkout.return_value = "https://checkout.creem.io/standard"
         result = build_upgrade_message("user@test.com", "Limit reached.", "email")
 
         assert "Standard" in result
-        assert "All-Star" in result
         assert "https://checkout.creem.io/standard" in result
-        assert "https://checkout.creem.io/allstar" in result
+        assert "All-Star" not in result
 
     @patch("billing.creem_client.create_checkout_session")
     def test_sms_includes_single_link(self, mock_checkout):
@@ -346,7 +343,9 @@ class TestGetBillingStatus:
     @patch("billing.tier.YahooUserTeamRepository")
     @patch("billing.tier.UsageTrackingRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_allstar_has_unlimited_leagues(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+    def test_unsupported_tier_status_resolves_to_free(
+        self, mock_sub_cls, mock_usage_cls, mock_team_cls
+    ):
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="allstar",
             status="active",
@@ -363,7 +362,9 @@ class TestGetBillingStatus:
 
         result = get_billing_status("user@test.com")
 
-        assert result["leagues_allowed"] is None
+        assert result["tier"] == "free"
+        assert result["status"] == "expired"
+        assert result["leagues_allowed"] == 1
         assert result["leagues_connected"] == 4
 
 
@@ -424,19 +425,6 @@ class TestCheckLeagueLimit:
 
     @patch("billing.tier.YahooUserTeamRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_allstar_user_unlimited(self, mock_sub_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="allstar", status="active"
-        )
-        mock_team_cls.return_value.get_user_teams.return_value = [(f"l{i}",) for i in range(10)]
-
-        allowed, reason = check_league_limit("allstar@test.com")
-
-        assert allowed is True
-        assert reason == ""
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.SubscriptionRepository")
     def test_trialing_user_unlimited(self, mock_sub_cls, mock_team_cls):
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="trialing",
@@ -453,26 +441,19 @@ class TestCheckLeagueLimit:
 
 class TestBuildBillingContext:
     @patch("billing.creem_client.create_checkout_session")
-    def test_email_includes_both_plan_links(self, mock_checkout):
-        mock_checkout.side_effect = [
-            "https://checkout.creem.io/standard",
-            "https://checkout.creem.io/allstar",
-        ]
+    def test_email_includes_standard_plan_link(self, mock_checkout):
+        mock_checkout.return_value = "https://checkout.creem.io/standard"
         result = build_billing_context("user@test.com", "Limit reached.", "email")
 
         assert "BILLING LIMIT REACHED" in result
         assert "Limit reached." in result
         assert "https://checkout.creem.io/standard" in result
-        assert "https://checkout.creem.io/allstar" in result
         assert "Standard" in result
-        assert "All-Star" in result
+        assert "All-Star" not in result
 
     @patch("billing.creem_client.create_checkout_session")
     def test_sms_includes_single_link(self, mock_checkout):
-        mock_checkout.side_effect = [
-            "https://checkout.creem.io/standard",
-            "https://checkout.creem.io/allstar",
-        ]
+        mock_checkout.return_value = "https://checkout.creem.io/standard"
         result = build_billing_context("user@test.com", "Limit reached.", "sms")
 
         assert "Upgrade link:" in result

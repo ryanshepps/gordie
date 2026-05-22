@@ -17,15 +17,11 @@ CREEM_API_KEY = os.getenv("CREEM_API_KEY", "")
 PRODUCT_IDS = {
     "standard_monthly": os.getenv("CREEM_PRODUCT_STANDARD_MONTHLY", ""),
     "standard_annual": os.getenv("CREEM_PRODUCT_STANDARD_ANNUAL", ""),
-    "allstar_monthly": os.getenv("CREEM_PRODUCT_ALLSTAR_MONTHLY", ""),
-    "allstar_annual": os.getenv("CREEM_PRODUCT_ALLSTAR_ANNUAL", ""),
 }
 
 PRODUCT_ID_TO_TIER = {
     os.getenv("CREEM_PRODUCT_STANDARD_MONTHLY", ""): "standard",
     os.getenv("CREEM_PRODUCT_STANDARD_ANNUAL", ""): "standard",
-    os.getenv("CREEM_PRODUCT_ALLSTAR_MONTHLY", ""): "allstar",
-    os.getenv("CREEM_PRODUCT_ALLSTAR_ANNUAL", ""): "allstar",
 }
 
 

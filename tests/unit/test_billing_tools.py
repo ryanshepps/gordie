@@ -63,16 +63,17 @@ class TestGetSubscriptionStatus:
         assert result["current_period_ends"] == "2026-04-15"
 
     @patch("billing.tools.get_subscription_status.get_billing_status")
-    def test_unlimited_leagues_serialized_as_string(self, mock_billing):
+    def test_contact_plan_is_present_without_allstar_plan(self, mock_billing):
         mock_billing.return_value = _billing_status(
-            tier="allstar", status="active", leagues_allowed=None
+            tier="standard", status="active", leagues_allowed=3
         )
 
         from billing.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(get_subscription_status.invoke({"user_email": "user@test.com"}))
 
-        assert result["leagues_allowed"] == "unlimited"
+        assert "contact" in result["plans"]
+        assert "allstar" not in result["plans"]
 
 
 class TestGenerateCheckoutLink:
@@ -118,10 +119,20 @@ class TestGenerateCheckoutLink:
         from billing.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke(
-            {"user_email": "user@test.com", "plan": "allstar_monthly"}
+            {"user_email": "user@test.com", "plan": "standard_monthly"}
         )
 
         assert "couldn't generate" in result
+
+    def test_allstar_plan_is_not_valid(self):
+        from billing.tools.generate_checkout_link import generate_checkout_link
+
+        result = generate_checkout_link.invoke(
+            {"user_email": "user@test.com", "plan": "allstar_monthly"}
+        )
+
+        assert "Invalid plan" in result
+        assert "allstar" not in result.lower()
 
 
 class TestGeneratePortalLink:

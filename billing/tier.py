@@ -26,14 +26,15 @@ _INTENT_SYSTEM_PROMPT = (
 
 FREE_QUESTIONS_PER_WEEK = 3
 
+SUPPORTED_TIERS = frozenset({"free", "trialing", "standard"})
+
 LEAGUE_LIMITS: dict[str, int | None] = {
     "free": 1,
     "trialing": None,
     "standard": 3,
-    "allstar": None,
 }
 
-DIGEST_ALLOWED_TIERS = frozenset({"trialing", "standard", "allstar"})
+DIGEST_ALLOWED_TIERS = frozenset({"trialing", "standard"})
 
 _tier_cache: dict[str, tuple[str, float]] = {}
 _CACHE_TTL_SECONDS = 60
@@ -65,6 +66,9 @@ def _resolve_billing_state(sub: DatabaseRow | None) -> tuple[str, str]:
     current_period_ends_at: datetime | None = sub[6]
 
     now = datetime.now(UTC)
+
+    if tier not in SUPPORTED_TIERS:
+        return ("free", "expired")
 
     if status == "expired":
         return ("free", "expired")
@@ -113,7 +117,7 @@ def get_billing_status(email: str) -> BillingStatus:
         leagues_connected = len(team_repo.get_user_teams(email))
 
         period_end: str | None = None
-        if current_period_ends_at and tier in ("standard", "allstar"):
+        if current_period_ends_at and tier == "standard":
             period_end = current_period_ends_at.strftime("%Y-%m-%d")
 
         return BillingStatus(
@@ -184,7 +188,7 @@ def check_question_allowed(email: str, message: str) -> tuple[bool, str]:
         return (
             False,
             f"Hey, you've burned through your {FREE_QUESTIONS_PER_WEEK} free questions for the week. "
-            "I'm still here, but I need you to upgrade to Standard or All-Star to keep the advice coming.",
+            "I'm still here, but I need you to upgrade to Standard to keep the advice coming.",
         )
 
     usage_repo = UsageTrackingRepository()
@@ -238,11 +242,9 @@ def build_billing_context(email: str, reason: str, channel: str) -> str:
         from billing.creem_client import create_checkout_session
 
         standard_url = create_checkout_session("standard_monthly", email)
-        allstar_url = create_checkout_session("allstar_monthly", email)
     except Exception as e:
         logger.warning(f"Failed to generate checkout links for {email}: {e}")
         standard_url = None
-        allstar_url = None
 
     lines = [
         "BILLING LIMIT REACHED — The user has hit their free-tier question limit.",
@@ -255,9 +257,8 @@ def build_billing_context(email: str, reason: str, channel: str) -> str:
 
     if channel == "sms" and standard_url:
         lines.append(f"\nUpgrade link: {standard_url}")
-    elif standard_url and allstar_url:
+    elif standard_url:
         lines.append(f"\nStandard ($10/mo) — 3 leagues, weekly digests: {standard_url}")
-        lines.append(f"All-Star ($18/mo) — unlimited everything: {allstar_url}")
 
     return "\n".join(lines)
 
@@ -271,11 +272,9 @@ def build_upgrade_message(email: str, reason: str, channel: str) -> str:
         if channel == "sms":
             return f"{reason}\n\nHere's the link to upgrade: {standard_url}"
 
-        allstar_url = create_checkout_session("allstar_monthly", email)
         return (
             f"{reason}\n\n"
-            f"Standard ($10/mo) — 3 leagues, weekly digests: {standard_url}\n"
-            f"All-Star ($18/mo) — unlimited everything: {allstar_url}"
+            f"Standard ($10/mo) — 3 leagues, weekly digests: {standard_url}"
         )
     except Exception as e:
         logger.warning(f"Failed to generate checkout links for {email}: {e}")

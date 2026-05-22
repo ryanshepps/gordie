@@ -42,13 +42,11 @@ def expire_trials_and_notify() -> None:
             )
 
             standard_url = create_checkout_session("standard_monthly", user_email)
-            allstar_url = create_checkout_session("allstar_monthly", user_email)
 
             result = email_service.send_trial_expiration_email(
                 to_email=user_email,
                 usage=usage,
                 standard_checkout_url=standard_url,
-                allstar_checkout_url=allstar_url,
             )
 
             if result.success:

@@ -175,7 +175,6 @@ class EmailService:
         to_email: str,
         usage: "TrialUsageSummary",
         standard_checkout_url: str,
-        allstar_checkout_url: str,
     ) -> EmailResult:
         subject = "Your Gordie trial has ended"
 
@@ -186,9 +185,9 @@ class EmailService:
             f"  - Digests received: {usage['digests_received']}\n"
             f"  - Leagues connected: {usage['leagues_connected']}\n\n"
             "You're now on the Free plan (3 questions/week, 1 league, no digests).\n\n"
-            "Upgrade to keep full access:\n\n"
+            "Upgrade to keep subscriber access:\n\n"
             f"  Standard ($10/mo): {standard_checkout_url}\n"
-            f"  All-Star ($18/mo): {allstar_checkout_url}\n\n"
+            "\n"
             "Or just reply to Gordie and ask to upgrade — he'll handle it.\n"
         )
 
@@ -231,7 +230,7 @@ class EmailService:
         </table>
 
         <p style="color: #9C9486; margin: 0 0 24px 0;">
-            You're now on the Free plan (3 questions/week, 1 league, no digests). Upgrade to keep full access:
+            You're now on the Free plan (3 questions/week, 1 league, no digests). Upgrade to keep subscriber access:
         </p>
 
         <table style="width: 100%; border-collapse: separate; border-spacing: 0 8px;">
@@ -239,13 +238,6 @@ class EmailService:
                 <td style="text-align: center; padding: 0;">
                     <a href="{standard_checkout_url}" style="display: block; padding: 14px 24px; background: #FFB800; color: #0F0D09; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 16px;">
                         Upgrade to Standard — $10/mo
-                    </a>
-                </td>
-            </tr>
-            <tr>
-                <td style="text-align: center; padding: 0;">
-                    <a href="{allstar_checkout_url}" style="display: block; padding: 14px 24px; background: transparent; color: #F0EBE3; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 16px; border: 1px solid #2A2520;">
-                        Upgrade to All-Star — $18/mo
                     </a>
                 </td>
             </tr>

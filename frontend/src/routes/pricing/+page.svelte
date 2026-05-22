@@ -26,20 +26,33 @@
 			},
 			{
 				'@type': 'Offer',
-				name: 'All-Star',
-				price: '18',
+				name: 'Contact',
+				description: 'Custom support for larger fantasy setups'
+			},
+			{
+				'@type': 'Offer',
+				name: 'Self-hosted',
+				price: '0',
 				priceCurrency: 'USD',
-				description: 'Everything in Standard plus unlimited leagues'
+				url: 'https://github.com/ryanshepps/gordie',
+				description: 'Run Gordie from the open-source GitHub repository'
 			}
 		]
 	};
 
+	const githubUrl = 'https://github.com/ryanshepps/gordie';
+
 	type Tier = {
 		name: string;
-		monthlyPrice: number;
-		annualPrice: number;
+		monthlyPrice: number | null;
+		annualPrice: number | null;
+		priceLabel?: string;
+		periodLabel?: string;
 		highlight: boolean;
 		badge: string | null;
+		ctaLabel: string;
+		ctaHref: string;
+		external?: boolean;
 		features: FeatureValue[];
 	};
 
@@ -51,15 +64,6 @@
 
 	let annual = $state(false);
 
-	const featureLabels = [
-		'Questions per week',
-		'Leagues',
-		'Weekly digests',
-		'News alerts',
-		'Conversation history',
-		'Priority support'
-	];
-
 	const tiers: Tier[] = [
 		{
 			name: 'Free',
@@ -67,6 +71,8 @@
 			annualPrice: 0,
 			highlight: false,
 			badge: null,
+			ctaLabel: 'Get Started',
+			ctaHref: '/#signup',
 			features: [
 				{ label: 'Questions per week', value: '3', included: true },
 				{ label: 'Leagues', value: '1', included: true },
@@ -82,6 +88,8 @@
 			annualPrice: 80,
 			highlight: true,
 			badge: 'Most Popular',
+			ctaLabel: 'Start Free Trial',
+			ctaHref: '/#signup',
 			features: [
 				{ label: 'Questions per week', value: 'Unlimited', included: true },
 				{ label: 'Leagues', value: '3', included: true },
@@ -92,33 +100,63 @@
 			]
 		},
 		{
-			name: 'All-Star',
-			monthlyPrice: 18,
-			annualPrice: 144,
+			name: 'Contact',
+			monthlyPrice: null,
+			annualPrice: null,
+			priceLabel: 'Custom',
 			highlight: false,
 			badge: null,
+			ctaLabel: 'Contact',
+			ctaHref: 'mailto:support@lastingsoftware.ca?subject=Gordie%20custom%20support',
 			features: [
 				{ label: 'Questions per week', value: 'Unlimited', included: true },
 				{ label: 'Leagues', value: 'Unlimited', included: true },
 				{ label: 'Weekly digests', value: '✓', included: true },
 				{ label: 'News alerts', value: '✓', included: true },
 				{ label: 'Conversation history', value: 'Full', included: true },
-				{ label: 'Priority support', value: '✓', included: true }
+				{ label: 'Priority support', value: 'By request', included: true }
+			]
+		},
+		{
+			name: 'Self-hosted',
+			monthlyPrice: 0,
+			annualPrice: 0,
+			priceLabel: '$0',
+			periodLabel: 'run it yourself',
+			highlight: false,
+			badge: 'Open Source',
+			ctaLabel: 'View on GitHub',
+			ctaHref: githubUrl,
+			external: true,
+			features: [
+				{ label: 'Questions per week', value: 'Your limits', included: true },
+				{ label: 'Leagues', value: 'Configurable', included: true },
+				{ label: 'Weekly digests', value: '✓', included: true },
+				{ label: 'News alerts', value: '✓', included: true },
+				{ label: 'Conversation history', value: 'Self-managed', included: true },
+				{ label: 'Priority support', value: '—', included: false }
 			]
 		}
 	];
 
 	function displayPrice(tier: Tier): string {
+		if (tier.priceLabel) return tier.priceLabel;
 		if (tier.monthlyPrice === 0) return '$0';
+		if (tier.monthlyPrice === null) return 'Contact';
+		if (tier.annualPrice === null) return `$${tier.monthlyPrice}`;
 		return annual ? `$${Math.round(tier.annualPrice / 12)}` : `$${tier.monthlyPrice}`;
 	}
 
 	function billingLabel(tier: Tier): string {
+		if (tier.periodLabel) return tier.periodLabel;
 		if (tier.monthlyPrice === 0) return 'Free forever';
+		if (tier.monthlyPrice === null) return '';
+		if (tier.annualPrice === null) return '/month';
 		return annual ? `$${tier.annualPrice}/year` : '/month';
 	}
 
 	function annualSavings(tier: Tier): number {
+		if (tier.monthlyPrice === null || tier.annualPrice === null) return 0;
 		return tier.monthlyPrice * 12 - tier.annualPrice;
 	}
 </script>
@@ -172,13 +210,22 @@
 					<h3 class="tier-name">{tier.name}</h3>
 					<div class="price-block">
 						<span class="price">{displayPrice(tier)}</span>
-						<span class="price-period">{billingLabel(tier)}</span>
+						{#if billingLabel(tier)}
+							<span class="price-period">{billingLabel(tier)}</span>
+						{/if}
 					</div>
-					{#if annual && tier.monthlyPrice > 0}
+					{#if annual && tier.monthlyPrice !== null && tier.monthlyPrice > 0}
 						<p class="annual-savings">Save ${annualSavings(tier)}/year</p>
 					{/if}
-					<a href="/#signup" class="btn" class:btn-primary={tier.highlight} class:btn-secondary={!tier.highlight}>
-						{tier.monthlyPrice === 0 ? 'Get Started' : 'Start Free Trial'}
+					<a
+						href={tier.ctaHref}
+						class="btn"
+						class:btn-primary={tier.highlight}
+						class:btn-secondary={!tier.highlight}
+						target={tier.external ? '_blank' : undefined}
+						rel={tier.external ? 'noopener noreferrer' : undefined}
+					>
+						{tier.ctaLabel}
 					</a>
 					<ul class="feature-list">
 						{#each tier.features as feature}
@@ -296,9 +343,9 @@
 
 	.pricing-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: 1.5rem;
-		max-width: 960px;
+		max-width: 1180px;
 		margin-inline: auto;
 	}
 
@@ -419,16 +466,19 @@
 	.feature-list li {
 		display: flex;
 		justify-content: space-between;
-		align-items: center;
+		align-items: flex-start;
+		gap: 1rem;
 		font-size: 0.9rem;
 	}
 
 	.feature-label {
 		color: var(--color-text-muted);
+		text-align: left;
 	}
 
 	.feature-value {
 		font-weight: 600;
+		text-align: right;
 	}
 
 	li.included .feature-value {
@@ -518,6 +568,13 @@
 
 	.cta-inner :global(.signup-form-wrapper) {
 		margin: 0 auto;
+	}
+
+	@media (max-width: 1024px) {
+		.pricing-grid {
+			grid-template-columns: repeat(2, 1fr);
+			max-width: 720px;
+		}
 	}
 
 	@media (max-width: 768px) {

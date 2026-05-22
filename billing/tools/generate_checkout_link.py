@@ -8,22 +8,18 @@ from module.logger import get_logger
 
 logger = get_logger(__name__)
 
-VALID_PLANS = frozenset(
-    {"standard_monthly", "standard_annual", "allstar_monthly", "allstar_annual"}
-)
+VALID_PLANS = frozenset({"standard_monthly", "standard_annual"})
 
 PLAN_DESCRIPTIONS: dict[str, str] = {
     "standard_monthly": "Standard ($10/mo)",
     "standard_annual": "Standard ($80/yr — save 33%)",
-    "allstar_monthly": "All-Star ($18/mo)",
-    "allstar_annual": "All-Star ($144/yr — save 33%)",
 }
 
 
 class GenerateCheckoutLinkInput(BaseModel):
     user_email: str = Field(description="User's email address")
     plan: str = Field(
-        description="Plan to generate checkout for: standard_monthly, standard_annual, allstar_monthly, or allstar_annual"
+        description="Plan to generate checkout for: standard_monthly or standard_annual"
     )
 
 
@@ -39,13 +35,13 @@ def generate_checkout_link(user_email: str, plan: str) -> str:
 
     Args:
         user_email: User's email address
-        plan: One of: standard_monthly, standard_annual, allstar_monthly, allstar_annual
+        plan: One of: standard_monthly or standard_annual
 
     Returns:
         Checkout URL the user can visit to complete payment
     """
     if plan not in VALID_PLANS:
-        return f"Invalid plan '{plan}'. Valid plans: {', '.join(sorted(VALID_PLANS))}"
+        return f"Invalid plan. Valid plans: {', '.join(sorted(VALID_PLANS))}"
 
     try:
         checkout_url = create_checkout_session(plan, user_email)
