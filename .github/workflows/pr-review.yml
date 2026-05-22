@@ -1,0 +1,35 @@
+---
+name: PR Review by OpenHands
+
+on:
+  # Use pull_request so untrusted fork PRs cannot access repository secrets.
+  # Fork PR reviews are intentionally unsupported for now.
+  pull_request:
+    types: [labeled, review_requested]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  pr-review:
+    name: OpenHands PR Review
+    if: |
+      github.event.label.name == 'review-this' ||
+      github.event.requested_reviewer.login == 'openhands-agent' ||
+      github.event.requested_reviewer.login == 'all-hands-bot'
+    concurrency:
+      group: pr-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Run PR Review
+        uses: OpenHands/extensions/plugins/pr-review@main
+        with:
+          llm-model: anthropic/claude-sonnet-4-5-20250929
+          llm-base-url: ''
+          extensions-version: main
+          llm-api-key: ${{ secrets.LLM_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
