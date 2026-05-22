@@ -9,7 +9,6 @@ import os
 
 from billing.errors import BillingError
 from billing.gateway import BillingGateway, CreemBillingGateway, NullBillingGateway
-from billing.jobs import expire_trials_and_notify
 from billing.webhook import register_routes
 
 _CREEM_API_KEY: str = os.getenv("CREEM_API_KEY", "")
@@ -20,7 +19,6 @@ billing_enabled: bool = bool(_CREEM_API_KEY)
 __all__ = [
     "BillingError",
     "billing_enabled",
-    "expire_trials_and_notify",
     "get_gateway",
     "register_routes",
     "validate_billing_config",

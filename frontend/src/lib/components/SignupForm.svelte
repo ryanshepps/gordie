@@ -113,7 +113,7 @@
 				{#if status === 'error'}
 					<p class="error-message">{errorMessage}</p>
 				{/if}
-				<p class="signup-note">Free during beta. No credit card required.</p>
+				<p class="signup-note">Free digest updates for one team. No credit card required.</p>
 			</form>
 		</div>
 	{/if}

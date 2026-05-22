@@ -1,14 +1,17 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-const extraHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
-	.split(',')
-	.map((h) => h.trim())
-	.filter(Boolean);
+export default defineConfig(({ mode }) => {
+	const env = loadEnv(mode, '.', '');
+	const extraHosts = (env.VITE_ALLOWED_HOSTS ?? '')
+		.split(',')
+		.map((host) => host.trim())
+		.filter(Boolean);
 
-export default defineConfig({
-	plugins: [sveltekit()],
-	server: {
-		allowedHosts: extraHosts.length > 0 ? extraHosts : undefined
-	}
+	return {
+		plugins: [sveltekit()],
+		server: {
+			allowedHosts: extraHosts.length > 0 ? extraHosts : undefined
+		}
+	};
 });

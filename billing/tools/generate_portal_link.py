@@ -2,6 +2,8 @@
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+from requests.exceptions import RequestException
+from sqlalchemy.exc import SQLAlchemyError
 
 from billing.creem_client import get_billing_portal_link
 from billing.repository import SubscriptionRepository
@@ -43,7 +45,7 @@ def generate_portal_link(user_email: str) -> str:
         portal_url = get_billing_portal_link(creem_customer_id)
         logger.info(f"Generated portal link for {user_email}")
         return f"Billing portal: {portal_url}"
-    except Exception as e:
+    except (RequestException, SQLAlchemyError) as e:
         logger.error(f"Failed to generate portal link for {user_email}: {e}")
         return "Sorry, I couldn't generate a billing portal link right now. Please try again in a moment."
     finally:

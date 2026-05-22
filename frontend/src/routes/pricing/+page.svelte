@@ -15,21 +15,14 @@
 				name: 'Free',
 				price: '0',
 				priceCurrency: 'USD',
-				description: 'Limited questions and 1 league'
+				description: 'Digest updates for one team'
 			},
 			{
 				'@type': 'Offer',
-				name: 'Standard',
+				name: 'Hosted',
 				price: '10',
 				priceCurrency: 'USD',
-				description: 'Unlimited questions, 3 leagues, weekly digests and alerts'
-			},
-			{
-				'@type': 'Offer',
-				name: 'All-Star',
-				price: '18',
-				priceCurrency: 'USD',
-				description: 'Everything in Standard plus unlimited leagues'
+				description: 'Ask Gordie questions and connect up to three teams'
 			}
 		]
 	};
@@ -37,9 +30,10 @@
 	type Tier = {
 		name: string;
 		monthlyPrice: number;
-		annualPrice: number;
 		highlight: boolean;
 		badge: string | null;
+		description: string;
+		cta: string;
 		features: FeatureValue[];
 	};
 
@@ -49,83 +43,41 @@
 		included: boolean;
 	};
 
-	let annual = $state(false);
-
-	const featureLabels = [
-		'Questions per week',
-		'Leagues',
-		'Weekly digests',
-		'News alerts',
-		'Conversation history',
-		'Priority support'
-	];
-
 	const tiers: Tier[] = [
 		{
 			name: 'Free',
 			monthlyPrice: 0,
-			annualPrice: 0,
 			highlight: false,
 			badge: null,
+			description: 'For one team when you just want Gordie to keep you updated.',
+			cta: 'Get Started',
 			features: [
-				{ label: 'Questions per week', value: '3', included: true },
-				{ label: 'Leagues', value: '1', included: true },
-				{ label: 'Weekly digests', value: '—', included: false },
-				{ label: 'News alerts', value: '—', included: false },
-				{ label: 'Conversation history', value: '7 days', included: true },
-				{ label: 'Priority support', value: '—', included: false }
+				{ label: 'Teams connected', value: '1', included: true },
+				{ label: 'Injury digests', value: 'Included', included: true },
+				{ label: 'Sit/start updates', value: 'Included', included: true },
+				{ label: 'Ask Gordie questions', value: 'Upgrade', included: false }
 			]
 		},
 		{
-			name: 'Standard',
+			name: 'Hosted',
 			monthlyPrice: 10,
-			annualPrice: 80,
 			highlight: true,
-			badge: 'Most Popular',
+			badge: 'Hosted plan',
+			description: 'For managers who want Gordie to answer league questions and cover more teams.',
+			cta: 'Upgrade to Hosted',
 			features: [
-				{ label: 'Questions per week', value: 'Unlimited', included: true },
-				{ label: 'Leagues', value: '3', included: true },
-				{ label: 'Weekly digests', value: '✓', included: true },
-				{ label: 'News alerts', value: '✓', included: true },
-				{ label: 'Conversation history', value: 'Full', included: true },
-				{ label: 'Priority support', value: '—', included: false }
-			]
-		},
-		{
-			name: 'All-Star',
-			monthlyPrice: 18,
-			annualPrice: 144,
-			highlight: false,
-			badge: null,
-			features: [
-				{ label: 'Questions per week', value: 'Unlimited', included: true },
-				{ label: 'Leagues', value: 'Unlimited', included: true },
-				{ label: 'Weekly digests', value: '✓', included: true },
-				{ label: 'News alerts', value: '✓', included: true },
-				{ label: 'Conversation history', value: 'Full', included: true },
-				{ label: 'Priority support', value: '✓', included: true }
+				{ label: 'Teams connected', value: 'Up to 3', included: true },
+				{ label: 'Injury digests', value: 'Included', included: true },
+				{ label: 'Sit/start updates', value: 'Included', included: true },
+				{ label: 'Ask Gordie questions', value: 'Included', included: true }
 			]
 		}
 	];
-
-	function displayPrice(tier: Tier): string {
-		if (tier.monthlyPrice === 0) return '$0';
-		return annual ? `$${Math.round(tier.annualPrice / 12)}` : `$${tier.monthlyPrice}`;
-	}
-
-	function billingLabel(tier: Tier): string {
-		if (tier.monthlyPrice === 0) return 'Free forever';
-		return annual ? `$${tier.annualPrice}/year` : '/month';
-	}
-
-	function annualSavings(tier: Tier): number {
-		return tier.monthlyPrice * 12 - tier.annualPrice;
-	}
 </script>
 
 <SEOHead
 	title="Pricing"
-	description="Start free, upgrade when you're ready. Gordie offers flexible plans for every fantasy manager — from casual to all-in."
+	description="Start free with digest updates for one team. Upgrade to Gordie Hosted for $10/month to ask questions and connect up to three teams."
 	canonical="/pricing"
 />
 <StructuredData data={structuredData} />
@@ -134,35 +86,13 @@
 	<div class="container">
 		<h1 class="gradient-text">Plans & Pricing</h1>
 		<p class="page-sub">
-			Start with a 14-day free trial of all features. No credit card required.
+			Self-hosting is open source. Hosted billing only covers the cost of running Gordie for you.
 		</p>
 	</div>
 </section>
 
 <section class="pricing-section" aria-labelledby="pricing-heading">
 	<div class="container">
-		<div class="billing-toggle" role="radiogroup" aria-label="Billing period">
-			<button
-				class="toggle-option"
-				class:active={!annual}
-				role="radio"
-				aria-checked={!annual}
-				onclick={() => (annual = false)}
-			>
-				Monthly
-			</button>
-			<button
-				class="toggle-option"
-				class:active={annual}
-				role="radio"
-				aria-checked={annual}
-				onclick={() => (annual = true)}
-			>
-				Annual
-				<span class="save-badge">Save 33%</span>
-			</button>
-		</div>
-
 		<div class="pricing-grid">
 			{#each tiers as tier}
 				<div class="pricing-card" class:highlighted={tier.highlight}>
@@ -171,14 +101,12 @@
 					{/if}
 					<h3 class="tier-name">{tier.name}</h3>
 					<div class="price-block">
-						<span class="price">{displayPrice(tier)}</span>
-						<span class="price-period">{billingLabel(tier)}</span>
+						<span class="price">${tier.monthlyPrice}</span>
+						<span class="price-period">{tier.monthlyPrice === 0 ? 'free' : '/month'}</span>
 					</div>
-					{#if annual && tier.monthlyPrice > 0}
-						<p class="annual-savings">Save ${annualSavings(tier)}/year</p>
-					{/if}
+					<p class="tier-description">{tier.description}</p>
 					<a href="/#signup" class="btn" class:btn-primary={tier.highlight} class:btn-secondary={!tier.highlight}>
-						{tier.monthlyPrice === 0 ? 'Get Started' : 'Start Free Trial'}
+						{tier.cta}
 					</a>
 					<ul class="feature-list">
 						{#each tier.features as feature}
@@ -194,28 +122,27 @@
 	</div>
 </section>
 
-<section class="trial-section">
-	<div class="container trial-inner">
-		<h2>Every account starts with 14 days free</h2>
+<section class="self-host-section">
+	<div class="container self-host-inner">
+		<h2>Prefer to run it yourself?</h2>
 		<p>
-			Full access to all Standard features during your trial. No credit card required.
-			When your trial ends, you keep the free tier — or upgrade to keep going.
+			Gordie is open source. Self-hosted deployments can run without Creem keys and skip hosted billing entirely.
 		</p>
-		<div class="trial-steps">
-			<div class="trial-step">
+		<div class="self-host-steps">
+			<div class="self-host-step">
 				<span class="step-number">1</span>
-				<h3>Sign up</h3>
-				<p>Enter your email and connect your league.</p>
+				<h3>Hosted free</h3>
+				<p>One team with injury digests and sit/start updates.</p>
 			</div>
-			<div class="trial-step">
+			<div class="self-host-step">
 				<span class="step-number">2</span>
-				<h3>Full access for 14 days</h3>
-				<p>Unlimited questions, digests, and alerts.</p>
+				<h3>Hosted paid</h3>
+				<p>$10/month for questions and up to three teams.</p>
 			</div>
-			<div class="trial-step">
+			<div class="self-host-step">
 				<span class="step-number">3</span>
-				<h3>Choose your plan</h3>
-				<p>Upgrade anytime — just ask Gordie.</p>
+				<h3>Self-hosted</h3>
+				<p>Run your own instance with no hosted billing surface.</p>
 			</div>
 		</div>
 	</div>
@@ -223,8 +150,8 @@
 
 <section class="cta-section">
 	<div class="container cta-inner">
-		<h2>Ready to win your league?</h2>
-		<p>Sign up and start your 14-day free trial.</p>
+		<h2>Ready to connect a team?</h2>
+		<p>Start free and let Gordie handle the updates.</p>
 		<SignupForm />
 	</div>
 </section>
@@ -249,56 +176,11 @@
 		padding: 2rem 0 4rem;
 	}
 
-	.billing-toggle {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0;
-		margin-bottom: 3rem;
-		background: var(--color-bg-card);
-		border: 1px solid var(--color-border);
-		border-radius: 0.5rem;
-		padding: 0.25rem;
-		width: fit-content;
-		margin-inline: auto;
-	}
-
-	.toggle-option {
-		padding: 0.5rem 1.25rem;
-		border: none;
-		background: transparent;
-		color: var(--color-text-muted);
-		font-weight: 600;
-		font-size: 0.9rem;
-		cursor: pointer;
-		border-radius: 0.375rem;
-		transition: all 0.15s ease-out;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.toggle-option.active {
-		background: var(--color-bg-elevated);
-		color: var(--color-text);
-	}
-
-	.save-badge {
-		font-size: 0.65rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		background: rgba(0, 255, 136, 0.15);
-		color: var(--color-success);
-		padding: 0.15rem 0.4rem;
-		border-radius: 0.25rem;
-	}
-
 	.pricing-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 1.5rem;
-		max-width: 960px;
+		max-width: 760px;
 		margin-inline: auto;
 	}
 
@@ -370,11 +252,10 @@
 		font-size: 0.9rem;
 	}
 
-	.annual-savings {
-		color: var(--color-success);
-		font-size: 0.8rem;
-		font-weight: 600;
-		margin-bottom: 0.25rem;
+	.tier-description {
+		color: var(--color-text-muted);
+		font-size: 0.95rem;
+		min-height: 4.5rem;
 	}
 
 	.pricing-card .btn {
@@ -440,22 +321,22 @@
 		opacity: 0.5;
 	}
 
-	.trial-section {
+	.self-host-section {
 		padding: 4rem 0;
 		background: var(--color-bg-secondary);
 	}
 
-	.trial-inner {
+	.self-host-inner {
 		text-align: center;
 		max-width: 800px;
 		margin-inline: auto;
 	}
 
-	.trial-inner > h2 {
+	.self-host-inner > h2 {
 		margin-bottom: 0.75rem;
 	}
 
-	.trial-inner > p {
+	.self-host-inner > p {
 		color: var(--color-text-muted);
 		font-size: 1.05rem;
 		margin-bottom: 2.5rem;
@@ -463,13 +344,13 @@
 		margin-inline: auto;
 	}
 
-	.trial-steps {
+	.self-host-steps {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		gap: 2rem;
 	}
 
-	.trial-step {
+	.self-host-step {
 		text-align: center;
 	}
 
@@ -487,12 +368,12 @@
 		margin-bottom: 0.75rem;
 	}
 
-	.trial-step h3 {
+	.self-host-step h3 {
 		font-size: 1rem;
 		margin-bottom: 0.35rem;
 	}
 
-	.trial-step p {
+	.self-host-step p {
 		color: var(--color-text-muted);
 		font-size: 0.9rem;
 	}
@@ -526,11 +407,7 @@
 			max-width: 400px;
 		}
 
-		.pricing-card.highlighted {
-			order: -1;
-		}
-
-		.trial-steps {
+		.self-host-steps {
 			grid-template-columns: 1fr;
 			gap: 1.5rem;
 		}

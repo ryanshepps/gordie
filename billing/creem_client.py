@@ -15,17 +15,11 @@ CREEM_API_BASE_URL = os.getenv("CREEM_API_BASE_URL", "https://test-api.creem.io/
 CREEM_API_KEY = os.getenv("CREEM_API_KEY", "")
 
 PRODUCT_IDS = {
-    "standard_monthly": os.getenv("CREEM_PRODUCT_STANDARD_MONTHLY", ""),
-    "standard_annual": os.getenv("CREEM_PRODUCT_STANDARD_ANNUAL", ""),
-    "allstar_monthly": os.getenv("CREEM_PRODUCT_ALLSTAR_MONTHLY", ""),
-    "allstar_annual": os.getenv("CREEM_PRODUCT_ALLSTAR_ANNUAL", ""),
+    "hosted_monthly": os.getenv("CREEM_PRODUCT_HOSTED_MONTHLY", ""),
 }
 
 PRODUCT_ID_TO_TIER = {
-    os.getenv("CREEM_PRODUCT_STANDARD_MONTHLY", ""): "standard",
-    os.getenv("CREEM_PRODUCT_STANDARD_ANNUAL", ""): "standard",
-    os.getenv("CREEM_PRODUCT_ALLSTAR_MONTHLY", ""): "allstar",
-    os.getenv("CREEM_PRODUCT_ALLSTAR_ANNUAL", ""): "allstar",
+    os.getenv("CREEM_PRODUCT_HOSTED_MONTHLY", ""): "hosted",
 }
 
 
@@ -98,4 +92,4 @@ def get_customer_by_email(email: str) -> dict[str, str] | None:
 
 
 def tier_from_product_id(product_id: str) -> str:
-    return PRODUCT_ID_TO_TIER.get(product_id, "standard")
+    return PRODUCT_ID_TO_TIER.get(product_id, "hosted")

@@ -1,6 +1,5 @@
-"""Repository for user subscriptions and usage tracking."""
+"""Repository for user subscriptions."""
 
-from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import text
@@ -17,19 +16,17 @@ class SubscriptionRepository(Repository):
     def __init__(self, session: Session | None = None) -> None:
         super().__init__("user_subscriptions", session)
 
-    def _user_id_for_email(self, user_email: str) -> UUID:
-        return UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
-
-    def create_trialing_subscription(self, user_email: str) -> None:
-        trial_ends_at = datetime.now(UTC) + timedelta(days=14)
+    def create_free_subscription(self, user_email: str) -> None:
         user_id = self._user_id_for_email(user_email)
         self.upsert(
             ["user_id"],
             user_id=user_id,
-            tier="trialing",
-            status="trialing",
-            trial_ends_at=trial_ends_at.isoformat(),
+            tier="free",
+            status="active",
         )
+
+    def _user_id_for_email(self, user_email: str) -> UUID:
+        return UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
 
     def get_subscription(self, user_email: str) -> DatabaseRow | None:
         return self.session.execute(
@@ -41,7 +38,6 @@ class SubscriptionRepository(Repository):
                     us.creem_subscription_id,
                     us.tier,
                     us.status,
-                    us.trial_ends_at,
                     us.current_period_ends_at,
                     us.digest_count,
                     us.created_at
@@ -94,26 +90,6 @@ class SubscriptionRepository(Repository):
     def pause_subscription(self, user_email: str) -> None:
         self.update({"user_id": self._user_id_for_email(user_email)}, status="paused")
 
-    def expire_trials(self) -> list[str]:
-        now = datetime.now(UTC).isoformat()
-        result = self.session.execute(
-            text(
-                """
-                UPDATE user_subscriptions us
-                SET tier = 'free', status = 'expired'
-                FROM user_identities ui
-                WHERE us.user_id = ui.user_id
-                    AND ui.medium = :medium
-                    AND us.tier = 'trialing'
-                    AND us.trial_ends_at < :now
-                RETURNING ui.external_id
-                """
-            ),
-            {"medium": Medium.EMAIL.value, "now": now},
-        ).fetchall()
-        self.session.commit()
-        return [row[0] for row in result]
-
     def increment_digest_count(self, user_email: str) -> None:
         self.session.execute(
             text(
@@ -142,7 +118,6 @@ class SubscriptionRepository(Repository):
                     us.creem_subscription_id,
                     us.tier,
                     us.status,
-                    us.trial_ends_at,
                     us.current_period_ends_at,
                     us.digest_count,
                     us.created_at
@@ -158,49 +133,3 @@ class SubscriptionRepository(Repository):
                 "creem_subscription_id": creem_subscription_id,
             },
         ).fetchone()
-
-
-class UsageTrackingRepository(Repository):
-    """Repository for tracking weekly question usage."""
-
-    def __init__(self, session: Session | None = None) -> None:
-        super().__init__("usage_tracking", session)
-
-    def _user_id_for_email(self, user_email: str) -> UUID:
-        return UserRepository(self.session).resolve_user_id(Medium.EMAIL, user_email, user_email)
-
-    def get_weekly_usage(self, user_email: str, week_start: date) -> int:
-        result = self.session.execute(
-            text(
-                "SELECT question_count FROM usage_tracking "
-                "WHERE user_id = :user_id AND week_start = :week_start"
-            ),
-            {"user_id": self._user_id_for_email(user_email), "week_start": week_start.isoformat()},
-        ).fetchone()
-        if result:
-            return int(result[0])
-        return 0
-
-    def get_total_questions(self, user_email: str) -> int:
-        result = self.session.execute(
-            text(
-                "SELECT COALESCE(SUM(question_count), 0) FROM usage_tracking "
-                "WHERE user_id = :user_id"
-            ),
-            {"user_id": self._user_id_for_email(user_email)},
-        ).fetchone()
-        return int(result[0]) if result else 0
-
-    def increment_question_count(self, user_email: str, week_start: date) -> int:
-        result = self.session.execute(
-            text(
-                "INSERT INTO usage_tracking (user_id, week_start, question_count) "
-                "VALUES (:user_id, :week_start, 1) "
-                "ON CONFLICT (user_id, week_start) "
-                "DO UPDATE SET question_count = usage_tracking.question_count + 1 "
-                "RETURNING question_count"
-            ),
-            {"user_id": self._user_id_for_email(user_email), "week_start": week_start.isoformat()},
-        ).fetchone()
-        self.session.commit()
-        return int(result[0]) if result else 1

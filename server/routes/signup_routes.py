@@ -5,6 +5,7 @@ import threading
 from uuid import UUID
 
 from quart import jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
 
 from module.logger import get_logger
 
@@ -55,9 +56,9 @@ def register_signup_routes(app):
 
             sub_repo = SubscriptionRepository()
             try:
-                sub_repo.create_trialing_subscription(email)
-            except Exception as e:
-                logger.error(f"Failed to create trial subscription for {email}: {e}", exc_info=True)
+                sub_repo.create_free_subscription(email)
+            except SQLAlchemyError as e:
+                logger.error(f"Failed to create free subscription for {email}: {e}", exc_info=True)
             finally:
                 sub_repo.close()
 

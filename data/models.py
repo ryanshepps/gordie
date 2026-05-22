@@ -1,12 +1,11 @@
 """SQLAlchemy declarative models for all database tables."""
 
-from datetime import date, datetime
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
-    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -221,22 +220,11 @@ class UserSubscription(Base):
     )
     creem_customer_id: Mapped[str | None] = mapped_column(String)
     creem_subscription_id: Mapped[str | None] = mapped_column(String)
-    tier: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
-    status: Mapped[str] = mapped_column(String, nullable=False, server_default="trialing")
-    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tier: Mapped[str] = mapped_column(String, nullable=False, server_default="free")
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="active")
     current_period_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     digest_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class UsageTracking(Base):
-    __tablename__ = "usage_tracking"
-
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
-    )
-    week_start: Mapped[date] = mapped_column(Date, primary_key=True)
-    question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
 
 class DigestInjuryState(Base):

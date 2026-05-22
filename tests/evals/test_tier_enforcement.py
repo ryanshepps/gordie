@@ -1,13 +1,13 @@
-"""Tests for tier enforcement module."""
+"""Tests for hosted billing enforcement."""
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
+from requests.exceptions import RequestException
 
 from billing.tier import (
-    DIGEST_ALLOWED_TIERS,
-    FREE_QUESTIONS_PER_WEEK,
     _tier_cache,
     build_billing_context,
     build_upgrade_message,
@@ -21,7 +21,7 @@ from billing.tier import (
 
 
 @pytest.fixture(autouse=True)
-def clear_tier_cache():
+def clear_tier_cache() -> Iterator[None]:
     _tier_cache.clear()
     yield
     _tier_cache.clear()
@@ -29,18 +29,16 @@ def clear_tier_cache():
 
 def _mock_subscription(
     tier: str = "free",
-    status: str = "expired",
+    status: str = "active",
     creem_customer_id: str | None = None,
-    trial_ends_at: datetime | None = None,
     current_period_ends_at: datetime | None = None,
-) -> tuple[str, str | None, str | None, str, str, datetime | None, datetime | None, datetime]:
+) -> tuple[str, str | None, str | None, str, str, datetime | None, datetime]:
     return (
         "user@test.com",
         creem_customer_id,
         "sub_123" if creem_customer_id else None,
         tier,
         status,
-        trial_ends_at,
         current_period_ends_at,
         datetime.now(UTC),
     )
@@ -48,83 +46,49 @@ def _mock_subscription(
 
 class TestGetUserTier:
     @patch("billing.tier.SubscriptionRepository")
-    def test_no_subscription_returns_free(self, mock_repo_cls):
+    def test_no_subscription_returns_free(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = None
         assert get_user_tier("nobody@test.com") == "free"
 
     @patch("billing.tier.SubscriptionRepository")
-    def test_active_standard_returns_standard(self, mock_repo_cls):
+    def test_active_hosted_returns_hosted(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard", status="active"
+            tier="hosted", status="active"
         )
-        assert get_user_tier("user@test.com") == "standard"
+        assert get_user_tier("user@test.com") == "hosted"
 
     @patch("billing.tier.SubscriptionRepository")
-    def test_active_allstar_returns_allstar(self, mock_repo_cls):
+    def test_unsupported_tier_returns_free(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="allstar", status="active"
         )
-        assert get_user_tier("user@test.com") == "allstar"
-
-    @patch("billing.tier.SubscriptionRepository")
-    def test_trialing_with_future_end_returns_trialing(self, mock_repo_cls):
-        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="trialing",
-            status="trialing",
-            trial_ends_at=datetime.now(UTC) + timedelta(days=7),
-        )
-        assert get_user_tier("user@test.com") == "trialing"
-
-    @patch("billing.tier.SubscriptionRepository")
-    def test_trialing_with_past_end_returns_free(self, mock_repo_cls):
-        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="trialing",
-            status="trialing",
-            trial_ends_at=datetime.now(UTC) - timedelta(days=1),
-        )
         assert get_user_tier("user@test.com") == "free"
 
     @patch("billing.tier.SubscriptionRepository")
-    def test_expired_status_returns_free(self, mock_repo_cls):
+    def test_canceled_with_future_period_keeps_hosted(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
-        assert get_user_tier("user@test.com") == "free"
-
-    @patch("billing.tier.SubscriptionRepository")
-    def test_canceled_with_future_period_keeps_tier(self, mock_repo_cls):
-        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard",
+            tier="hosted",
             status="canceled",
             current_period_ends_at=datetime.now(UTC) + timedelta(days=15),
         )
-        assert get_user_tier("user@test.com") == "standard"
+        assert get_user_tier("user@test.com") == "hosted"
 
     @patch("billing.tier.SubscriptionRepository")
-    def test_canceled_with_past_period_returns_free(self, mock_repo_cls):
+    def test_canceled_with_past_period_returns_free(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard",
+            tier="hosted",
             status="canceled",
             current_period_ends_at=datetime.now(UTC) - timedelta(days=1),
         )
         assert get_user_tier("user@test.com") == "free"
 
-    @patch("billing.tier.SubscriptionRepository")
-    def test_paused_keeps_tier(self, mock_repo_cls):
-        mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="allstar",
-            status="paused",
-            current_period_ends_at=datetime.now(UTC) + timedelta(days=10),
-        )
-        assert get_user_tier("user@test.com") == "allstar"
-
 
 class TestCheckQuestionAllowed:
     @patch("billing.tier.classify_message_intent")
     @patch("billing.tier.SubscriptionRepository")
-    def test_paid_user_skips_classification(self, mock_sub_cls, mock_classify):
+    def test_hosted_user_skips_classification(self, mock_sub_cls, mock_classify) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard", status="active"
+            tier="hosted", status="active"
         )
         allowed, reason = check_question_allowed("paid@test.com", "Who should I start?")
 
@@ -132,355 +96,167 @@ class TestCheckQuestionAllowed:
         assert reason == ""
         mock_classify.assert_not_called()
 
-    @patch("billing.tier.UsageTrackingRepository")
     @patch("billing.tier.classify_message_intent", return_value="general")
     @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_general_message_not_counted(
-        self, mock_sub_cls, mock_classify, mock_usage_cls
-    ):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
+    def test_free_user_general_message_allowed(self, mock_sub_cls, _mock_classify) -> None:
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
         allowed, reason = check_question_allowed("free@test.com", "How do I upgrade?")
 
         assert allowed is True
         assert reason == ""
-        mock_usage_cls.return_value.increment_question_count.assert_not_called()
 
-    @patch("billing.tier.UsageTrackingRepository")
     @patch("billing.tier.classify_message_intent", return_value="analysis")
     @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_analysis_message_counted(self, mock_sub_cls, mock_classify, mock_usage_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 1
+    def test_free_user_analysis_message_blocked(self, mock_sub_cls, _mock_classify) -> None:
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
 
         allowed, reason = check_question_allowed("free@test.com", "Should I start McDavid?")
 
-        assert allowed is True
-        assert reason == ""
-        mock_usage_cls.return_value.increment_question_count.assert_called_once()
-
-    @patch("billing.tier.UsageTrackingRepository")
-    @patch("billing.tier.classify_message_intent", return_value="analysis")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_analysis_message_over_quota_blocked(
-        self, mock_sub_cls, mock_classify, mock_usage_cls
-    ):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
-        mock_usage_cls.return_value.get_weekly_usage.return_value = FREE_QUESTIONS_PER_WEEK
-
-        allowed, reason = check_question_allowed("free@test.com", "Trade advice?")
-
         assert allowed is False
-        assert "free questions" in reason
-        mock_usage_cls.return_value.increment_question_count.assert_not_called()
-
-    @patch("billing.tier.UsageTrackingRepository")
-    @patch("billing.tier.classify_message_intent", return_value="general")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_general_message_over_quota_still_allowed(
-        self, mock_sub_cls, mock_classify, mock_usage_cls
-    ):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
-        allowed, reason = check_question_allowed("free@test.com", "What can you do?")
-
-        assert allowed is True
-        assert reason == ""
+        assert "digest updates for one team" in reason
+        assert "$10/mo" in reason
+        assert "three teams" in reason
 
     @patch("billing.tier.make_llm")
-    def test_classification_failure_defaults_to_analysis(self, mock_make_llm):
-        mock_make_llm.return_value.invoke.side_effect = Exception("API down")
+    def test_classification_failure_defaults_to_analysis(self, mock_make_llm) -> None:
+        mock_make_llm.return_value.invoke.side_effect = RuntimeError("API down")
 
         assert classify_message_intent("start or sit?") == "analysis"
 
 
 class TestCheckUsageAllowed:
     @patch("billing.tier.SubscriptionRepository")
-    def test_digest_allowed_for_paid_tiers(self, mock_repo_cls):
-        for tier in DIGEST_ALLOWED_TIERS:
-            _tier_cache.clear()
-            mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-                tier=tier,
-                status="active" if tier != "trialing" else "trialing",
-                trial_ends_at=(
-                    datetime.now(UTC) + timedelta(days=7) if tier == "trialing" else None
-                ),
-            )
-            allowed, _reason = check_usage_allowed("user@test.com", "digest")
-            assert allowed is True, f"Digest should be allowed for {tier}"
-
-    @patch("billing.tier.SubscriptionRepository")
-    def test_digest_blocked_for_free_tier(self, mock_repo_cls):
+    @pytest.mark.parametrize("tier", ["free", "hosted"])
+    def test_digest_allowed_for_current_tiers(self, mock_repo_cls, tier: str) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
+            tier=tier, status="active"
         )
-        allowed, reason = check_usage_allowed("free@test.com", "digest")
-        assert allowed is False
-        assert "subscriber" in reason.lower()
+        allowed, reason = check_usage_allowed("user@test.com", "digest")
+        assert allowed is True
+        assert reason == ""
 
 
 class TestBuildUpgradeMessage:
     @patch("billing.creem_client.create_checkout_session")
-    def test_email_includes_both_plan_links(self, mock_checkout):
-        mock_checkout.side_effect = [
-            "https://checkout.creem.io/standard",
-            "https://checkout.creem.io/allstar",
-        ]
+    def test_email_includes_hosted_link(self, mock_checkout) -> None:
+        mock_checkout.return_value = "https://checkout.creem.io/hosted"
         result = build_upgrade_message("user@test.com", "Limit reached.", "email")
 
-        assert "Standard" in result
-        assert "All-Star" in result
-        assert "https://checkout.creem.io/standard" in result
-        assert "https://checkout.creem.io/allstar" in result
+        assert "Hosted" in result
+        assert "$10/mo" in result
+        assert "https://checkout.creem.io/hosted" in result
+        mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
     @patch("billing.creem_client.create_checkout_session")
-    def test_sms_includes_single_link(self, mock_checkout):
-        mock_checkout.return_value = "https://checkout.creem.io/standard"
+    def test_sms_includes_hosted_link(self, mock_checkout) -> None:
+        mock_checkout.return_value = "https://checkout.creem.io/hosted"
         result = build_upgrade_message("user@test.com", "Limit reached.", "sms")
 
-        assert "https://checkout.creem.io/standard" in result
+        assert "https://checkout.creem.io/hosted" in result
 
-    @patch("billing.creem_client.create_checkout_session", side_effect=Exception("API error"))
-    def test_fallback_to_reason_on_api_failure(self, mock_checkout):
+    @patch(
+        "billing.creem_client.create_checkout_session",
+        side_effect=RequestException("API error"),
+    )
+    def test_fallback_to_reason_on_api_failure(self, _mock_checkout) -> None:
         result = build_upgrade_message("user@test.com", "Limit reached.", "email")
         assert result == "Limit reached."
 
 
 class TestGetBillingStatus:
     @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.UsageTrackingRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_includes_question_limits(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+    def test_free_user_status(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 2
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",)]
 
         result = get_billing_status("user@test.com")
 
         assert result["tier"] == "free"
-        assert result["status"] == "expired"
-        assert result["questions_used_this_week"] == 2
-        assert result["questions_remaining"] == 1
+        assert result["status"] == "active"
+        assert result["questions_allowed"] is False
         assert result["leagues_connected"] == 1
         assert result["leagues_allowed"] == 1
-        assert result["trial_days_remaining"] is None
         assert result["current_period_ends"] is None
 
     @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.UsageTrackingRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_trialing_user_includes_trial_days(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
-        trial_end = datetime.now(UTC) + timedelta(days=5, hours=12)
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="trialing", status="trialing", trial_ends_at=trial_end
-        )
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
-        mock_team_cls.return_value.get_user_teams.return_value = []
-
-        result = get_billing_status("user@test.com")
-
-        assert result["tier"] == "trialing"
-        assert result["trial_days_remaining"] == 5
-        assert result["questions_remaining"] is None
-        assert result["leagues_allowed"] is None
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.UsageTrackingRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_standard_user_includes_period_end(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
+    def test_hosted_user_status(self, mock_sub_cls, mock_team_cls) -> None:
         period_end = datetime(2026, 4, 15, tzinfo=UTC)
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard",
+            tier="hosted",
             status="active",
             creem_customer_id="cus_123",
             current_period_ends_at=period_end,
         )
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",)]
 
         result = get_billing_status("user@test.com")
 
-        assert result["tier"] == "standard"
+        assert result["tier"] == "hosted"
+        assert result["questions_allowed"] is True
         assert result["current_period_ends"] == "2026-04-15"
         assert result["leagues_connected"] == 2
         assert result["leagues_allowed"] == 3
-        assert result["questions_remaining"] is None
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.UsageTrackingRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_no_subscription_defaults_to_free(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = None
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
-        mock_team_cls.return_value.get_user_teams.return_value = []
-
-        result = get_billing_status("nobody@test.com")
-
-        assert result["tier"] == "free"
-        assert result["questions_remaining"] == 3
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.UsageTrackingRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_expired_trial_resolves_to_free(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="trialing",
-            status="trialing",
-            trial_ends_at=datetime.now(UTC) - timedelta(days=1),
-        )
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
-        mock_team_cls.return_value.get_user_teams.return_value = []
-
-        result = get_billing_status("user@test.com")
-
-        assert result["tier"] == "free"
-        assert result["status"] == "expired"
-        assert result["trial_days_remaining"] is None
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.UsageTrackingRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_allstar_has_unlimited_leagues(self, mock_sub_cls, mock_usage_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="allstar",
-            status="active",
-            creem_customer_id="cus_456",
-            current_period_ends_at=datetime(2026, 5, 1, tzinfo=UTC),
-        )
-        mock_usage_cls.return_value.get_weekly_usage.return_value = 0
-        mock_team_cls.return_value.get_user_teams.return_value = [
-            ("l1",),
-            ("l2",),
-            ("l3",),
-            ("l4",),
-        ]
-
-        result = get_billing_status("user@test.com")
-
-        assert result["leagues_allowed"] is None
-        assert result["leagues_connected"] == 4
 
 
 class TestCheckLeagueLimit:
     @patch("billing.tier.YahooUserTeamRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_with_no_leagues_allowed(self, mock_sub_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
-        mock_team_cls.return_value.get_user_teams.return_value = []
-
-        allowed, reason = check_league_limit("free@test.com")
-
-        assert allowed is True
-        assert reason == ""
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_free_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="free", status="expired"
-        )
+    def test_free_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls) -> None:
+        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",)]
 
         allowed, reason = check_league_limit("free@test.com")
 
         assert allowed is False
-        assert "maxed out" in reason
-        assert "free" in reason
+        assert "maxed out at 1 team" in reason
+        assert "$10/mo" in reason
 
     @patch("billing.tier.YahooUserTeamRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_standard_user_under_limit_allowed(self, mock_sub_cls, mock_team_cls):
+    def test_hosted_user_under_limit_allowed(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard", status="active"
+            tier="hosted", status="active"
         )
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",)]
 
-        allowed, reason = check_league_limit("standard@test.com")
+        allowed, reason = check_league_limit("hosted@test.com")
 
         assert allowed is True
         assert reason == ""
 
     @patch("billing.tier.YahooUserTeamRepository")
     @patch("billing.tier.SubscriptionRepository")
-    def test_standard_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls):
+    def test_hosted_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="standard", status="active"
+            tier="hosted", status="active"
         )
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",), ("l2",), ("l3",)]
 
-        allowed, reason = check_league_limit("standard@test.com")
+        allowed, reason = check_league_limit("hosted@test.com")
 
         assert allowed is False
-        assert "maxed out" in reason
-        assert "standard" in reason
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_allstar_user_unlimited(self, mock_sub_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="allstar", status="active"
-        )
-        mock_team_cls.return_value.get_user_teams.return_value = [(f"l{i}",) for i in range(10)]
-
-        allowed, reason = check_league_limit("allstar@test.com")
-
-        assert allowed is True
-        assert reason == ""
-
-    @patch("billing.tier.YahooUserTeamRepository")
-    @patch("billing.tier.SubscriptionRepository")
-    def test_trialing_user_unlimited(self, mock_sub_cls, mock_team_cls):
-        mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
-            tier="trialing",
-            status="trialing",
-            trial_ends_at=datetime.now(UTC) + timedelta(days=7),
-        )
-        mock_team_cls.return_value.get_user_teams.return_value = [(f"l{i}",) for i in range(5)]
-
-        allowed, reason = check_league_limit("trial@test.com")
-
-        assert allowed is True
-        assert reason == ""
+        assert "maxed out at 3 teams" in reason
 
 
 class TestBuildBillingContext:
     @patch("billing.creem_client.create_checkout_session")
-    def test_email_includes_both_plan_links(self, mock_checkout):
-        mock_checkout.side_effect = [
-            "https://checkout.creem.io/standard",
-            "https://checkout.creem.io/allstar",
-        ]
+    def test_email_includes_hosted_link(self, mock_checkout) -> None:
+        mock_checkout.return_value = "https://checkout.creem.io/hosted"
         result = build_billing_context("user@test.com", "Limit reached.", "email")
 
         assert "BILLING LIMIT REACHED" in result
         assert "Limit reached." in result
-        assert "https://checkout.creem.io/standard" in result
-        assert "https://checkout.creem.io/allstar" in result
-        assert "Standard" in result
-        assert "All-Star" in result
+        assert "https://checkout.creem.io/hosted" in result
+        assert "Hosted" in result
+        mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
-    @patch("billing.creem_client.create_checkout_session")
-    def test_sms_includes_single_link(self, mock_checkout):
-        mock_checkout.side_effect = [
-            "https://checkout.creem.io/standard",
-            "https://checkout.creem.io/allstar",
-        ]
-        result = build_billing_context("user@test.com", "Limit reached.", "sms")
-
-        assert "Upgrade link:" in result
-        assert "https://checkout.creem.io/standard" in result
-        assert "All-Star" not in result
-
-    @patch("billing.creem_client.create_checkout_session", side_effect=Exception("API error"))
-    def test_fallback_on_api_failure_still_has_context(self, mock_checkout):
+    @patch(
+        "billing.creem_client.create_checkout_session",
+        side_effect=RequestException("API error"),
+    )
+    def test_fallback_on_api_failure_still_has_context(self, _mock_checkout) -> None:
         result = build_billing_context("user@test.com", "Limit reached.", "email")
 
         assert "BILLING LIMIT REACHED" in result
