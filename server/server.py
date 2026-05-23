@@ -17,10 +17,11 @@ from quart import Quart, jsonify
 
 import billing
 from agent.checkpointer import (
-    checkpointer,  # noqa: F401 — ensures checkpoint tables exist at startup
+    checkpointer,  # noqa: F401 - ensures checkpoint tables exist at startup
 )
 from module.logger import get_logger
 from scheduled.jobs import register_scheduled_jobs
+from server.routes.discord_routes import register_discord_routes
 from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
@@ -41,6 +42,8 @@ class Server:
     The server listens on the configured host/port and handles:
     - /callback - OAuth authorization code redirects from Yahoo
     - /email/webhook - Incoming email notifications from Mailgun
+    - /sms/webhook - Incoming SMS notifications from Sinch
+    - /discord/interactions - Incoming Discord interactions
     - /health - Health check endpoint
     """
 
@@ -101,23 +104,22 @@ class Server:
         else:
             logger.info("MLB disabled via ENABLED_SPORTS; skipping stats refresh")
 
-    def _setup_routes(self):
+    def _setup_routes(self) -> None:
         """Configure Quart routes."""
-        # Register route handlers from separate modules
         register_oauth_routes(self.app)
         register_email_routes(self.app)
+        register_discord_routes(self.app)
         register_signup_routes(self.app)
         register_sms_routes(self.app)
         if billing.billing_enabled:
             billing.register_routes(self.app)
 
-        # Health check stays inline since it's trivial
         @self.app.route("/health")
         async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
 
-    def run(self):
+    def run(self) -> None:
         """
         Run the server on the main thread (blocking).
 
@@ -129,3 +131,23 @@ class Server:
         config.bind = [f"{self.host}:{self.port}"]
         config.errorlog = logger
         asyncio.run(serve(self.app, config))
+
+
+def start_server(host: str = "localhost", port: int = 8000) -> None:
+    """Start the server in a background thread if not already running."""
+    global _server_instance
+
+    with _server_lock:
+        if _server_instance is None:
+            _server_instance = Server(host, port)
+            server_thread = threading.Thread(target=_server_instance.run, daemon=True)
+            server_thread.start()
+            logger = get_logger(__name__)
+            logger.info(f"Server started on {host}:{port}")
+
+
+def get_server_url() -> str:
+    """Get the current server URL."""
+    if _server_instance:
+        return f"http://{_server_instance.host}:{_server_instance.port}"
+    return "http://localhost:8000"

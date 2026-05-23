@@ -73,6 +73,20 @@ class ConversationThread(Base):
     last_active: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class DiscordInteractionTarget(Base):
+    __tablename__ = "discord_interaction_targets"
+
+    thread_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("conversation_threads.id"), primary_key=True
+    )
+    application_id: Mapped[str] = mapped_column(Text, nullable=False)
+    interaction_token: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), server_onupdate=func.now()
+    )
+
+
 class YahooLeague(Base):
     __tablename__ = "yahoo_leagues"
 

@@ -22,6 +22,7 @@ dependencies = [
     "requests>=2.32.0",
     "sqlalchemy>=2.0.0",
     "yfpy>=17.0.0",
+    "pynacl>=1.6.2",
     "python-json-logger>=2.0.7",
     "apscheduler>=3.10.4",
     "pytest-cov>=7.0.0",

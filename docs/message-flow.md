@@ -4,31 +4,33 @@ How user messages reach Gordie and how Gordie responds, from webhook to delivery
 
 ## Entry Points
 
-Two webhooks accept inbound messages. Both return HTTP 200 immediately and process the message in a background thread.
+Three webhooks accept inbound messages. Each returns immediately and processes the message in a background thread.
 
 | Channel | Endpoint | Provider | Route File |
 |---------|----------|----------|------------|
 | Email | `POST /email/webhook` | Mailgun | `server/routes/email_routes.py` |
 | SMS | `POST /sms/webhook` | Sinch | `server/routes/sms_routes.py` |
+| Discord | `POST /discord/interactions` | Discord interactions | `server/routes/discord_routes.py` |
 
 ## Webhook Validation
 
-Both webhooks run the same guard sequence before processing. Verification logic lives in `server/webhook_verification.py`.
+Inbound webhooks run the same guard sequence before processing. Verification logic lives in `server/webhook_verification.py`.
 
-1. **Signature verification** — Mailgun: HMAC-SHA256 over `{timestamp}{token}`; Sinch: Basic Authentication credentials checked against the `Authorization` header
+1. **Signature verification** — Mailgun: HMAC-SHA256 over `{timestamp}{token}`; Sinch: Basic Authentication credentials checked against the `Authorization` header; Discord: Ed25519 over `{timestamp}{raw_body}`
 2. **Timestamp freshness (email only)** — rejects webhooks older than 5 minutes to prevent replay attacks
-3. **Idempotency** — the provider's message ID is checked against `processed_emails` / `processed_sms` tables to prevent duplicate processing
+3. **Idempotency** — the provider's message ID is checked against `processed_inbound_messages` to prevent duplicate processing
 4. **SMS-only: rate limiting** — in-memory sliding window (5 messages per 60 seconds per phone number)
 5. **SMS-only: opt-out/opt-in** — STOP/START keywords (and variants like UNSUBSCRIBE, CANCEL, END, QUIT) are handled inline and short-circuit before reaching the agent. Opted-out users receive no responses until they send START
 6. **SMS-only: cold start** — if the phone number has no registered user, a pending user record is created and an OAuth link is sent via SMS instead of invoking the agent
+7. **Discord-only: deferred response** — slash commands return Discord response type `5`, then Gordie edits the original interaction response after the agent finishes
 
 ## Billing Enforcement
 
-Before invoking the agent, both channels check the user's subscription tier via `server/tier_enforcement.py`. If the user has exceeded their question limit, a `billing_context` string is built (including upgrade/checkout links via Creem) and passed into `message_agent()`. The context node detects this and short-circuits the agent into a billing-only response with no tool access.
+Before invoking the agent, inbound message routes check the user's subscription tier via the billing gateway. If the user has exceeded their question limit, a `billing_context` string is built (including upgrade/checkout links via Creem) and passed into `message_agent()`. The context node detects this and short-circuits the agent into a billing-only response with no tool access.
 
 ## Thread Resolution
 
-Each channel resolves a `thread_id` to maintain conversation continuity. See `server/thread_manager.py`.
+Each channel resolves a `thread_id` to maintain conversation continuity through `data.thread_repository.ThreadRepository`.
 
 **Email** uses RFC 5322 headers:
 
@@ -36,18 +38,19 @@ Each channel resolves a `thread_id` to maintain conversation continuity. See `se
 2. Fall back to `References` header (tries each ref in order)
 3. If neither matches, create a new thread (`{email}:{uuid}`)
 
-**SMS** maps each phone number to exactly one permanent thread. If a thread exists for the phone number, its activity timestamp is updated and it is reused. Otherwise a new thread is created. Thread format: `sms:{phone}:{uuid}`.
+**SMS** maps each phone number to one `conversation_threads` row for the SMS medium.
+
+**Discord** maps each Discord user ID to one `conversation_threads` row for the Discord medium. The latest Discord interaction token for that thread is stored in `discord_interaction_targets` so the response adapter can edit the deferred original response.
 
 ## Agent Processing
 
-After thread resolution, both channels call `message_agent()` in `scripts/message_agent.py`. This function:
+After thread resolution, inbound channels call `message_agent()` in `scripts/message_agent.py`. This function:
 
-1. Resolves the user's email (for SMS, looks up the user by phone number)
-2. Persists the user message to the `conversation_messages` table
-3. Builds initial `AgentState` with user email, thread ID, channel, message, and optional billing context
-4. Invokes the LangGraph agent graph
-5. Extracts the final AI response from the graph output
-6. Persists the AI response to `conversation_messages`
+1. Persists the user message to the `conversation_messages` table
+2. Builds initial `AgentState` with user ID, external channel ID, thread ID, channel, message, and optional billing context
+3. Invokes the LangGraph agent graph
+4. Extracts the final AI response from the graph output
+5. Persists the AI response to `conversation_messages`
 
 ## Agent Graph
 
@@ -109,12 +112,13 @@ The voice rewrite node (`agent/voice_rewrite_node.py`) rewrites the supervisor's
 
 - **SMS**: max 600 characters, lead with the recommendation, cite 1-2 key stats only. If the rewrite exceeds 600 characters, a second pass condenses it
 - **Email**: preserves structure, adjusts voice only
+- **Discord**: Discord-flavored markdown, short paragraphs, bullets, and chat-friendly stat tables
 
 ### Response Node
 
-The response node (`agent/response_node.py`) dispatches the final message and stores a conversation summary.
+The response node (`agent/response_node.py`) dispatches the final message through `server/adapters.registry.build_registry()` and stores a conversation summary.
 
-**Email dispatch** (`agent/channels/email_channel.py`):
+**Email dispatch** (`server/adapters/email_adapter.py`):
 
 1. Determines the subject line (preserves `Re:` threading from the original, or generates one based on content)
 2. Enriches the response with an HTML player statistics table if a league context is available
@@ -122,12 +126,16 @@ The response node (`agent/response_node.py`) dispatches the final message and st
 4. Sends via Mailgun
 5. Saves the outbound `Message-ID` → `thread_id` mapping in `email_threads` so future replies thread correctly
 
-**SMS dispatch** (`agent/channels/sms_channel.py`):
+**SMS dispatch** (`server/adapters/sms_adapter.py`):
 
-1. Extracts the phone number from the thread ID
-2. Strips markdown from the response
-3. Sends as a single SMS via Sinch
-4. Updates thread activity timestamp
+1. Strips markdown from the response
+2. Sends as a single SMS via Sinch
+
+**Discord dispatch** (`server/adapters/discord_adapter.py`):
+
+1. Looks up the latest `discord_interaction_targets` row for the thread
+2. Truncates content to Discord's 2000-character response limit
+3. Edits the original deferred Discord interaction response
 
 **Conversation memory** (`agent/memory_store.py`):
 
@@ -139,13 +147,14 @@ After dispatch, the response node calls `summarize_and_store_conversation()` whi
 ## Sequence Overview
 
 ```
-User sends SMS/Email
+User sends SMS/Email/Discord command
         │
         ▼
   Webhook handler
   (verify signature, deduplicate, timestamp check)
         │
         ├── SMS-only: rate limit, opt-out, cold-start checks
+        ├── Discord-only: defer response + store interaction target
         │
         ├── Billing tier enforcement
         │
@@ -182,8 +191,8 @@ User sends SMS/Email
                      └───────────────────────────────────┘
                               │
                               ▼
-                    Send email (Mailgun)
-                    or SMS (Sinch)
+                    Send via adapter
+                    (Mailgun, Sinch, or Discord)
                               │
                               ▼
                     Persist AI response

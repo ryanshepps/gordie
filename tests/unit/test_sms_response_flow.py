@@ -1,9 +1,4 @@
-"""Unit tests for the SMS response flow.
-
-Verifies observable behavior:
-- response_node sends SMS response via SmsService for SMS channel
-- Email dispatch is unaffected
-"""
+"""Unit tests for adapter-backed response dispatch."""
 
 from unittest.mock import patch
 
@@ -15,9 +10,8 @@ from server.adapters.base import AdapterRegistry, ChannelConstraints, MessageFor
 
 
 class FakeAdapter:
-    medium = Medium.SMS
-
-    def __init__(self):
+    def __init__(self, medium: Medium) -> None:
+        self.medium = medium
         self.sent: list[tuple[str, str]] = []
 
     @property
@@ -28,14 +22,11 @@ class FakeAdapter:
         self.sent.append((external_id, text))
 
 
-class TestResponseNodeSmsDispatch:
-    """Verify response_node sends the final AI message as SMS."""
-
-    def test_sends_final_ai_message_as_sms(self):
-        """SMS response_node should send the last AI message via SmsService."""
+class TestResponseNodeDispatch:
+    def test_sends_final_ai_message_as_sms(self) -> None:
         from agent.response_node import make_response_node
 
-        adapter = FakeAdapter()
+        adapter = FakeAdapter(Medium.SMS)
         response_node = make_response_node(AdapterRegistry({Medium.SMS: adapter}))
         state: AgentState = {
             "messages": [
@@ -54,11 +45,32 @@ class TestResponseNodeSmsDispatch:
         assert adapter.sent == [("+15551234567", "Go with Matthews tonight.")]
         assert result.goto == "__end__"
 
-    def test_logs_warning_when_no_ai_message(self):
-        """SMS response_node should warn when there's no AI message to send."""
+    def test_dispatches_final_ai_message_as_discord(self) -> None:
         from agent.response_node import make_response_node
 
-        adapter = FakeAdapter()
+        adapter = FakeAdapter(Medium.DISCORD)
+        response_node = make_response_node(AdapterRegistry({Medium.DISCORD: adapter}))
+        state: AgentState = {
+            "messages": [
+                HumanMessage(content="Who should I start?"),
+                AIMessage(content="Go with Matthews tonight."),
+            ],
+            "channel": Medium.DISCORD,
+            "thread_id": "7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58",
+            "user_id": "user-1",
+            "external_id": "discord-user-1",
+        }
+
+        with patch("agent.response_node._store_conversation_memory"):
+            result = response_node(state)
+
+        assert adapter.sent == [("discord-user-1", "Go with Matthews tonight.")]
+        assert result.goto == "__end__"
+
+    def test_logs_warning_when_no_ai_message(self) -> None:
+        from agent.response_node import make_response_node
+
+        adapter = FakeAdapter(Medium.SMS)
         response_node = make_response_node(AdapterRegistry({Medium.SMS: adapter}))
         state: AgentState = {
             "messages": [
@@ -76,12 +88,10 @@ class TestResponseNodeSmsDispatch:
         assert adapter.sent == []
         assert result.goto == "__end__"
 
-    def test_email_dispatches_normally(self):
-        """Email channel dispatches through the registry adapter."""
+    def test_email_dispatches_normally(self) -> None:
         from agent.response_node import make_response_node
 
-        adapter = FakeAdapter()
-        adapter.medium = Medium.EMAIL
+        adapter = FakeAdapter(Medium.EMAIL)
         response_node = make_response_node(AdapterRegistry({Medium.EMAIL: adapter}))
         state: AgentState = {
             "messages": [
