@@ -57,6 +57,30 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Cache .venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Basedpyright
+        run: uv run basedpyright --level error
+
   test:
     name: Test
     runs-on: ubuntu-latest
