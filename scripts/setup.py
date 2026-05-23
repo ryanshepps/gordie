@@ -48,6 +48,7 @@ class SetupAnswers:
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
 _CHAT_MEDIUM_VALUES = ", ".join(medium.value for medium in ChatMedium)
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
+_DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
 
@@ -354,7 +355,7 @@ def _prompt_chat_media(*, existing_value: str | None = None) -> tuple[ChatMedium
             typer.secho(str(exc), fg=typer.colors.RED)
 
     while True:
-        raw_value = _prompt_text("Chat media", default=ChatMedium.TELEGRAM.value)
+        raw_value = _prompt_text("Chat media", default=_DEFAULT_CHAT_MEDIUM.value)
         try:
             return parse_chat_media(raw_value)
         except SetupInputError as exc:

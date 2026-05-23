@@ -166,7 +166,9 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
                 "YAHOO_CLIENT_ID=",
                 "YAHOO_CLIENT_SECRET=",
                 "CHAT_MEDIA=",
-                "TELEGRAM_BOT_TOKEN=",
+                "DISCORD_APPLICATION_ID=",
+                "DISCORD_PUBLIC_KEY=",
+                "DISCORD_BOT_TOKEN=",
                 "CREEM_API_KEY=",
                 "CREEM_WEBHOOK_SECRET=",
             ]
@@ -184,16 +186,18 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             "--env-file",
             str(env_file),
         ],
-        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n",
+        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\ndiscord-app\ndiscord-public\ndiscord-token\n",
     )
 
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
-    assert "CHAT_MEDIA=telegram" in env_text
+    assert "CHAT_MEDIA=discord" in env_text
     assert "LLM_PROVIDER=openai" in env_text
     assert "OPENAI_API_KEY=sk-test" in env_text
     assert "YAHOO_CLIENT_ID=yahoo-id" in env_text
-    assert "TELEGRAM_BOT_TOKEN=telegram-token" in env_text
+    assert "DISCORD_APPLICATION_ID=discord-app" in env_text
+    assert "DISCORD_PUBLIC_KEY=discord-public" in env_text
+    assert "DISCORD_BOT_TOKEN=discord-token" in env_text
     assert "CREEM_API_KEY=" in env_text
     assert "docker compose up -d" in result.output
 
@@ -371,7 +375,9 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
                 "YAHOO_CLIENT_ID=",
                 "YAHOO_CLIENT_SECRET=",
                 "CHAT_MEDIA=",
-                "TELEGRAM_BOT_TOKEN=",
+                "DISCORD_APPLICATION_ID=",
+                "DISCORD_PUBLIC_KEY=",
+                "DISCORD_BOT_TOKEN=",
                 "CREEM_API_KEY=",
                 "CREEM_WEBHOOK_SECRET=",
                 "CREEM_API_BASE_URL=",
@@ -400,7 +406,9 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
-            "telegram-token\n"
+            "discord-app\n"
+            "discord-public\n"
+            "discord-token\n"
             "creem-key\n"
             "creem-webhook\n"
             "\n"
