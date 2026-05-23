@@ -82,7 +82,9 @@ class TestDiscordInteractions:
 
         assert response.status_code == 401
 
-    async def test_missing_discord_config_returns_503(self, client, signing_key, monkeypatch) -> None:
+    async def test_missing_discord_config_returns_503(
+        self, client, signing_key, monkeypatch
+    ) -> None:
         body = json.dumps({"type": 1}).encode()
         monkeypatch.delenv("DISCORD_APPLICATION_ID", raising=False)
 

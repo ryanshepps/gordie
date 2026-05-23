@@ -10,7 +10,9 @@ logger = get_logger(__name__)
 
 DISCORD_WEBHOOK_BASE_URL = "https://discord.com/api/webhooks"
 DISCORD_MAX_CONTENT_LENGTH = 2000
-DISCORD_TRUNCATION_NOTICE = "\n\n[Response truncated for Discord. Ask Gordie to narrow the question for more detail.]"
+DISCORD_TRUNCATION_NOTICE = (
+    "\n\n[Response truncated for Discord. Ask Gordie to narrow the question for more detail.]"
+)
 
 
 def _fit_discord_content(content: str) -> str:
