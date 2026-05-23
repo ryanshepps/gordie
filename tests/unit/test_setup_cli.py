@@ -200,10 +200,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert "DISCORD_BOT_TOKEN=discord-token" in env_text
     assert "Application ID: https://discord.com/developers/applications" in result.output
     assert "Public Key: https://discord.com/developers/applications" in result.output
-    assert (
-        "Bot Token: https://docs.discord.com/developers/quick-start/getting-started"
-        in result.output
-    )
+    assert "Bot Token: https://discord.com/developers/applications/discord-app/bot" in result.output
     assert "CREEM_API_KEY=" in env_text
     assert "docker compose up -d" in result.output
 

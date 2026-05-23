@@ -49,7 +49,6 @@ _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
 _CHAT_MEDIUM_VALUES = ", ".join(medium.value for medium in ChatMedium)
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
 _DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
-_DISCORD_BOT_GUIDE_URL = "https://docs.discord.com/developers/quick-start/getting-started"
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
@@ -418,7 +417,7 @@ def _prompt_medium_values(
             existing_values,
             hide_input=True,
         )
-        typer.echo(f"Bot Token: {_DISCORD_BOT_GUIDE_URL} (Bot page)")
+        typer.echo(f"Bot Token: {_discord_bot_url(application_id)}")
         bot_token = _existing_or_prompt_required(
             "DISCORD_BOT_TOKEN",
             "Discord bot token",
@@ -608,6 +607,10 @@ def _prompt_text(
     if isinstance(prompted, str):
         return prompted
     return str(prompted)
+
+
+def _discord_bot_url(application_id: str) -> str:
+    return f"{_DISCORD_APPLICATIONS_URL}/{application_id}/bot"
 
 
 def _existing_value(values: Mapping[str, str], key: str) -> str | None:
