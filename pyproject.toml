@@ -30,7 +30,11 @@ dependencies = [
     "scipy>=1.14.0",
     "numpy>=2.0.0",
     "pybaseball>=2.2.7",
+    "typer>=0.25.1",
 ]
+
+[project.scripts]
+gordie = "scripts.setup:app"
 
 [tool.ruff]
 # Exclude common directories
@@ -97,7 +101,7 @@ line-ending = "auto"
 known-first-party = ["fantasy_hockey_agent", "fantasy_tools", "modules", "tools"]
 
 [tool.setuptools.packages.find]
-include = ["tools*", "module*", "client*", "server*"]
+include = ["tools*", "module*", "client*", "server*", "scripts*"]
 
 [dependency-groups]
 dev = [
@@ -134,3 +138,7 @@ exclude = [
 ]
 
 [tool.uv.sources]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"

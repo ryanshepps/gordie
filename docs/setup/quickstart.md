@@ -17,16 +17,10 @@ You do **not** need Mailgun, Sinch, Discord, Creem, or Cloudflare to boot the se
 git clone https://github.com/ryanshepps/gordie.git
 cd gordie
 
-cp .env.example .env
+uv run gordie init
 ```
 
-Open `.env` and set the bare minimum:
-
-```bash
-OPENAI_API_KEY=sk-...
-```
-
-You can leave Yahoo, Mailgun, Sinch, Discord, and Creem blank for now. Yahoo is required to *talk to a league* but the server boots without it.
+The setup wizard writes `.env`, verifies Docker is installed, prompts for your chat medium, LLM provider, Yahoo app credentials, and skips hosted billing unless you pass `--hosted`.
 
 ## 2. Start Postgres + the server
 
