@@ -120,18 +120,10 @@ def build_env_values(
                 "CREEM_API_KEY": answers.values["CREEM_API_KEY"],
                 "CREEM_WEBHOOK_SECRET": answers.values["CREEM_WEBHOOK_SECRET"],
                 "CREEM_API_BASE_URL": answers.values["CREEM_API_BASE_URL"],
-                "CREEM_PRODUCT_STANDARD_MONTHLY": answers.values[
-                    "CREEM_PRODUCT_STANDARD_MONTHLY"
-                ],
-                "CREEM_PRODUCT_STANDARD_ANNUAL": answers.values[
-                    "CREEM_PRODUCT_STANDARD_ANNUAL"
-                ],
-                "CREEM_PRODUCT_ALLSTAR_MONTHLY": answers.values[
-                    "CREEM_PRODUCT_ALLSTAR_MONTHLY"
-                ],
-                "CREEM_PRODUCT_ALLSTAR_ANNUAL": answers.values[
-                    "CREEM_PRODUCT_ALLSTAR_ANNUAL"
-                ],
+                "CREEM_PRODUCT_STANDARD_MONTHLY": answers.values["CREEM_PRODUCT_STANDARD_MONTHLY"],
+                "CREEM_PRODUCT_STANDARD_ANNUAL": answers.values["CREEM_PRODUCT_STANDARD_ANNUAL"],
+                "CREEM_PRODUCT_ALLSTAR_MONTHLY": answers.values["CREEM_PRODUCT_ALLSTAR_MONTHLY"],
+                "CREEM_PRODUCT_ALLSTAR_ANNUAL": answers.values["CREEM_PRODUCT_ALLSTAR_ANNUAL"],
             }
         )
     else:
@@ -447,9 +439,7 @@ def _medium_required_keys(media: Sequence[ChatMedium]) -> tuple[str, ...]:
         if medium is ChatMedium.TELEGRAM:
             required.append("TELEGRAM_BOT_TOKEN")
         elif medium is ChatMedium.DISCORD:
-            required.extend(
-                ("DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN")
-            )
+            required.extend(("DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN"))
         elif medium is ChatMedium.EMAIL:
             required.extend(
                 (

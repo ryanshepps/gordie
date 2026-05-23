@@ -236,9 +236,7 @@ def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:
     assert "does not exist" in result.output
 
 
-def test_init_command_requires_docker_by_default(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
+def test_init_command_requires_docker_by_default(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     template_file = tmp_path / ".env.example"
     _ = template_file.write_text("OPENAI_API_KEY=\n")
 
