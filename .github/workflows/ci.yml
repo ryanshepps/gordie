@@ -57,6 +57,56 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Cache .venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Basedpyright
+        run: |
+          typecheck_result="$(mktemp)"
+          uv run basedpyright --outputjson > "$typecheck_result" || true
+          uv run python - "$typecheck_result" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1]) as typecheck_result:
+              result = json.load(typecheck_result)
+
+          summary = result["summary"]
+          error_count = summary["errorCount"]
+          warning_count = summary["warningCount"]
+          information_count = summary["informationCount"]
+          print(f"{error_count} errors, {warning_count} warnings, {information_count} notes")
+
+          if error_count:
+              for diagnostic in result["generalDiagnostics"]:
+                  if diagnostic["severity"] != "error":
+                      continue
+
+                  file_path = diagnostic["file"]
+                  message = diagnostic["message"]
+                  print(f"{file_path}: {message}")
+
+              sys.exit(1)
+          PY
+
   test:
     name: Test
     runs-on: ubuntu-latest
