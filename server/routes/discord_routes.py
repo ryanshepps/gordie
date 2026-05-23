@@ -169,7 +169,6 @@ def _process_discord_interaction(
     message_body: str,
     logger: logging.Logger,
 ) -> None:
-    thread_id: str | None = None
     try:
         from data.discord_interaction_repository import DiscordInteractionRepository
         from data.processed_inbound_message_repository import ProcessedInboundMessageRepository
@@ -250,15 +249,10 @@ def _process_discord_interaction(
             exc_info=True,
         )
         error_message = "Gordie hit an error while processing that. Try again in a minute."
-        if thread_id:
-            from server.adapters.discord_adapter import send_discord_text
+        from server.discord_service import DiscordService
 
-            send_discord_text(thread_id, error_message)
-        else:
-            from server.discord_service import DiscordService
-
-            _ = DiscordService().edit_original_response(
-                application_id,
-                interaction_token,
-                error_message,
-            )
+        _ = DiscordService().edit_original_response(
+            application_id,
+            interaction_token,
+            error_message,
+        )

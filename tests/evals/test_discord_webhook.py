@@ -2,6 +2,7 @@
 
 import json
 import sys
+import time
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 from uuid import UUID
@@ -34,12 +35,13 @@ def client(app):
     return app.test_client()
 
 
-def _headers(signing_key: SigningKey, body: bytes, timestamp: str = "1700000000") -> dict[str, str]:
-    signature = signing_key.sign(timestamp.encode("utf-8") + body).signature.hex()
+def _headers(signing_key: SigningKey, body: bytes, timestamp: str | None = None) -> dict[str, str]:
+    signed_timestamp = timestamp or str(int(time.time()))
+    signature = signing_key.sign(signed_timestamp.encode("utf-8") + body).signature.hex()
     return {
         "Content-Type": "application/json",
         "X-Signature-Ed25519": signature,
-        "X-Signature-Timestamp": timestamp,
+        "X-Signature-Timestamp": signed_timestamp,
     }
 
 
@@ -279,6 +281,50 @@ class TestProcessDiscordInteraction:
                 logger=MagicMock(),
             )
 
+        service.edit_original_response.assert_called_once()
+        assert service.edit_original_response.call_args.args[0] == "app-1"
+        assert service.edit_original_response.call_args.args[1] == "token-1"
+
+    def test_error_after_thread_resolution_edits_deferred_response(self) -> None:
+        from server.routes.discord_routes import _process_discord_interaction
+
+        user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
+        thread_id = "8ec8bd5f-7d86-47c8-9a7a-3ad6c97c4e58"
+        user_repo = _repo_mock()
+        user_repo.resolve_user_id.return_value = user_id
+        user_repo.get_identity_external_id.return_value = "user@test.com"
+        thread_repo = _repo_mock()
+        thread_repo.resolve.return_value = MagicMock(thread_id=thread_id)
+        target_repo = _repo_mock()
+        processed_repo = _repo_mock()
+        processed_repo.claim.side_effect = RuntimeError("claim failed")
+        service = MagicMock()
+
+        with (
+            patch("data.user_repository.UserRepository", return_value=user_repo),
+            patch("data.thread_repository.ThreadRepository", return_value=thread_repo),
+            patch(
+                "data.discord_interaction_repository.DiscordInteractionRepository",
+                return_value=target_repo,
+            ),
+            patch(
+                "data.processed_inbound_message_repository.ProcessedInboundMessageRepository",
+                return_value=processed_repo,
+            ),
+            patch("server.discord_service.DiscordService", return_value=service),
+            patch("server.adapters.discord_adapter.send_discord_text") as send_discord_text,
+        ):
+            _process_discord_interaction(
+                application_id="app-1",
+                interaction_token="token-1",
+                interaction_id="interaction-1",
+                discord_user_id="discord-user-1",
+                display_name="ryan",
+                message_body="Who should I start?",
+                logger=MagicMock(),
+            )
+
+        send_discord_text.assert_not_called()
         service.edit_original_response.assert_called_once()
         assert service.edit_original_response.call_args.args[0] == "app-1"
         assert service.edit_original_response.call_args.args[1] == "token-1"
