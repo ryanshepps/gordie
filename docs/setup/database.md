@@ -5,9 +5,10 @@ Gordie uses Postgres for application state (users, OAuth tokens, subscriptions, 
 ## Local Postgres via Docker
 
 ```bash
-docker compose up -d postgres
-docker compose exec server uv run alembic upgrade head
+docker compose up -d
 ```
+
+The server applies Alembic migrations automatically before it starts accepting requests.
 
 `docker-compose.yml` defaults to:
 - DB name: `fantasy_agent`
@@ -34,8 +35,7 @@ LangGraph's PostgresSaver auto-creates its own tables on first import of `agent.
 
 ```bash
 docker compose down -v       # drops the postgres volume
-docker compose up -d postgres
-docker compose exec server uv run alembic upgrade head
+docker compose up -d
 ```
 
 There's a helper script: `scripts/reset_databases.sh` (assumes `gordie-postgres` container).

@@ -259,9 +259,6 @@ def init(
     typer.echo("")
     typer.echo("Next step:")
     typer.echo("  docker compose up -d")
-    typer.echo("")
-    typer.echo("Then run:")
-    typer.echo("  docker compose exec server uv run alembic upgrade head")
 
 
 def parse_env_values(env_text: str) -> dict[str, str]:

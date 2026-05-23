@@ -26,10 +26,11 @@ The setup wizard writes `.env`, verifies Docker is installed, prompts for your c
 
 ```bash
 docker compose up -d
-docker compose exec server uv run alembic upgrade head
 curl http://localhost:8000/health
 # {"status":"ok"}
 ```
+
+The server applies Alembic migrations automatically before it starts accepting requests.
 
 ## 3. Send Gordie a message without configuring email
 

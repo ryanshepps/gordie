@@ -1,9 +1,10 @@
 import logging
+import os
 import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, override
 
 from pythonjsonlogger import json as jsonlogger
 
@@ -19,8 +20,9 @@ class CustomFormatter(logging.Formatter):
         "ERROR": "\033[31m",  # Red
         "CRITICAL": "\033[35m",  # Magenta
     }
-    RESET = "\033[0m"
+    RESET: ClassVar[str] = "\033[0m"
 
+    @override
     def format(self, record: logging.LogRecord) -> str:
         # Get the filename from the full path
         filename = Path(record.pathname).name
@@ -47,7 +49,13 @@ class CustomFormatter(logging.Formatter):
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     """JSON formatter for structured logging to files."""
 
-    def add_fields(self, log_data, record, message_dict):
+    @override
+    def add_fields(
+        self,
+        log_data: dict[str, object],
+        record: logging.LogRecord,
+        message_dict: dict[str, object],
+    ) -> None:
         super().add_fields(log_data, record, message_dict)
 
         log_data["timestamp"] = datetime.fromtimestamp(record.created).isoformat()
@@ -80,6 +88,24 @@ def _is_test_environment() -> bool:
     return "pytest" in sys.modules
 
 
+def _resolve_log_file(log_file: str | None) -> str | None:
+    configured_log_file = os.getenv("GORDIE_LOG_FILE")
+    if configured_log_file is not None:
+        log_file = configured_log_file.strip()
+
+    if log_file is None or log_file.lower() in {"", "stderr", "console", "none"}:
+        return None
+
+    return log_file
+
+
+def _add_console_handler(logger: logging.Logger, level: int) -> None:
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(level)
+    console_handler.setFormatter(CustomFormatter())
+    logger.addHandler(console_handler)
+
+
 def get_logger(
     name: str | None = None, level: int = logging.INFO, log_file: str | None = "server.log"
 ) -> logging.Logger:
@@ -101,36 +127,36 @@ def get_logger(
 
         logger = get_logger(__name__, log_file=None)  # Console logging for debugging
     """
-    if _is_test_environment():
-        log_file = None
+    log_file = None if _is_test_environment() else _resolve_log_file(log_file)
 
     logger = logging.getLogger(name or __name__)
 
     # Avoid adding handlers multiple times
     if not logger.handlers:
         logger.setLevel(level)
+        logger.propagate = False
 
         # File handler (JSON output)
         if log_file:
             # Use RotatingFileHandler to limit log file size to 1GB
             # When the file reaches 1GB, it rotates and keeps 2 backup files
             # Total disk usage: up to 3GB (current + 2 backups)
-            file_handler = RotatingFileHandler(
-                log_file,
-                maxBytes=1073741824,  # 1GB in bytes
-                backupCount=2,  # Keep 2 backup files (.1, .2)
-            )
-            file_handler.setLevel(level)
-            file_handler.setFormatter(
-                CustomJsonFormatter("%(timestamp)s %(level)s %(filename)s %(message)s")
-            )
-            logger.addHandler(file_handler)
+            try:
+                file_handler = RotatingFileHandler(
+                    log_file,
+                    maxBytes=1073741824,  # 1GB in bytes
+                    backupCount=2,  # Keep 2 backup files (.1, .2)
+                )
+                file_handler.setLevel(level)
+                file_handler.setFormatter(
+                    CustomJsonFormatter("%(timestamp)s %(level)s %(filename)s %(message)s")
+                )
+                logger.addHandler(file_handler)
+            except OSError:
+                _add_console_handler(logger, level)
         else:
             # If no log file specified, add console handler for debugging
-            console_handler = logging.StreamHandler(sys.stderr)
-            console_handler.setLevel(level)
-            console_handler.setFormatter(CustomFormatter())
-            logger.addHandler(console_handler)
+            _add_console_handler(logger, level)
 
     return logger
 
@@ -139,9 +165,9 @@ class StderrToLogger:
     """Stream wrapper that redirects stderr writes to the logger."""
 
     def __init__(self, logger: logging.Logger, log_level: int = logging.ERROR) -> None:
-        self.logger = logger
-        self.log_level = log_level
-        self.buffer = ""
+        self.logger: logging.Logger = logger
+        self.log_level: int = log_level
+        self.buffer: str = ""
 
     def write(self, message: str) -> int:
         """Write message to logger instead of stderr."""

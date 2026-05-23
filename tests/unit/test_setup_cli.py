@@ -203,6 +203,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert "Bot Token: https://discord.com/developers/applications/discord-app/bot" in result.output
     assert "CREEM_API_KEY=" in env_text
     assert "docker compose up -d" in result.output
+    assert "docker compose exec server uv run alembic upgrade head" not in result.output
 
 
 def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:

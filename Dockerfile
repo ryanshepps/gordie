@@ -43,6 +43,7 @@ COPY --from=builder --chown=app:app /app /app
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    GORDIE_LOG_FILE=stderr \
     SERVER_HOST=0.0.0.0 \
     SERVER_PORT=8000
 
