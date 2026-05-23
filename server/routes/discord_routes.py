@@ -249,10 +249,16 @@ def _process_discord_interaction(
             f"Error processing Discord interaction from {discord_user_id}: {exc}",
             exc_info=True,
         )
+        error_message = "Gordie hit an error while processing that. Try again in a minute."
         if thread_id:
             from server.adapters.discord_adapter import send_discord_text
 
-            send_discord_text(
-                thread_id,
-                "Gordie hit an error while processing that. Try again in a minute.",
+            send_discord_text(thread_id, error_message)
+        else:
+            from server.discord_service import DiscordService
+
+            _ = DiscordService().edit_original_response(
+                application_id,
+                interaction_token,
+                error_message,
             )

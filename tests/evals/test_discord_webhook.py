@@ -255,3 +255,28 @@ class TestProcessDiscordInteraction:
             )
 
         message_agent.assert_not_called()
+
+    def test_error_before_thread_resolution_edits_deferred_response(self) -> None:
+        from server.routes.discord_routes import _process_discord_interaction
+
+        user_repo = _repo_mock()
+        user_repo.resolve_user_id.side_effect = RuntimeError("database unavailable")
+        service = MagicMock()
+
+        with (
+            patch("data.user_repository.UserRepository", return_value=user_repo),
+            patch("server.discord_service.DiscordService", return_value=service),
+        ):
+            _process_discord_interaction(
+                application_id="app-1",
+                interaction_token="token-1",
+                interaction_id="interaction-1",
+                discord_user_id="discord-user-1",
+                display_name="ryan",
+                message_body="Who should I start?",
+                logger=MagicMock(),
+            )
+
+        service.edit_original_response.assert_called_once()
+        assert service.edit_original_response.call_args.args[0] == "app-1"
+        assert service.edit_original_response.call_args.args[1] == "token-1"
