@@ -15,6 +15,7 @@ from scripts.setup import (
     app,
     build_env_values,
     parse_chat_media,
+    parse_env_values,
     render_env_file,
 )
 
@@ -133,6 +134,21 @@ def test_render_env_file_preserves_comments_and_quotes_values() -> None:
     assert "TELEGRAM_BOT_TOKEN=telegram-token" in rendered
 
 
+def test_parse_env_values_unquotes_existing_values() -> None:
+    values = parse_env_values(
+        "\n".join(
+            [
+                "OPENAI_API_KEY=sk-test",
+                'MAILGUN_FROM_EMAIL="Gordie <gordie@example.com>" # e.g. sender',
+                "IGNORED LINE",
+            ]
+        )
+    )
+
+    assert values["OPENAI_API_KEY"] == "sk-test"
+    assert values["MAILGUN_FROM_EMAIL"] == "Gordie <gordie@example.com>"
+
+
 def test_init_command_writes_env_file(tmp_path: Path) -> None:
     template_file = tmp_path / ".env.example"
     env_file = tmp_path / ".env"
@@ -141,6 +157,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             [
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
+                "ENVIRONMENT=",
                 "OAUTH_BASE_URL=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
@@ -181,11 +198,48 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert "docker compose up -d" in result.output
 
 
-def test_init_command_rejects_existing_env_without_force(tmp_path: Path) -> None:
+def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
     template_file = tmp_path / ".env.example"
     env_file = tmp_path / ".env"
-    _ = template_file.write_text("OPENAI_API_KEY=\n")
-    _ = env_file.write_text("OPENAI_API_KEY=keep-me\n")
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "OPENAI_API_KEY=",
+                "ANTHROPIC_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "ENABLED_SPORTS=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+                "CREEM_API_BASE_URL=",
+            ]
+        )
+    )
+    _ = env_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=postgresql://existing",
+                "ADMIN_API_KEY=existing-admin",
+                "ENVIRONMENT=production",
+                "OAUTH_BASE_URL=http://existing.example.com",
+                "OPENAI_API_KEY=existing-openai",
+                "LLM_PROVIDER=openai",
+                "LLM_MODEL=existing-model",
+                "YAHOO_CLIENT_ID=existing-yahoo-id",
+                "YAHOO_CLIENT_SECRET=existing-yahoo-secret",
+                "ENABLED_SPORTS=nhl",
+                "CHAT_MEDIA=telegram",
+                "TELEGRAM_BOT_TOKEN=existing-telegram",
+                "CREEM_API_BASE_URL=https://existing-creem.example.com/v1",
+                "",
+            ]
+        )
+    )
     runner = CliRunner()
 
     result = runner.invoke(
@@ -198,11 +252,23 @@ def test_init_command_rejects_existing_env_without_force(tmp_path: Path) -> None
             "--env-file",
             str(env_file),
         ],
+        input="\n",
     )
 
-    assert result.exit_code == 1
-    assert "already exists" in result.output
-    assert env_file.read_text() == "OPENAI_API_KEY=keep-me\n"
+    assert result.exit_code == 0, result.output
+    assert "Using existing values" in result.output
+    assert "already exists" not in result.output
+    env_text = env_file.read_text()
+    assert "DATABASE_URL=postgresql://existing" in env_text
+    assert "ADMIN_API_KEY=existing-admin" in env_text
+    assert "ENVIRONMENT=production" in env_text
+    assert "OAUTH_BASE_URL=http://existing.example.com" in env_text
+    assert "OPENAI_API_KEY=existing-openai" in env_text
+    assert "LLM_MODEL=existing-model" in env_text
+    assert "YAHOO_CLIENT_SECRET=existing-yahoo-secret" in env_text
+    assert "ENABLED_SPORTS=nhl" in env_text
+    assert "TELEGRAM_BOT_TOKEN=existing-telegram" in env_text
+    assert "CREEM_API_BASE_URL=https://existing-creem.example.com/v1" in env_text
 
 
 def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:

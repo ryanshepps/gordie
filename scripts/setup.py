@@ -91,19 +91,22 @@ def build_env_values(
 ) -> dict[str, str]:
     """Build the env key/value map written by the setup wizard."""
 
-    values = {
-        "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/fantasy_agent",
+    values: dict[str, str] = {
+        "DATABASE_URL": answers.values.get(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@postgres:5432/fantasy_agent",
+        ),
         "ADMIN_API_KEY": admin_api_key or secrets.token_hex(32),
-        "ENVIRONMENT": "development",
+        "ENVIRONMENT": answers.values.get("ENVIRONMENT", "development"),
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
         "CHAT_MEDIA": ",".join(medium.value for medium in answers.chat_media),
         "LLM_PROVIDER": answers.llm_provider.value,
-        "LLM_MODEL": _default_llm_model(answers.llm_provider),
-        "OPENAI_API_KEY": "",
-        "ANTHROPIC_API_KEY": "",
+        "LLM_MODEL": answers.values.get("LLM_MODEL", _default_llm_model(answers.llm_provider)),
+        "OPENAI_API_KEY": answers.values.get("OPENAI_API_KEY", ""),
+        "ANTHROPIC_API_KEY": answers.values.get("ANTHROPIC_API_KEY", ""),
         "YAHOO_CLIENT_ID": answers.values["YAHOO_CLIENT_ID"],
         "YAHOO_CLIENT_SECRET": answers.values["YAHOO_CLIENT_SECRET"],
-        "ENABLED_SPORTS": "nhl,mlb",
+        "ENABLED_SPORTS": answers.values.get("ENABLED_SPORTS", "nhl,mlb"),
     }
 
     if answers.llm_provider is LLMProvider.OPENAI:
@@ -129,13 +132,28 @@ def build_env_values(
     else:
         values.update(
             {
-                "CREEM_API_KEY": "",
-                "CREEM_WEBHOOK_SECRET": "",
-                "CREEM_API_BASE_URL": "https://test-api.creem.io/v1",
-                "CREEM_PRODUCT_STANDARD_MONTHLY": "",
-                "CREEM_PRODUCT_STANDARD_ANNUAL": "",
-                "CREEM_PRODUCT_ALLSTAR_MONTHLY": "",
-                "CREEM_PRODUCT_ALLSTAR_ANNUAL": "",
+                "CREEM_API_KEY": answers.values.get("CREEM_API_KEY", ""),
+                "CREEM_WEBHOOK_SECRET": answers.values.get("CREEM_WEBHOOK_SECRET", ""),
+                "CREEM_API_BASE_URL": answers.values.get(
+                    "CREEM_API_BASE_URL",
+                    "https://test-api.creem.io/v1",
+                ),
+                "CREEM_PRODUCT_STANDARD_MONTHLY": answers.values.get(
+                    "CREEM_PRODUCT_STANDARD_MONTHLY",
+                    "",
+                ),
+                "CREEM_PRODUCT_STANDARD_ANNUAL": answers.values.get(
+                    "CREEM_PRODUCT_STANDARD_ANNUAL",
+                    "",
+                ),
+                "CREEM_PRODUCT_ALLSTAR_MONTHLY": answers.values.get(
+                    "CREEM_PRODUCT_ALLSTAR_MONTHLY",
+                    "",
+                ),
+                "CREEM_PRODUCT_ALLSTAR_ANNUAL": answers.values.get(
+                    "CREEM_PRODUCT_ALLSTAR_ANNUAL",
+                    "",
+                ),
             }
         )
 
@@ -201,7 +219,7 @@ def init(
     ] = _DEFAULT_TEMPLATE_FILE,
     force: Annotated[
         bool,
-        typer.Option("--force", help="Overwrite an existing dotenv file."),
+        typer.Option("--force", help="Ignore existing dotenv values and overwrite."),
     ] = False,
     skip_docker_check: Annotated[
         bool,
@@ -211,13 +229,25 @@ def init(
     """Create a local .env file through an interactive setup wizard."""
 
     try:
-        if env_file.exists() and not force:
-            raise SetupInputError(f"{env_file} already exists. Re-run with --force to overwrite.")
         if not template_file.exists():
             raise SetupInputError(f"{template_file} does not exist.")
 
-        answers = _prompt_for_answers(hosted=hosted, skip_docker_check=skip_docker_check)
-        env_text = render_env_file(template_file.read_text(), build_env_values(answers))
+        existing_values = (
+            parse_env_values(env_file.read_text()) if env_file.exists() and not force else {}
+        )
+        if existing_values:
+            typer.echo(f"Using existing values from {env_file}")
+
+        answers = _prompt_for_answers(
+            hosted=hosted,
+            skip_docker_check=skip_docker_check,
+            existing_values=existing_values,
+        )
+        generated_values = build_env_values(
+            answers,
+            admin_api_key=_existing_value(existing_values, "ADMIN_API_KEY"),
+        )
+        env_text = render_env_file(template_file.read_text(), existing_values | generated_values)
         _ = env_file.write_text(env_text)
     except SetupInputError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
@@ -232,7 +262,27 @@ def init(
     typer.echo("  docker compose exec server uv run alembic upgrade head")
 
 
-def _prompt_for_answers(*, hosted: bool, skip_docker_check: bool) -> SetupAnswers:
+def parse_env_values(env_text: str) -> dict[str, str]:
+    """Parse dotenv assignments generated or accepted by the setup wizard."""
+
+    values: dict[str, str] = {}
+    for line in env_text.splitlines():
+        match = _ENV_ASSIGNMENT_RE.match(line)
+        if match is None:
+            continue
+
+        key, raw_value, _comment = match.groups()
+        values[key] = _deserialize_env_value(raw_value.strip())
+
+    return values
+
+
+def _prompt_for_answers(
+    *,
+    hosted: bool,
+    skip_docker_check: bool,
+    existing_values: Mapping[str, str],
+) -> SetupAnswers:
     typer.echo("Gordie setup")
     typer.echo("")
 
@@ -245,38 +295,64 @@ def _prompt_for_answers(*, hosted: bool, skip_docker_check: bool) -> SetupAnswer
         _validate_docker_available()
 
     typer.echo(f"Chat media choices: {_CHAT_MEDIUM_VALUES}")
-    chat_media = _prompt_chat_media()
+    chat_media = _prompt_chat_media(existing_value=_existing_value(existing_values, "CHAT_MEDIA"))
 
-    llm_provider = _prompt_enum("LLM provider", LLMProvider, default=LLMProvider.OPENAI)
+    llm_provider = _prompt_enum(
+        "LLM provider",
+        LLMProvider,
+        default=LLMProvider.OPENAI,
+        existing_value=_existing_value(existing_values, "LLM_PROVIDER"),
+    )
 
     values: dict[str, str] = {
-        "OAUTH_BASE_URL": _prompt_text("OAuth base URL", default="http://localhost:8000"),
+        "OAUTH_BASE_URL": _existing_or_prompt_text(
+            "OAUTH_BASE_URL",
+            "OAuth base URL",
+            existing_values,
+            default="http://localhost:8000",
+        ),
     }
-    values.update(_prompt_llm_values(llm_provider))
+    values.update(_prompt_llm_values(llm_provider, existing_values))
 
     typer.echo("")
     typer.echo(f"Create a Yahoo app at {_YAHOO_APP_URL}")
     typer.echo("Use this callback URL when Yahoo asks for a redirect URI:")
     typer.echo(f"  {values['OAUTH_BASE_URL'].rstrip('/')}/callback")
-    values["YAHOO_CLIENT_ID"] = _prompt_required("Yahoo client ID")
-    values["YAHOO_CLIENT_SECRET"] = _prompt_required("Yahoo client secret", hide_input=True)
+    values["YAHOO_CLIENT_ID"] = _existing_or_prompt_required(
+        "YAHOO_CLIENT_ID",
+        "Yahoo client ID",
+        existing_values,
+    )
+    values["YAHOO_CLIENT_SECRET"] = _existing_or_prompt_required(
+        "YAHOO_CLIENT_SECRET",
+        "Yahoo client secret",
+        existing_values,
+        hide_input=True,
+    )
 
     for medium in chat_media:
-        values.update(_prompt_medium_values(medium))
+        values.update(_prompt_medium_values(medium, existing_values))
 
     if hosted:
-        values.update(_prompt_billing_values())
+        values.update(_prompt_billing_values(existing_values))
 
     return SetupAnswers(
         deployment_target=deployment_target,
         chat_media=chat_media,
         llm_provider=llm_provider,
-        values=values,
+        values=dict(existing_values) | values,
         hosted=hosted,
     )
 
 
-def _prompt_chat_media() -> tuple[ChatMedium, ...]:
+def _prompt_chat_media(*, existing_value: str | None = None) -> tuple[ChatMedium, ...]:
+    if existing_value is not None:
+        try:
+            typer.echo("Chat media: using existing value")
+            return parse_chat_media(existing_value)
+        except SetupInputError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
+
     while True:
         raw_value = _prompt_text("Chat media", default=ChatMedium.TELEGRAM.value)
         try:
@@ -285,66 +361,166 @@ def _prompt_chat_media() -> tuple[ChatMedium, ...]:
             typer.secho(str(exc), fg=typer.colors.RED)
 
 
-def _prompt_llm_values(provider: LLMProvider) -> dict[str, str]:
+def _prompt_llm_values(
+    provider: LLMProvider,
+    existing_values: Mapping[str, str],
+) -> dict[str, str]:
     if provider is LLMProvider.OPENAI:
-        return {"OPENAI_API_KEY": _prompt_required("OpenAI API key", hide_input=True)}
+        return {
+            "OPENAI_API_KEY": _existing_or_prompt_required(
+                "OPENAI_API_KEY",
+                "OpenAI API key",
+                existing_values,
+                hide_input=True,
+            )
+        }
 
-    return {"ANTHROPIC_API_KEY": _prompt_required("Anthropic API key", hide_input=True)}
+    return {
+        "ANTHROPIC_API_KEY": _existing_or_prompt_required(
+            "ANTHROPIC_API_KEY",
+            "Anthropic API key",
+            existing_values,
+            hide_input=True,
+        )
+    }
 
 
-def _prompt_medium_values(medium: ChatMedium) -> dict[str, str]:
+def _prompt_medium_values(
+    medium: ChatMedium,
+    existing_values: Mapping[str, str],
+) -> dict[str, str]:
     typer.echo("")
     if medium is ChatMedium.TELEGRAM:
         typer.echo("Telegram setup")
-        return {"TELEGRAM_BOT_TOKEN": _prompt_required("Telegram bot token", hide_input=True)}
+        return {
+            "TELEGRAM_BOT_TOKEN": _existing_or_prompt_required(
+                "TELEGRAM_BOT_TOKEN",
+                "Telegram bot token",
+                existing_values,
+                hide_input=True,
+            )
+        }
 
     if medium is ChatMedium.DISCORD:
         typer.echo("Discord setup")
         return {
-            "DISCORD_APPLICATION_ID": _prompt_required("Discord application ID"),
-            "DISCORD_PUBLIC_KEY": _prompt_required("Discord public key", hide_input=True),
-            "DISCORD_BOT_TOKEN": _prompt_required("Discord bot token", hide_input=True),
+            "DISCORD_APPLICATION_ID": _existing_or_prompt_required(
+                "DISCORD_APPLICATION_ID",
+                "Discord application ID",
+                existing_values,
+            ),
+            "DISCORD_PUBLIC_KEY": _existing_or_prompt_required(
+                "DISCORD_PUBLIC_KEY",
+                "Discord public key",
+                existing_values,
+                hide_input=True,
+            ),
+            "DISCORD_BOT_TOKEN": _existing_or_prompt_required(
+                "DISCORD_BOT_TOKEN",
+                "Discord bot token",
+                existing_values,
+                hide_input=True,
+            ),
         }
 
     if medium is ChatMedium.EMAIL:
         typer.echo("Email setup (Mailgun)")
-        domain = _prompt_required("Mailgun domain")
+        domain = _existing_or_prompt_required(
+            "MAILGUN_DOMAIN",
+            "Mailgun domain",
+            existing_values,
+        )
         return {
-            "MAILGUN_API_KEY": _prompt_required("Mailgun API key", hide_input=True),
+            "MAILGUN_API_KEY": _existing_or_prompt_required(
+                "MAILGUN_API_KEY",
+                "Mailgun API key",
+                existing_values,
+                hide_input=True,
+            ),
             "MAILGUN_DOMAIN": domain,
-            "MAILGUN_FROM_EMAIL": _prompt_text(
+            "MAILGUN_FROM_EMAIL": _existing_or_prompt_text(
+                "MAILGUN_FROM_EMAIL",
                 "Mailgun from email",
+                existing_values,
                 default=f"Gordie <gordie@{domain}>",
             ),
-            "MAILGUN_WEBHOOK_SIGNING_KEY": _prompt_required(
+            "MAILGUN_WEBHOOK_SIGNING_KEY": _existing_or_prompt_required(
+                "MAILGUN_WEBHOOK_SIGNING_KEY",
                 "Mailgun webhook signing key",
+                existing_values,
                 hide_input=True,
             ),
         }
 
     typer.echo("SMS setup (Sinch)")
     return {
-        "SINCH_SERVICE_PLAN_ID": _prompt_required("Sinch service plan ID"),
-        "SINCH_API_TOKEN": _prompt_required("Sinch API token", hide_input=True),
-        "SINCH_FROM_NUMBER": _prompt_required("Sinch from number"),
-        "SINCH_WEBHOOK_TOKEN": _prompt_required("Sinch webhook token", hide_input=True),
+        "SINCH_SERVICE_PLAN_ID": _existing_or_prompt_required(
+            "SINCH_SERVICE_PLAN_ID",
+            "Sinch service plan ID",
+            existing_values,
+        ),
+        "SINCH_API_TOKEN": _existing_or_prompt_required(
+            "SINCH_API_TOKEN",
+            "Sinch API token",
+            existing_values,
+            hide_input=True,
+        ),
+        "SINCH_FROM_NUMBER": _existing_or_prompt_required(
+            "SINCH_FROM_NUMBER",
+            "Sinch from number",
+            existing_values,
+        ),
+        "SINCH_WEBHOOK_TOKEN": _existing_or_prompt_required(
+            "SINCH_WEBHOOK_TOKEN",
+            "Sinch webhook token",
+            existing_values,
+            hide_input=True,
+        ),
     }
 
 
-def _prompt_billing_values() -> dict[str, str]:
+def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]:
     typer.echo("")
     typer.echo("Hosted billing setup (Creem)")
     return {
-        "CREEM_API_KEY": _prompt_required("Creem API key", hide_input=True),
-        "CREEM_WEBHOOK_SECRET": _prompt_required("Creem webhook secret", hide_input=True),
-        "CREEM_API_BASE_URL": _prompt_text(
+        "CREEM_API_KEY": _existing_or_prompt_required(
+            "CREEM_API_KEY",
+            "Creem API key",
+            existing_values,
+            hide_input=True,
+        ),
+        "CREEM_WEBHOOK_SECRET": _existing_or_prompt_required(
+            "CREEM_WEBHOOK_SECRET",
+            "Creem webhook secret",
+            existing_values,
+            hide_input=True,
+        ),
+        "CREEM_API_BASE_URL": _existing_or_prompt_text(
+            "CREEM_API_BASE_URL",
             "Creem API base URL",
+            existing_values,
             default="https://test-api.creem.io/v1",
         ),
-        "CREEM_PRODUCT_STANDARD_MONTHLY": _prompt_required("Creem standard monthly product ID"),
-        "CREEM_PRODUCT_STANDARD_ANNUAL": _prompt_required("Creem standard annual product ID"),
-        "CREEM_PRODUCT_ALLSTAR_MONTHLY": _prompt_required("Creem all-star monthly product ID"),
-        "CREEM_PRODUCT_ALLSTAR_ANNUAL": _prompt_required("Creem all-star annual product ID"),
+        "CREEM_PRODUCT_STANDARD_MONTHLY": _existing_or_prompt_required(
+            "CREEM_PRODUCT_STANDARD_MONTHLY",
+            "Creem standard monthly product ID",
+            existing_values,
+        ),
+        "CREEM_PRODUCT_STANDARD_ANNUAL": _existing_or_prompt_required(
+            "CREEM_PRODUCT_STANDARD_ANNUAL",
+            "Creem standard annual product ID",
+            existing_values,
+        ),
+        "CREEM_PRODUCT_ALLSTAR_MONTHLY": _existing_or_prompt_required(
+            "CREEM_PRODUCT_ALLSTAR_MONTHLY",
+            "Creem all-star monthly product ID",
+            existing_values,
+        ),
+        "CREEM_PRODUCT_ALLSTAR_ANNUAL": _existing_or_prompt_required(
+            "CREEM_PRODUCT_ALLSTAR_ANNUAL",
+            "Creem all-star annual product ID",
+            existing_values,
+        ),
     }
 
 
@@ -353,7 +529,15 @@ def _prompt_enum[T: StrEnum](
     enum_type: type[T],
     *,
     default: T,
+    existing_value: str | None = None,
 ) -> T:
+    if existing_value is not None:
+        try:
+            typer.echo(f"{label}: using existing value")
+            return enum_type(existing_value.strip().lower())
+        except ValueError:
+            typer.secho(f"Existing {label.lower()} is invalid.", fg=typer.colors.RED)
+
     choices = ", ".join(item.value for item in enum_type)
     while True:
         raw_value = _prompt_text(f"{label} ({choices})", default=default.value)
@@ -364,12 +548,43 @@ def _prompt_enum[T: StrEnum](
             typer.secho(f"Choose one of: {choices}.", fg=typer.colors.RED)
 
 
+def _existing_or_prompt_required(
+    key: str,
+    label: str,
+    existing_values: Mapping[str, str],
+    *,
+    hide_input: bool = False,
+) -> str:
+    existing_value = _existing_value(existing_values, key)
+    if existing_value is not None:
+        typer.echo(f"{label}: using existing value")
+        return existing_value
+
+    return _prompt_required(label, hide_input=hide_input)
+
+
 def _prompt_required(label: str, *, hide_input: bool = False) -> str:
     while True:
         value = _prompt_text(label, hide_input=hide_input).strip()
         if value:
             return value
         typer.secho(f"{label} is required.", fg=typer.colors.RED)
+
+
+def _existing_or_prompt_text(
+    key: str,
+    label: str,
+    existing_values: Mapping[str, str],
+    *,
+    default: str,
+    hide_input: bool = False,
+) -> str:
+    existing_value = _existing_value(existing_values, key)
+    if existing_value is not None:
+        typer.echo(f"{label}: using existing value")
+        return existing_value
+
+    return _prompt_text(label, default=default, hide_input=hide_input)
 
 
 def _prompt_text(
@@ -385,6 +600,13 @@ def _prompt_text(
     if isinstance(prompted, str):
         return prompted
     return str(prompted)
+
+
+def _existing_value(values: Mapping[str, str], key: str) -> str | None:
+    value = values.get(key)
+    if value is None or not value.strip():
+        return None
+    return value
 
 
 def _medium_env_values(medium: ChatMedium, values: Mapping[str, str]) -> dict[str, str]:
@@ -487,6 +709,32 @@ def _serialize_env_value(value: str) -> str:
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     return value
+
+
+def _deserialize_env_value(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        return _unescape_double_quoted_value(value[1:-1])
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1]
+    return value
+
+
+def _unescape_double_quoted_value(value: str) -> str:
+    unescaped: list[str] = []
+    escaped = False
+    for char in value:
+        if escaped:
+            unescaped.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        else:
+            unescaped.append(char)
+
+    if escaped:
+        unescaped.append("\\")
+
+    return "".join(unescaped)
 
 
 def _validate_docker_available() -> None:
