@@ -79,7 +79,33 @@ jobs:
         run: uv sync --frozen
 
       - name: Basedpyright
-        run: uv run basedpyright --level error
+        run: |
+          typecheck_result="$(mktemp)"
+          uv run basedpyright --outputjson > "$typecheck_result" || true
+          uv run python - "$typecheck_result" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1]) as typecheck_result:
+              result = json.load(typecheck_result)
+
+          summary = result["summary"]
+          error_count = summary["errorCount"]
+          warning_count = summary["warningCount"]
+          information_count = summary["informationCount"]
+          print(f"{error_count} errors, {warning_count} warnings, {information_count} notes")
+
+          if error_count:
+              for diagnostic in result["generalDiagnostics"]:
+                  if diagnostic["severity"] != "error":
+                      continue
+
+                  file_path = diagnostic["file"]
+                  message = diagnostic["message"]
+                  print(f"{file_path}: {message}")
+
+              sys.exit(1)
+          PY
 
   test:
     name: Test
