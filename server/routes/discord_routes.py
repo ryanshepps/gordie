@@ -76,7 +76,11 @@ def _extract_command_text(payload: JsonMapping) -> str | None:
 
 def _validate_application_id(application_id: str) -> bool:
     expected = os.getenv("DISCORD_APPLICATION_ID")
-    return expected is None or expected == application_id
+    return expected == application_id
+
+
+def _discord_configured() -> bool:
+    return bool(os.getenv("DISCORD_PUBLIC_KEY") and os.getenv("DISCORD_APPLICATION_ID"))
 
 
 def register_discord_routes(app: Quart) -> None:
@@ -87,6 +91,9 @@ def register_discord_routes(app: Quart) -> None:
         """Handle incoming Discord HTTP interactions."""
         start_time = time.time()
         logger = get_logger(__name__, log_file="server.log")
+
+        if not _discord_configured():
+            return jsonify({"error": "Discord not configured"}), 503
 
         raw_data = await request.get_data()
         raw_body = raw_data.encode("utf-8") if isinstance(raw_data, str) else raw_data

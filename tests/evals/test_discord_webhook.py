@@ -14,7 +14,7 @@ from nacl.signing import SigningKey
 def signing_key(monkeypatch) -> SigningKey:
     key = SigningKey.generate()
     monkeypatch.setenv("DISCORD_PUBLIC_KEY", key.verify_key.encode().hex())
-    monkeypatch.delenv("DISCORD_APPLICATION_ID", raising=False)
+    monkeypatch.setenv("DISCORD_APPLICATION_ID", "app-1")
     return key
 
 
@@ -81,6 +81,18 @@ class TestDiscordInteractions:
         )
 
         assert response.status_code == 401
+
+    async def test_missing_discord_config_returns_503(self, client, signing_key, monkeypatch) -> None:
+        body = json.dumps({"type": 1}).encode()
+        monkeypatch.delenv("DISCORD_APPLICATION_ID", raising=False)
+
+        response = await client.post(
+            "/discord/interactions",
+            data=body,
+            headers=_headers(signing_key, body),
+        )
+
+        assert response.status_code == 503
 
     async def test_gordie_command_returns_deferred_ack(self, client, signing_key) -> None:
         body = json.dumps(_command_payload()).encode()

@@ -1,6 +1,6 @@
 # Discord Setup
 
-Discord is optional. When `DISCORD_PUBLIC_KEY` is unset, Discord interaction signature verification fails and the rest of the server still boots normally.
+Discord is optional. When `DISCORD_PUBLIC_KEY` or `DISCORD_APPLICATION_ID` is unset, Discord interaction handling returns `503` and the rest of the server still boots normally.
 
 ## 1. Create a Discord application
 
