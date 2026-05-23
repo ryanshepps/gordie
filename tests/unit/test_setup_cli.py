@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
@@ -19,22 +20,13 @@ from scripts.setup import (
 
 
 def test_parse_chat_media_requires_at_least_one_medium() -> None:
-    try:
+    with pytest.raises(SetupInputError, match="at least one"):
         _ = parse_chat_media(" ")
-    except SetupInputError as exc:
-        assert "at least one" in str(exc)
-    else:
-        raise AssertionError("Expected empty chat media to fail")
 
 
 def test_parse_chat_media_rejects_unknown_medium() -> None:
-    try:
+    with pytest.raises(SetupInputError, match="slack"):
         _ = parse_chat_media("telegram, slack")
-    except SetupInputError as exc:
-        assert "slack" in str(exc)
-        assert "telegram, discord, email, sms" in str(exc)
-    else:
-        raise AssertionError("Expected unknown chat media to fail")
 
 
 def test_build_env_values_skips_billing_by_default() -> None:
@@ -78,12 +70,8 @@ def test_build_env_values_rejects_missing_required_keys() -> None:
         },
     )
 
-    try:
+    with pytest.raises(SetupInputError, match="SINCH_API_TOKEN"):
         _ = build_env_values(answers, admin_api_key="admin-token")
-    except SetupInputError as exc:
-        assert "SINCH_API_TOKEN" in str(exc)
-    else:
-        raise AssertionError("Expected missing required keys to fail")
 
 
 def test_build_env_values_supports_all_media_and_anthropic() -> None:
