@@ -111,6 +111,7 @@ class TestDiscordInteractions:
         assert response.status_code == 200
         assert await response.get_json() == {"type": 5}
         thread_cls.assert_called_once()
+        assert thread_cls.call_args.kwargs["name"] == "discord-interact"
         thread_cls.return_value.start.assert_called_once()
 
 

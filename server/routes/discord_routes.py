@@ -153,7 +153,11 @@ def register_discord_routes(app: Quart) -> None:
                 logger=logger,
             )
 
-        threading.Thread(target=process_discord, daemon=True).start()
+        threading.Thread(
+            target=process_discord,
+            daemon=True,
+            name=f"discord-{interaction_id[:8]}",
+        ).start()
 
         duration = time.time() - start_time
         logger.info(f"Deferred Discord interaction in {duration:.3f}s")
