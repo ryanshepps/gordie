@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from scripts.setup import (
@@ -83,6 +84,41 @@ def test_build_env_values_rejects_missing_required_keys() -> None:
         assert "SINCH_API_TOKEN" in str(exc)
     else:
         raise AssertionError("Expected missing required keys to fail")
+
+
+def test_build_env_values_supports_all_media_and_anthropic() -> None:
+    answers = SetupAnswers(
+        deployment_target=DeploymentTarget.DOCKER,
+        chat_media=(ChatMedium.DISCORD, ChatMedium.EMAIL, ChatMedium.SMS),
+        llm_provider=LLMProvider.ANTHROPIC,
+        hosted=False,
+        values={
+            "OAUTH_BASE_URL": "http://localhost:8000",
+            "ANTHROPIC_API_KEY": "anthropic-key",
+            "YAHOO_CLIENT_ID": "yahoo-id",
+            "YAHOO_CLIENT_SECRET": "yahoo-secret",
+            "DISCORD_APPLICATION_ID": "discord-app",
+            "DISCORD_PUBLIC_KEY": "discord-public",
+            "DISCORD_BOT_TOKEN": "discord-token",
+            "MAILGUN_API_KEY": "mailgun-key",
+            "MAILGUN_DOMAIN": "example.com",
+            "MAILGUN_FROM_EMAIL": "Gordie <gordie@example.com>",
+            "MAILGUN_WEBHOOK_SIGNING_KEY": "mailgun-webhook",
+            "SINCH_SERVICE_PLAN_ID": "sinch-plan",
+            "SINCH_API_TOKEN": "sinch-token",
+            "SINCH_FROM_NUMBER": "+15551234567",
+            "SINCH_WEBHOOK_TOKEN": "sinch-webhook",
+        },
+    )
+
+    values = build_env_values(answers, admin_api_key="admin-token")
+
+    assert values["LLM_PROVIDER"] == "anthropic"
+    assert values["ANTHROPIC_API_KEY"] == "anthropic-key"
+    assert values["CHAT_MEDIA"] == "discord,email,sms"
+    assert values["DISCORD_APPLICATION_ID"] == "discord-app"
+    assert values["MAILGUN_DOMAIN"] == "example.com"
+    assert values["SINCH_FROM_NUMBER"] == "+15551234567"
 
 
 def test_render_env_file_preserves_comments_and_quotes_values() -> None:
@@ -179,6 +215,92 @@ def test_init_command_rejects_existing_env_without_force(tmp_path: Path) -> None
     assert result.exit_code == 1
     assert "already exists" in result.output
     assert env_file.read_text() == "OPENAI_API_KEY=keep-me\n"
+
+
+def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--template-file",
+            str(tmp_path / "missing.env.example"),
+            "--env-file",
+            str(tmp_path / ".env"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "does not exist" in result.output
+
+
+def test_init_command_requires_docker_by_default(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    template_file = tmp_path / ".env.example"
+    _ = template_file.write_text("OPENAI_API_KEY=\n")
+
+    def no_docker(_name: str) -> None:
+        return None
+
+    monkeypatch.setattr("scripts.setup.shutil.which", no_docker)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(tmp_path / ".env"),
+        ],
+        input="\n",
+    )
+
+    assert result.exit_code == 1
+    assert "Docker was not found" in result.output
+
+
+def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input="\nslack\ntelegram\n\n\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Unknown chat medium: slack" in result.output
+    assert "CHAT_MEDIA=telegram" in env_file.read_text()
 
 
 def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
