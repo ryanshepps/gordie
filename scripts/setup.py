@@ -48,6 +48,8 @@ class SetupAnswers:
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
 _CHAT_MEDIUM_VALUES = ", ".join(medium.value for medium in ChatMedium)
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
+_DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
+_DISCORD_BOT_GUIDE_URL = "https://docs.discord.com/developers/quick-start/getting-started"
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
@@ -403,25 +405,30 @@ def _prompt_medium_values(
         }
 
     if medium is ChatMedium.DISCORD:
-        typer.echo("Discord setup")
+        typer.echo(f"Application ID: {_DISCORD_APPLICATIONS_URL} (General Information)")
+        application_id = _existing_or_prompt_required(
+            "DISCORD_APPLICATION_ID",
+            "Discord application ID",
+            existing_values,
+        )
+        typer.echo(f"Public Key: {_DISCORD_APPLICATIONS_URL} (General Information)")
+        public_key = _existing_or_prompt_required(
+            "DISCORD_PUBLIC_KEY",
+            "Discord public key",
+            existing_values,
+            hide_input=True,
+        )
+        typer.echo(f"Bot Token: {_DISCORD_BOT_GUIDE_URL} (Bot page)")
+        bot_token = _existing_or_prompt_required(
+            "DISCORD_BOT_TOKEN",
+            "Discord bot token",
+            existing_values,
+            hide_input=True,
+        )
         return {
-            "DISCORD_APPLICATION_ID": _existing_or_prompt_required(
-                "DISCORD_APPLICATION_ID",
-                "Discord application ID",
-                existing_values,
-            ),
-            "DISCORD_PUBLIC_KEY": _existing_or_prompt_required(
-                "DISCORD_PUBLIC_KEY",
-                "Discord public key",
-                existing_values,
-                hide_input=True,
-            ),
-            "DISCORD_BOT_TOKEN": _existing_or_prompt_required(
-                "DISCORD_BOT_TOKEN",
-                "Discord bot token",
-                existing_values,
-                hide_input=True,
-            ),
+            "DISCORD_APPLICATION_ID": application_id,
+            "DISCORD_PUBLIC_KEY": public_key,
+            "DISCORD_BOT_TOKEN": bot_token,
         }
 
     if medium is ChatMedium.EMAIL:
