@@ -108,6 +108,9 @@ def verify_discord_interaction(signature: str, timestamp: str, body: bytes) -> b
         logger.error("DISCORD_PUBLIC_KEY not configured")
         return False
 
+    if not is_timestamp_fresh(timestamp):
+        return False
+
     try:
         verify_key = VerifyKey(bytes.fromhex(public_key))
         _ = verify_key.verify(timestamp.encode("utf-8") + body, bytes.fromhex(signature))
