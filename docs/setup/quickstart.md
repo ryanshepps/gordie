@@ -6,11 +6,11 @@ The fastest path to a working local instance. ~15 minutes.
 
 - Docker + Docker Compose
 - [uv](https://docs.astral.sh/uv/) for Python (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- A Cloudflare account with a domain you can use for a Tunnel
+- A free [ngrok](https://ngrok.com/) account
 - Node.js 22 + pnpm (for the frontend) — `mise install` works if you use mise
 - An OpenAI API key (Anthropic also supported — see configuration)
 
-You do **not** need Mailgun, Sinch, Discord, or Creem to boot the server. Cloudflare Tunnel is part of the default Docker stack because Yahoo OAuth requires a public HTTPS callback.
+You do **not** need Mailgun, Sinch, Discord, Creem, or your own domain to boot the server. The ngrok tunnel is part of the default Docker stack because Yahoo OAuth requires a public HTTPS callback.
 
 ## 1. Clone and configure
 
@@ -22,7 +22,7 @@ uv run gordie init
 ```
 
 The setup wizard writes `.env`, verifies Docker is installed, prompts for your chat medium, LLM provider, Yahoo app credentials, and skips hosted billing unless you pass `--hosted`.
-It also detects `cloudflared`, offers to install it when it is missing, and can create the Cloudflare Tunnel plus DNS route for you after `cloudflared tunnel login`. If you skip that automation, enter an existing Cloudflare Tunnel public HTTPS URL and tunnel token manually. The Docker connector sends tunnel traffic to `http://server:8000`.
+It also detects `ngrok`, offers to install it when it is missing, asks for your ngrok authtoken, briefly starts ngrok to detect your stable dev-domain URL, and writes that URL as `OAUTH_BASE_URL`. If you skip that automation, enter an existing public HTTPS URL and ngrok authtoken manually. The Docker connector sends tunnel traffic to `http://server:8000`.
 
 ## 2. Start Postgres + the server
 
@@ -32,7 +32,7 @@ curl http://localhost:8000/health
 # {"status":"ok"}
 ```
 
-The server applies Alembic migrations automatically before it starts accepting requests. The Cloudflare Tunnel connector starts in the same Compose stack, so your public hostname should reach the same `/health` endpoint.
+The server applies Alembic migrations automatically before it starts accepting requests. The ngrok connector starts in the same Compose stack, so your public hostname should reach the same `/health` endpoint.
 
 ## 3. Send Gordie a message without configuring email
 
@@ -79,6 +79,6 @@ See `tests/README.md` for which suites need which credentials.
 ## Troubleshooting
 
 - **`MAILGUN_API_KEY ... not set` warning** — expected if you haven't configured email. Email send returns `error: email_disabled`.
-- **Yahoo OAuth callback fails** — Yahoo requires HTTPS callbacks. Confirm `OAUTH_BASE_URL` exactly matches the Yahoo redirect URI and that your Cloudflare Tunnel public hostname routes to `http://server:8000`.
-- **`cloudflared` exits on startup** — confirm `CLOUDFLARED_TUNNEL_TOKEN` is set in `.env` and was copied from a named Cloudflare Tunnel, not a Quick Tunnel.
+- **Yahoo OAuth callback fails** — Yahoo requires HTTPS callbacks. Confirm `OAUTH_BASE_URL` exactly matches the Yahoo redirect URI and that the ngrok connector is running.
+- **`ngrok` exits on startup** — confirm `NGROK_AUTHTOKEN` is set in `.env` and came from https://dashboard.ngrok.com/get-started/your-authtoken.
 - **`refresh_stats_db` errors on startup** — first boot downloads MoneyPuck NHL CSV (~30 MB) and MLB stats. Slow but non-blocking. Set `ENABLED_SPORTS=nhl` (or `mlb`) to skip the other.

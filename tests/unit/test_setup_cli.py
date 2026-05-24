@@ -38,8 +38,8 @@ def test_build_env_values_skips_billing_by_default() -> None:
         llm_provider=LLMProvider.OPENAI,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "https://gordie.example.com",
-            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
+            "OAUTH_BASE_URL": "https://gordie.ngrok-free.app",
+            "NGROK_AUTHTOKEN": "ngrok-token",
             "OPENAI_API_KEY": "sk-test",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -62,8 +62,8 @@ def test_build_env_values_rejects_missing_required_keys() -> None:
         llm_provider=LLMProvider.ANTHROPIC,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "https://gordie.example.com",
-            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
+            "OAUTH_BASE_URL": "https://gordie.ngrok-free.app",
+            "NGROK_AUTHTOKEN": "ngrok-token",
             "ANTHROPIC_API_KEY": "anthropic-key",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -86,7 +86,7 @@ def test_build_env_values_rejects_plain_http_oauth_base_url() -> None:
         hosted=False,
         values={
             "OAUTH_BASE_URL": "http://localhost:8000",
-            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
+            "NGROK_AUTHTOKEN": "ngrok-token",
             "OPENAI_API_KEY": "sk-test",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -98,14 +98,15 @@ def test_build_env_values_rejects_plain_http_oauth_base_url() -> None:
         _ = build_env_values(answers, admin_api_key="admin-token")
 
 
-def test_build_env_values_requires_cloudflare_tunnel_token() -> None:
+def test_build_env_values_rejects_localhost_oauth_base_url() -> None:
     answers = SetupAnswers(
         deployment_target=DeploymentTarget.DOCKER,
         chat_media=(ChatMedium.TELEGRAM,),
         llm_provider=LLMProvider.OPENAI,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "OAUTH_BASE_URL": "https://localhost:8000",
+            "NGROK_AUTHTOKEN": "ngrok-token",
             "OPENAI_API_KEY": "sk-test",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -113,7 +114,26 @@ def test_build_env_values_requires_cloudflare_tunnel_token() -> None:
         },
     )
 
-    with pytest.raises(SetupInputError, match="CLOUDFLARED_TUNNEL_TOKEN"):
+    with pytest.raises(SetupInputError, match="public HTTPS URL"):
+        _ = build_env_values(answers, admin_api_key="admin-token")
+
+
+def test_build_env_values_requires_ngrok_authtoken() -> None:
+    answers = SetupAnswers(
+        deployment_target=DeploymentTarget.DOCKER,
+        chat_media=(ChatMedium.TELEGRAM,),
+        llm_provider=LLMProvider.OPENAI,
+        hosted=False,
+        values={
+            "OAUTH_BASE_URL": "https://gordie.ngrok-free.app",
+            "OPENAI_API_KEY": "sk-test",
+            "YAHOO_CLIENT_ID": "yahoo-id",
+            "YAHOO_CLIENT_SECRET": "yahoo-secret",
+            "TELEGRAM_BOT_TOKEN": "telegram-token",
+        },
+    )
+
+    with pytest.raises(SetupInputError, match="NGROK_AUTHTOKEN"):
         _ = build_env_values(answers, admin_api_key="admin-token")
 
 
@@ -124,8 +144,8 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
         llm_provider=LLMProvider.ANTHROPIC,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "https://gordie.example.com",
-            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
+            "OAUTH_BASE_URL": "https://gordie.ngrok-free.app",
+            "NGROK_AUTHTOKEN": "ngrok-token",
             "ANTHROPIC_API_KEY": "anthropic-key",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -148,7 +168,7 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
 
     assert values["LLM_PROVIDER"] == "anthropic"
     assert values["ANTHROPIC_API_KEY"] == "anthropic-key"
-    assert values["CLOUDFLARED_TUNNEL_TOKEN"] == "cloudflare-token"
+    assert values["NGROK_AUTHTOKEN"] == "ngrok-token"
     assert values["CHAT_MEDIA"] == "discord,email,sms"
     assert values["DISCORD_MODE"] == "gateway"
     assert values["DISCORD_APPLICATION_ID"] == "discord-app"
@@ -207,7 +227,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
                 "ADMIN_API_KEY=",
                 "ENVIRONMENT=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
                 "LLM_PROVIDER=",
@@ -234,7 +254,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -242,8 +262,8 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
         ],
         input=(
             "\n\n\n"
-            "https://gordie.example.com\n"
-            "cloudflare-token\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -257,8 +277,8 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
     assert "CHAT_MEDIA=discord" in env_text
-    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
-    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
+    assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text
+    assert "NGROK_AUTHTOKEN=ngrok-token" in env_text
     assert "LLM_PROVIDER=openai" in env_text
     assert "OPENAI_API_KEY=sk-test" in env_text
     assert "YAHOO_CLIENT_ID=yahoo-id" in env_text
@@ -278,8 +298,8 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     )
     assert "CREEM_API_KEY=" in env_text
     assert "Server health: http://localhost:8000/health" in result.output
-    assert "Public health: https://gordie.example.com/health" in result.output
-    assert "Yahoo redirect URI: https://gordie.example.com/callback" in result.output
+    assert "Public health: https://gordie.ngrok-free.app/health" in result.output
+    assert "Yahoo redirect URI: https://gordie.ngrok-free.app/callback" in result.output
     assert "Invite the bot to your server" in result.output
     assert "docker compose up -d" not in result.output
     assert "docker compose exec server uv run alembic upgrade head" not in result.output
@@ -294,7 +314,7 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -313,7 +333,7 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -322,8 +342,8 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
         input=(
             "\ntelegram\n\n"
             "http://localhost:8000\n"
-            "https://gordie.example.com\n"
-            "cloudflare-token\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -334,11 +354,11 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "OAUTH_BASE_URL must be a public HTTPS URL" in result.output
     env_text = env_file.read_text()
-    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
-    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
+    assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text
+    assert "NGROK_AUTHTOKEN=ngrok-token" in env_text
 
 
-def test_init_command_falls_back_when_cloudflared_install_is_declined(
+def test_init_command_falls_back_when_ngrok_install_is_declined(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -350,7 +370,7 @@ def test_init_command_falls_back_when_cloudflared_install_is_declined(
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -362,12 +382,12 @@ def test_init_command_falls_back_when_cloudflared_install_is_declined(
         )
     )
 
-    def missing_cloudflared(name: str) -> str | None:
-        if name == "cloudflared":
+    def missing_ngrok(name: str) -> str | None:
+        if name == "ngrok":
             return None
         return f"/usr/bin/{name}"
 
-    monkeypatch.setattr("scripts.setup.shutil.which", missing_cloudflared)
+    monkeypatch.setattr("scripts.setup.shutil.which", missing_ngrok)
     runner = CliRunner()
 
     result = runner.invoke(
@@ -384,8 +404,8 @@ def test_init_command_falls_back_when_cloudflared_install_is_declined(
         input=(
             "\ntelegram\n\n"
             "n\n"
-            "https://gordie.example.com\n"
-            "cloudflare-token\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -394,14 +414,14 @@ def test_init_command_falls_back_when_cloudflared_install_is_declined(
     )
 
     assert result.exit_code == 0, result.output
-    assert "cloudflared was not found on PATH" in result.output
-    assert "Skipping cloudflared automation" in result.output
+    assert "ngrok was not found on PATH" in result.output
+    assert "Skipping ngrok automation" in result.output
     env_text = env_file.read_text()
-    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
-    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
+    assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text
+    assert "NGROK_AUTHTOKEN=ngrok-token" in env_text
 
 
-def test_init_command_can_create_cloudflare_tunnel_after_login(
+def test_init_command_can_discover_ngrok_dev_domain(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -413,7 +433,7 @@ def test_init_command_can_create_cloudflare_tunnel_after_login(
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -427,8 +447,8 @@ def test_init_command_can_create_cloudflare_tunnel_after_login(
     commands: list[list[str]] = []
 
     def fake_which(name: str) -> str | None:
-        if name == "cloudflared":
-            return "/usr/local/bin/cloudflared"
+        if name == "ngrok":
+            return "/usr/local/bin/ngrok"
         return f"/usr/bin/{name}"
 
     def fake_run(
@@ -440,14 +460,17 @@ def test_init_command_can_create_cloudflare_tunnel_after_login(
     ) -> subprocess.CompletedProcess[str]:
         _ = check, capture_output, text
         commands.append(command)
-        if command[1:] == ["tunnel", "list"]:
-            return subprocess.CompletedProcess(command, 1, stdout="", stderr="not logged in")
-        if command[1:] == ["tunnel", "token", "gordie"]:
-            return subprocess.CompletedProcess(command, 0, stdout="generated-cloudflare-token\n")
         return subprocess.CompletedProcess(command, 0, stdout="")
+
+    def fake_discover_ngrok_oauth_base_url(_ngrok_path: str) -> str:
+        return "https://gordie.ngrok-free.app"
 
     monkeypatch.setattr("scripts.setup.shutil.which", fake_which)
     monkeypatch.setattr("scripts.setup.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "scripts.setup._discover_ngrok_oauth_base_url",
+        fake_discover_ngrok_oauth_base_url,
+    )
     runner = CliRunner()
 
     result = runner.invoke(
@@ -461,38 +484,17 @@ def test_init_command_can_create_cloudflare_tunnel_after_login(
             "--env-file",
             str(env_file),
         ],
-        input=(
-            "\ntelegram\n\n"
-            "y\n"
-            "https://gordie.example.com\n"
-            "\n"
-            "y\n"
-            "sk-test\n"
-            "yahoo-id\n"
-            "yahoo-secret\n"
-            "telegram-token\n"
-        ),
+        input=("\ntelegram\n\ny\nngrok-token\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n"),
     )
 
     assert result.exit_code == 0, result.output
     assert commands == [
-        ["/usr/local/bin/cloudflared", "tunnel", "list"],
-        ["/usr/local/bin/cloudflared", "tunnel", "login"],
-        ["/usr/local/bin/cloudflared", "tunnel", "create", "gordie"],
-        [
-            "/usr/local/bin/cloudflared",
-            "tunnel",
-            "route",
-            "dns",
-            "gordie",
-            "gordie.example.com",
-        ],
-        ["/usr/local/bin/cloudflared", "tunnel", "token", "gordie"],
+        ["/usr/local/bin/ngrok", "config", "add-authtoken", "ngrok-token"],
     ]
-    assert "Cloudflare Tunnel configured" in result.output
+    assert "ngrok tunnel configured" in result.output
     env_text = env_file.read_text()
-    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
-    assert "CLOUDFLARED_TUNNEL_TOKEN=generated-cloudflare-token" in env_text
+    assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text
+    assert "NGROK_AUTHTOKEN=ngrok-token" in env_text
 
 
 def test_init_command_starts_docker_compose_by_default(
@@ -507,7 +509,7 @@ def test_init_command_starts_docker_compose_by_default(
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -532,7 +534,7 @@ def test_init_command_starts_docker_compose_by_default(
         [
             "init",
             "--skip-docker-check",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -540,8 +542,8 @@ def test_init_command_starts_docker_compose_by_default(
         ],
         input=(
             "\ntelegram\n\n"
-            "https://gordie.example.com\n"
-            "cloudflare-token\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -564,7 +566,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
                 "LLM_PROVIDER=",
@@ -585,7 +587,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
                 "ADMIN_API_KEY=existing-admin",
                 "ENVIRONMENT=production",
                 "OAUTH_BASE_URL=https://existing.example.com",
-                "CLOUDFLARED_TUNNEL_TOKEN=existing-cloudflare-token",
+                "NGROK_AUTHTOKEN=existing-ngrok-token",
                 "OPENAI_API_KEY=existing-openai",
                 "LLM_PROVIDER=openai",
                 "LLM_MODEL=existing-model",
@@ -607,7 +609,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -624,7 +626,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
     assert "ADMIN_API_KEY=existing-admin" in env_text
     assert "ENVIRONMENT=production" in env_text
     assert "OAUTH_BASE_URL=https://existing.example.com" in env_text
-    assert "CLOUDFLARED_TUNNEL_TOKEN=existing-cloudflare-token" in env_text
+    assert "NGROK_AUTHTOKEN=existing-ngrok-token" in env_text
     assert "OPENAI_API_KEY=existing-openai" in env_text
     assert "LLM_MODEL=existing-model" in env_text
     assert "YAHOO_CLIENT_SECRET=existing-yahoo-secret" in env_text
@@ -642,7 +644,7 @@ def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> No
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -661,8 +663,8 @@ def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> No
     _ = env_file.write_text(
         "\n".join(
             [
-                "OAUTH_BASE_URL=https://gordie.example.com",
-                "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token",
+                "OAUTH_BASE_URL=https://gordie.ngrok-free.app",
+                "NGROK_AUTHTOKEN=ngrok-token",
                 "OPENAI_API_KEY=existing-openai",
                 "LLM_PROVIDER=openai",
                 "YAHOO_CLIENT_ID=existing-yahoo-id",
@@ -684,7 +686,7 @@ def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> No
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -711,7 +713,7 @@ def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(tmp_path / "missing.env.example"),
             "--env-file",
@@ -758,7 +760,7 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -777,7 +779,7 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -785,8 +787,8 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
         ],
         input=(
             "\nslack\ntelegram\n\n"
-            "https://gordie.example.com\n"
-            "cloudflare-token\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -808,7 +810,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
-                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "NGROK_AUTHTOKEN=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
                 "LLM_PROVIDER=",
@@ -840,7 +842,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "--hosted",
             "--skip-docker-check",
             "--skip-docker-start",
-            "--skip-cloudflared-automation",
+            "--skip-ngrok-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -848,8 +850,8 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
         ],
         input=(
             "\n\n\n"
-            "https://gordie.example.com\n"
-            "cloudflare-token\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -868,7 +870,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
     assert "DISCORD_MODE=interactions" in env_text
-    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
+    assert "NGROK_AUTHTOKEN=ngrok-token" in env_text
     assert "DISCORD_APPLICATION_ID=discord-app" in env_text
     assert "DISCORD_PUBLIC_KEY=discord-public" in env_text
     assert "Discord mode: interactions (hosted)" in result.output
@@ -880,26 +882,22 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
     assert "CREEM_PRODUCT_ALLSTAR_ANNUAL=allstar-annual" in env_text
 
 
-def test_docker_compose_runs_cloudflared_with_named_tunnel_token() -> None:
+def test_docker_compose_runs_ngrok_with_authtoken() -> None:
     compose_text = Path("docker-compose.yml").read_text()
 
-    assert "cloudflared:" in compose_text
-    assert "image: cloudflare/cloudflared:latest" in compose_text
-    cloudflared_command = (
-        "command: tunnel --no-autoupdate run --url http://server:8000 "
-        + "--token ${CLOUDFLARED_TUNNEL_TOKEN}"
-    )
-    assert cloudflared_command in compose_text
+    assert "ngrok:" in compose_text
+    assert "image: ngrok/ngrok:latest" in compose_text
+    assert "command: http http://server:8000" in compose_text
+    assert "NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}" in compose_text
     assert "depends_on:\n      - server" in compose_text
 
 
-def test_yahoo_oauth_docs_make_cloudflare_primary_and_ngrok_dev_only() -> None:
+def test_yahoo_oauth_docs_make_ngrok_primary() -> None:
     yahoo_docs = Path("docs/setup/yahoo-oauth.md").read_text()
     quickstart_docs = Path("docs/setup/quickstart.md").read_text()
 
-    assert "named Cloudflare Tunnel" in yahoo_docs
-    assert "https://one.dash.cloudflare.com/" in yahoo_docs
+    assert "stable dev domain" in yahoo_docs
+    assert "https://dashboard.ngrok.com/get-started/your-authtoken" in yahoo_docs
     assert "http://server:8000" in yahoo_docs
-    assert "Dev-only fallback: ngrok" in yahoo_docs
-    assert "not Gordie's recommended self-hosted production path" in yahoo_docs
-    assert "Cloudflare Tunnel is part of the default Docker stack" in quickstart_docs
+    assert "NGROK_AUTHTOKEN" in yahoo_docs
+    assert "ngrok tunnel is part of the default Docker stack" in quickstart_docs

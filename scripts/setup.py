@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import re
 import secrets
+import selectors
 import shutil
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated, Final, cast
 from urllib.parse import urlparse
@@ -60,9 +63,11 @@ _DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/20634
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
-_CLOUDFLARE_TUNNEL_DASHBOARD_URL: Final = "https://one.dash.cloudflare.com/"
-_CLOUDFLARE_TUNNEL_SERVICE: Final = "http://server:8000"
-_DEFAULT_CLOUDFLARE_TUNNEL_NAME: Final = "gordie"
+_NGROK_AUTHTOKEN_URL: Final = "https://dashboard.ngrok.com/get-started/your-authtoken"
+_NGROK_TUNNEL_SERVICE: Final = "http://server:8000"
+_NGROK_DISCOVERY_SERVICE: Final = "http://localhost:8000"
+_NGROK_DISCOVERY_TIMEOUT_SECONDS: Final = 20.0
+_NGROK_PUBLIC_URL_RE = re.compile(r"https://[A-Za-z0-9.-]+\.ngrok(?:-free)?\.(?:app|dev|pizza|io)")
 
 
 @app.callback()
@@ -112,7 +117,7 @@ def build_env_values(
         "ADMIN_API_KEY": admin_api_key or secrets.token_hex(32),
         "ENVIRONMENT": answers.values.get("ENVIRONMENT", "development"),
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
-        "CLOUDFLARED_TUNNEL_TOKEN": answers.values.get("CLOUDFLARED_TUNNEL_TOKEN", ""),
+        "NGROK_AUTHTOKEN": answers.values.get("NGROK_AUTHTOKEN", ""),
         "CHAT_MEDIA": ",".join(medium.value for medium in answers.chat_media),
         "LLM_PROVIDER": answers.llm_provider.value,
         "LLM_MODEL": answers.values.get("LLM_MODEL", _default_llm_model(answers.llm_provider)),
@@ -243,11 +248,11 @@ def init(
         bool,
         typer.Option("--skip-docker-start", help="Skip docker compose startup.", hidden=True),
     ] = False,
-    skip_cloudflared_automation: Annotated[
+    skip_ngrok_automation: Annotated[
         bool,
         typer.Option(
-            "--skip-cloudflared-automation",
-            help="Skip cloudflared install and tunnel creation prompts.",
+            "--skip-ngrok-automation",
+            help="Skip ngrok install and dev-domain discovery prompts.",
             hidden=True,
         ),
     ] = False,
@@ -267,7 +272,7 @@ def init(
         answers = _prompt_for_answers(
             hosted=hosted,
             skip_docker_check=skip_docker_check,
-            skip_cloudflared_automation=skip_cloudflared_automation,
+            skip_ngrok_automation=skip_ngrok_automation,
             existing_values=existing_values,
         )
         generated_values = build_env_values(
@@ -305,7 +310,7 @@ def _prompt_for_answers(
     *,
     hosted: bool,
     skip_docker_check: bool,
-    skip_cloudflared_automation: bool,
+    skip_ngrok_automation: bool,
     existing_values: Mapping[str, str],
 ) -> SetupAnswers:
     typer.echo("Gordie setup")
@@ -331,9 +336,9 @@ def _prompt_for_answers(
 
     values: dict[str, str] = {}
     values.update(
-        _prompt_cloudflare_tunnel_values(
+        _prompt_ngrok_tunnel_values(
             existing_values,
-            skip_automation=skip_cloudflared_automation,
+            skip_automation=skip_ngrok_automation,
         )
     )
     values.update(_prompt_llm_values(llm_provider, existing_values))
@@ -409,174 +414,199 @@ def _prompt_llm_values(
     }
 
 
-def _prompt_cloudflare_tunnel_values(
+def _prompt_ngrok_tunnel_values(
     existing_values: Mapping[str, str],
     *,
     skip_automation: bool,
 ) -> dict[str, str]:
     typer.echo("")
-    typer.echo("Cloudflare Tunnel setup")
+    typer.echo("ngrok tunnel setup")
 
     existing_oauth_base_url = _existing_value(existing_values, "OAUTH_BASE_URL")
-    existing_tunnel_token = _existing_value(existing_values, "CLOUDFLARED_TUNNEL_TOKEN")
-    if existing_oauth_base_url is not None and existing_tunnel_token is not None:
+    existing_authtoken = _existing_value(existing_values, "NGROK_AUTHTOKEN")
+    if existing_oauth_base_url is not None and existing_authtoken is not None:
         return {
             "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
-            "CLOUDFLARED_TUNNEL_TOKEN": _existing_or_prompt_required(
-                "CLOUDFLARED_TUNNEL_TOKEN",
-                "Cloudflare tunnel token",
+            "NGROK_AUTHTOKEN": _existing_or_prompt_required(
+                "NGROK_AUTHTOKEN",
+                "ngrok authtoken",
                 existing_values,
                 hide_input=True,
             ),
         }
 
     if not skip_automation:
-        automated_values = _prompt_cloudflare_tunnel_automation(existing_values)
+        automated_values = _prompt_ngrok_tunnel_automation(existing_values)
         if automated_values is not None:
             return automated_values
 
-    typer.echo(f"Cloudflare dashboard: {_CLOUDFLARE_TUNNEL_DASHBOARD_URL}")
-    typer.echo("Create a named tunnel and public hostname.")
-    typer.echo(f"The Docker connector sends tunnel traffic to: {_CLOUDFLARE_TUNNEL_SERVICE}")
+    typer.echo(f"ngrok authtoken: {_NGROK_AUTHTOKEN_URL}")
+    typer.echo(f"The Docker connector sends tunnel traffic to: {_NGROK_TUNNEL_SERVICE}")
 
     return {
         "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
-        "CLOUDFLARED_TUNNEL_TOKEN": _existing_or_prompt_required(
-            "CLOUDFLARED_TUNNEL_TOKEN",
-            "Cloudflare tunnel token",
+        "NGROK_AUTHTOKEN": _existing_or_prompt_required(
+            "NGROK_AUTHTOKEN",
+            "ngrok authtoken",
             existing_values,
             hide_input=True,
         ),
     }
 
 
-def _prompt_cloudflare_tunnel_automation(
+def _prompt_ngrok_tunnel_automation(
     existing_values: Mapping[str, str],
 ) -> dict[str, str] | None:
-    cloudflared_path = _ensure_cloudflared_available()
-    if cloudflared_path is None:
+    ngrok_path = _ensure_ngrok_available()
+    if ngrok_path is None:
         return None
 
     if not typer.confirm(
-        "Create and configure a Cloudflare Tunnel with cloudflared?",
+        "Configure ngrok and use your account's dev domain?",
         default=True,
     ):
-        typer.echo("Skipping cloudflared automation.")
+        typer.echo("Skipping ngrok automation.")
         return None
 
-    oauth_base_url = _prompt_https_oauth_base_url(existing_values)
-    hostname = _hostname_from_oauth_base_url(oauth_base_url)
-    tunnel_name = _prompt_text(
-        "Cloudflare tunnel name",
-        default=_DEFAULT_CLOUDFLARE_TUNNEL_NAME,
-    ).strip()
-    if not tunnel_name:
-        tunnel_name = _DEFAULT_CLOUDFLARE_TUNNEL_NAME
-
-    if not _ensure_cloudflared_logged_in(cloudflared_path):
+    authtoken = _existing_or_prompt_required(
+        "NGROK_AUTHTOKEN",
+        "ngrok authtoken",
+        existing_values,
+        hide_input=True,
+    )
+    if not _configure_ngrok_authtoken(ngrok_path, authtoken):
         return None
 
-    try:
-        _ = _run_setup_command([cloudflared_path, "tunnel", "create", tunnel_name])
-        _ = _run_setup_command(
-            [
-                cloudflared_path,
-                "tunnel",
-                "route",
-                "dns",
-                tunnel_name,
-                hostname,
-            ]
-        )
-        token_process = _run_setup_command(
-            [cloudflared_path, "tunnel", "token", tunnel_name],
-            capture_output=True,
-        )
-    except SetupInputError as exc:
-        typer.secho(f"Automatic Cloudflare tunnel setup failed: {exc}", fg=typer.colors.RED)
-        return None
-
-    tunnel_token = token_process.stdout.strip()
-    if not tunnel_token:
+    oauth_base_url = _discover_ngrok_oauth_base_url(ngrok_path)
+    if oauth_base_url is None:
         typer.secho(
-            "cloudflared did not return a tunnel token. Falling back to manual setup.",
-            fg=typer.colors.RED,
+            "Could not detect your ngrok dev domain. Falling back to manual URL entry.",
+            fg=typer.colors.YELLOW,
         )
-        return None
+        return {
+            "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
+            "NGROK_AUTHTOKEN": authtoken,
+        }
 
-    typer.secho("Cloudflare Tunnel configured.", fg=typer.colors.GREEN)
+    typer.secho("ngrok tunnel configured.", fg=typer.colors.GREEN)
     return {
         "OAUTH_BASE_URL": oauth_base_url,
-        "CLOUDFLARED_TUNNEL_TOKEN": tunnel_token,
+        "NGROK_AUTHTOKEN": authtoken,
     }
 
 
-def _ensure_cloudflared_available() -> str | None:
-    cloudflared_path = shutil.which("cloudflared")
-    if cloudflared_path is not None:
-        typer.echo("cloudflared: found on PATH")
-        return cloudflared_path
+def _ensure_ngrok_available() -> str | None:
+    ngrok_path = shutil.which("ngrok")
+    if ngrok_path is not None:
+        typer.echo("ngrok: found on PATH")
+        return ngrok_path
 
-    typer.secho("cloudflared was not found on PATH.", fg=typer.colors.YELLOW)
-    if not typer.confirm("Install cloudflared now?", default=True):
-        typer.echo("Skipping cloudflared automation.")
+    typer.secho("ngrok was not found on PATH.", fg=typer.colors.YELLOW)
+    if not typer.confirm("Install ngrok now?", default=True):
+        typer.echo("Skipping ngrok automation.")
         return None
 
-    if not _install_cloudflared():
+    if not _install_ngrok():
         return None
 
-    cloudflared_path = shutil.which("cloudflared")
-    if cloudflared_path is None:
+    ngrok_path = shutil.which("ngrok")
+    if ngrok_path is None:
         typer.secho(
-            "cloudflared installation finished, but cloudflared is still not on PATH.",
+            "ngrok installation finished, but ngrok is still not on PATH.",
             fg=typer.colors.RED,
         )
         return None
-    return cloudflared_path
+    return ngrok_path
 
 
-def _install_cloudflared() -> bool:
+def _install_ngrok() -> bool:
     brew_path = shutil.which("brew")
     if brew_path is None:
         typer.secho(
-            "Automatic cloudflared install currently needs Homebrew. Falling back to manual setup.",
+            "Automatic ngrok install currently needs Homebrew. Falling back to manual setup.",
             fg=typer.colors.YELLOW,
         )
         return False
 
     try:
-        _ = _run_setup_command([brew_path, "install", "cloudflared"])
+        _ = _run_setup_command([brew_path, "install", "ngrok"])
     except SetupInputError as exc:
-        typer.secho(f"cloudflared install failed: {exc}", fg=typer.colors.RED)
+        typer.secho(f"ngrok install failed: {exc}", fg=typer.colors.RED)
         return False
 
     return True
 
 
-def _ensure_cloudflared_logged_in(cloudflared_path: str) -> bool:
-    login_check = _run_setup_command(
-        [cloudflared_path, "tunnel", "list"],
-        capture_output=True,
-        check=False,
-    )
-    if login_check.returncode == 0:
-        return True
-
-    typer.secho(
-        "cloudflared is not logged in to Cloudflare yet.",
-        fg=typer.colors.YELLOW,
-    )
-    if not typer.confirm("Log in with cloudflared now?", default=True):
-        typer.echo("Skipping cloudflared automation.")
-        return False
-
+def _configure_ngrok_authtoken(ngrok_path: str, authtoken: str) -> bool:
     try:
-        _ = _run_setup_command([cloudflared_path, "tunnel", "login"])
+        _ = _run_setup_command([ngrok_path, "config", "add-authtoken", authtoken])
     except SetupInputError as exc:
-        typer.secho(f"cloudflared login failed: {exc}", fg=typer.colors.RED)
+        typer.secho(f"ngrok auth setup failed: {exc}", fg=typer.colors.RED)
         return False
 
     return True
+
+
+def _discover_ngrok_oauth_base_url(ngrok_path: str) -> str | None:
+    typer.echo("Starting ngrok briefly to detect your assigned dev domain...")
+    process = subprocess.Popen(
+        [
+            ngrok_path,
+            "http",
+            _NGROK_DISCOVERY_SERVICE,
+            "--log",
+            "stdout",
+            "--log-format",
+            "json",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        return _read_ngrok_public_url(process)
+    finally:
+        _stop_process(process)
+
+
+def _read_ngrok_public_url(process: subprocess.Popen[str]) -> str | None:
+    stdout = process.stdout
+    if stdout is None:
+        return None
+
+    selector = selectors.DefaultSelector()
+    _ = selector.register(stdout, selectors.EVENT_READ)
+    deadline = time.monotonic() + _NGROK_DISCOVERY_TIMEOUT_SECONDS
+    try:
+        while time.monotonic() < deadline:
+            timeout = max(0.0, deadline - time.monotonic())
+            events = selector.select(timeout=timeout)
+            if not events:
+                return None
+
+            line = stdout.readline()
+            public_url_match = _NGROK_PUBLIC_URL_RE.search(line)
+            if public_url_match is not None:
+                return _normalize_https_base_url(public_url_match.group(0))
+            if process.poll() is not None:
+                return None
+    finally:
+        _ = selector.unregister(stdout)
+        selector.close()
+
+    return None
+
+
+def _stop_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+
+    process.terminate()
+    try:
+        _ = process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        _ = process.wait(timeout=5)
 
 
 def _run_setup_command(
@@ -612,18 +642,11 @@ def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
             typer.secho(f"Existing OAUTH_BASE_URL is invalid: {exc}", fg=typer.colors.RED)
 
     while True:
-        raw_value = _prompt_required("Cloudflare public HTTPS URL")
+        raw_value = _prompt_required("ngrok public HTTPS URL")
         try:
             return _normalize_https_base_url(raw_value)
         except SetupInputError as exc:
             typer.secho(str(exc), fg=typer.colors.RED)
-
-
-def _hostname_from_oauth_base_url(value: str) -> str:
-    hostname = urlparse(value).hostname
-    if hostname is None:
-        raise SetupInputError("OAUTH_BASE_URL must include a hostname.")
-    return hostname
 
 
 def _prompt_medium_values(
@@ -977,7 +1000,7 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
     required_keys = [
         "ADMIN_API_KEY",
         "OAUTH_BASE_URL",
-        "CLOUDFLARED_TUNNEL_TOKEN",
+        "NGROK_AUTHTOKEN",
         "YAHOO_CLIENT_ID",
         "YAHOO_CLIENT_SECRET",
         *(_llm_required_keys(answers.llm_provider)),
@@ -1067,9 +1090,27 @@ def _normalize_https_base_url(value: str) -> str:
         raise SetupInputError(
             "OAUTH_BASE_URL must be a public HTTPS URL, for example https://gordie.example.com."
         )
+    hostname = parsed.hostname
+    if hostname is None or _is_private_hostname(hostname):
+        raise SetupInputError(
+            "OAUTH_BASE_URL must be a public HTTPS URL, for example https://gordie.example.com."
+        )
     if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
         raise SetupInputError("OAUTH_BASE_URL must not include a path, query string, or fragment.")
     return normalized
+
+
+def _is_private_hostname(hostname: str) -> bool:
+    normalized = hostname.strip().lower().rstrip(".")
+    if normalized in {"localhost"} or normalized.endswith(".localhost"):
+        return True
+
+    try:
+        parsed_ip = ip_address(normalized)
+    except ValueError:
+        return False
+
+    return not parsed_ip.is_global
 
 
 def _serialize_env_value(value: str) -> str:
