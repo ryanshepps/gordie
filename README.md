@@ -37,7 +37,7 @@ Real conversations with Gordie.
 - **Agent-authored SQL on an embedded analytics DB.** A scheduled job refreshes MoneyPuck (NHL) and pybaseball (MLB) data into a DuckDB file. The supervisor has a `query_hockey_stats_db(sql, situation)` tool and writes raw SQL to answer arbitrary stat questions — that's how a single message like *"highest CF% with the most games over the next two weeks, available in my league"* becomes one query rather than a flowchart of endpoints.
 - **Cross-conversation semantic memory.** Gordie embeds past threads per-user; a `search_past_conversations` tool lets him recall earlier discussions ("the trade we talked about last week") instead of starting cold every message.
 - **Sport-aware tool filtering middleware.** A `wrap_model_call` middleware reads the inferred sport off state and hides irrelevant tools from the model — NHL users never see MLB tools and vice versa. Sport detection is keyword-based with 5-minute stickiness so mid-conversation follow-ups don't re-classify.
-- **Channel-aware voice rewrite.** A final node rewrites every sentence in Gordie's voice, with channel-specific shaping: email preserves structure, SMS enforces a 600-character hard cap via iterative condense-retry.
+- **Channel-aware voice rewrite.** A final node rewrites every sentence in Gordie's voice, with channel-specific shaping: email preserves structure, SMS enforces a 600-character hard cap via iterative condense-retry, and Discord uses chat-friendly markdown.
 
 ## Architecture
 
@@ -45,6 +45,7 @@ Real conversations with Gordie.
                 ┌──────────────────────────────────────────┐
    Email ──►    │  Quart HTTP server (server/server.py)    │
    SMS   ──►    │  /email/webhook  /sms/webhook  /callback │
+   Discord ─►   │  /discord/interactions                   │
                 └────────────────┬─────────────────────────┘
                                  │
                                  ▼

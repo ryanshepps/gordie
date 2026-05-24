@@ -9,7 +9,7 @@ The fastest path to a working local instance. ~15 minutes.
 - Node.js 22 + pnpm (for the frontend) — `mise install` works if you use mise
 - An OpenAI API key (Anthropic also supported — see configuration)
 
-You do **not** need Mailgun, Sinch, Creem, or Cloudflare to boot the server. Those are optional integrations layered on top.
+You do **not** need Mailgun, Sinch, Discord, Creem, or Cloudflare to boot the server. Those are optional integrations layered on top.
 
 ## 1. Clone and configure
 
@@ -26,7 +26,7 @@ Open `.env` and set the bare minimum:
 OPENAI_API_KEY=sk-...
 ```
 
-You can leave Yahoo, Mailgun, Sinch, and Creem blank for now. Yahoo is required to *talk to a league* but the server boots without it.
+You can leave Yahoo, Mailgun, Sinch, Discord, and Creem blank for now. Yahoo is required to *talk to a league* but the server boots without it.
 
 ## 2. Start Postgres + the server
 
@@ -76,6 +76,7 @@ See `tests/README.md` for which suites need which credentials.
 - `docs/setup/yahoo-oauth.md` — register a Yahoo Fantasy app
 - `docs/setup/email-mailgun.md` — wire up inbound/outbound email
 - `docs/setup/sms-sinch.md` — wire up SMS (optional; consider swapping Twilio)
+- `docs/setup/discord.md` — wire up Discord slash commands (optional)
 - `docs/setup/configuration.md` — full env-var reference
 
 ## Troubleshooting

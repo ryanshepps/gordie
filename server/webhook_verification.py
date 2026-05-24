@@ -10,6 +10,9 @@ import hmac
 import os
 import time
 
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
+
 from module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -92,3 +95,26 @@ def verify_sinch_webhook_token(token: str) -> bool:
         return False
 
     return hmac.compare_digest(token, expected)
+
+
+def verify_discord_interaction(signature: str, timestamp: str, body: bytes) -> bool:
+    """Verify a Discord interaction Ed25519 signature.
+
+    Discord signs the exact timestamp bytes followed by the exact raw request
+    body bytes. Do not parse or reserialize the body before verification.
+    """
+    public_key = os.getenv("DISCORD_PUBLIC_KEY")
+    if not public_key:
+        logger.error("DISCORD_PUBLIC_KEY not configured")
+        return False
+
+    if not is_timestamp_fresh(timestamp):
+        return False
+
+    try:
+        verify_key = VerifyKey(bytes.fromhex(public_key))
+        _ = verify_key.verify(timestamp.encode("utf-8") + body, bytes.fromhex(signature))
+        return True
+    except (BadSignatureError, ValueError) as exc:
+        logger.warning(f"Invalid Discord interaction signature: {exc}")
+        return False
