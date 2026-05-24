@@ -149,7 +149,7 @@
 
 	input[type='text']:focus {
 		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px rgba(255, 184, 0, 0.15);
+		box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
 	}
 
 	input[type='text']::placeholder {
@@ -168,8 +168,8 @@
 
 	.success-message {
 		padding: 2rem 1.5rem;
-		background: linear-gradient(135deg, rgba(255, 184, 0, 0.12) 0%, rgba(255, 184, 0, 0.04) 50%, rgba(255, 184, 0, 0.08) 100%);
-		border: 1px solid rgba(255, 184, 0, 0.4);
+		background: linear-gradient(135deg, rgba(0, 229, 255, 0.12) 0%, rgba(0, 229, 255, 0.04) 50%, rgba(0, 229, 255, 0.08) 100%);
+		border: 1px solid rgba(0, 229, 255, 0.4);
 		border-radius: 0.5rem;
 		text-align: center;
 		position: relative;
@@ -180,7 +180,7 @@
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 0, 0.1) 0%, transparent 60%);
+		background: radial-gradient(ellipse at 50% 0%, rgba(0, 229, 255, 0.1) 0%, transparent 60%);
 		pointer-events: none;
 	}
 
@@ -208,7 +208,7 @@
 		font-family: 'Barlow Condensed', 'Inter Tight', sans-serif;
 		font-weight: 700;
 		letter-spacing: 0.06em;
-		background: linear-gradient(135deg, #FFB800 0%, #FFD866 100%);
+		background: linear-gradient(135deg, #00E5FF 0%, #E8EDF5 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		background-clip: text;

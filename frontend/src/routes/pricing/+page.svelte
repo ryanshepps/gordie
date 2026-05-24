@@ -204,7 +204,7 @@
 
 	.pricing-card.highlighted {
 		border-color: var(--color-primary);
-		box-shadow: 0 0 24px rgba(255, 184, 0, 0.08);
+		box-shadow: 0 0 24px rgba(0, 229, 255, 0.08);
 	}
 
 	.pricing-card.highlighted:hover {

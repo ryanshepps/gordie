@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 
 	const navLinks = [
+		{ href: '/trial', label: 'Try Gordie' },
 		{ href: '/features', label: 'Features' },
 		{ href: '/pricing', label: 'Pricing' },
 		{ href: '/how-it-works', label: 'How It Works' },
@@ -46,7 +47,7 @@
 					{label}
 				</a>
 			{/each}
-			<a href="/#signup" class="btn btn-primary nav-cta" onclick={closeMenu}>Get Started</a>
+			<a href="/trial" class="btn btn-primary nav-cta" onclick={closeMenu}>Try Now</a>
 		</div>
 	</nav>
 </header>
@@ -56,7 +57,7 @@
 		position: sticky;
 		top: 0;
 		z-index: 100;
-		background: rgba(15, 13, 9, 0.9);
+		background: rgba(5, 9, 29, 0.9);
 		backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--color-border);
 		height: var(--header-height);

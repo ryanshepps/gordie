@@ -100,6 +100,37 @@ def register_oauth_routes(app):
             from data.user_repository import UserRepository
 
             medium = Medium(str(medium_value))
+            if medium is Medium.WEB:
+                from data.temporary_session_repository import TemporarySessionRepository
+                from data.yahoo_token_repository import save_tokens_by_user_id
+                from server.routes.trial_routes import build_trial_return_html
+
+                trial_repo = TemporarySessionRepository()
+                try:
+                    session = trial_repo.get_by_id(UUID(str(external_id)))
+                    if session is None:
+                        return _error_html(
+                            "Trial Session Expired",
+                            "This temporary session is no longer active. Please start a new trial.",
+                        ), 400
+                    save_tokens_by_user_id(str(session.user_id), yahoo_email, token_data)
+                    trial_repo.upsert_provider_connection(
+                        session_id=session.id,
+                        user_id=session.user_id,
+                        provider_user_id=yahoo_email,
+                        provider_email=yahoo_email,
+                    )
+                    repo.delete_by_id(state)
+                    logger.info(
+                        "Linked Yahoo provider for temporary session=%s user_id=%s",
+                        session.id,
+                        session.user_id,
+                    )
+                finally:
+                    trial_repo.close()
+
+                return build_trial_return_html()
+
             phone_number = external_id if medium is Medium.SMS else None
 
             user_repo = UserRepository()

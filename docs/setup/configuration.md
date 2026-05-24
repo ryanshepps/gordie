@@ -26,6 +26,24 @@ Every runtime knob is an environment variable read at process start. `.env.examp
 |-----|----------|---------|-------|
 | `ENABLED_SPORTS` | No | `nhl,mlb` | Comma-separated. Disables the corresponding stats DB refresh on startup. The agent tools themselves are still registered — sport filtering happens later via `middleware/sport_tool_filter.py`. |
 
+## Hosted trial
+
+| Var | Required | Default | Notes |
+|-----|----------|---------|-------|
+| `TRIAL_TTL_DAYS` | No | `7` | Temporary web sessions expire after this many days. |
+| `TRIAL_QUESTION_LIMIT` | No | `5` | Applied to both the browser session and the connected Yahoo account. |
+| `TRIAL_RETURN_URL` | No | `VITE_SITE_URL` or `http://localhost:5173` | Frontend URL linked from the Yahoo OAuth success page. |
+| `TRIAL_COOKIE_SECURE` | No | inferred from `OAUTH_BASE_URL` | Set `false` for local HTTP testing and `true` behind HTTPS. |
+
+## Web process scaling
+
+Scheduled jobs currently run inside the web process. Keep the web service at exactly one replica until issue #36 moves those jobs to a worker.
+
+| Var | Required | Default | Notes |
+|-----|----------|---------|-------|
+| `WEB_PROCESS_REPLICA_COUNT` | No | `1` | Startup fails if this is not `1`, unless the override below is set. |
+| `ALLOW_IN_PROCESS_SCHEDULER_SCALE` | No | `false` | Emergency override only; duplicate scheduled jobs can run when scaled. |
+
 ## External services
 
 See per-service setup docs:

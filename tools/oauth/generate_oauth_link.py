@@ -19,7 +19,7 @@ class GenerateOAuthLinkInput(BaseModel):
     thread_id: str = Field(description="Thread ID to resume after OAuth completes")
     channel: Medium = Field(
         default=Medium.EMAIL,
-        description="Channel type: email, sms, telegram, or discord",
+        description="Channel type: email, sms, telegram, discord, or web",
     )
 
 
