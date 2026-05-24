@@ -195,7 +195,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             "--env-file",
             str(env_file),
         ],
-        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\n\ndiscord-app\ndiscord-token\n123\n\n",
+        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\ndiscord-app\ndiscord-token\n123\n\n",
     )
 
     assert result.exit_code == 0, result.output
@@ -209,6 +209,8 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert "DISCORD_BOT_TOKEN=discord-token" in env_text
     assert "DISCORD_ALLOWED_USER_IDS=123" in env_text
     assert "DISCORD_REQUIRE_MENTION=true" in env_text
+    assert "Discord mode: gateway" in result.output
+    assert "Discord mode (gateway, interactions)" not in result.output
     assert "Application ID: https://discord.com/developers/applications" in result.output
     assert "Bot Token: https://discord.com/developers/applications/discord-app/bot" in result.output
     assert "Allowed User IDs: https://support.discord.com/" in result.output
@@ -347,7 +349,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
     assert "CREEM_API_BASE_URL=https://existing-creem.example.com/v1" in env_text
 
 
-def test_init_command_can_switch_existing_discord_env_to_gateway(tmp_path: Path) -> None:
+def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> None:
     template_file = tmp_path / ".env.example"
     env_file = tmp_path / ".env"
     _ = template_file.write_text(
@@ -401,13 +403,15 @@ def test_init_command_can_switch_existing_discord_env_to_gateway(tmp_path: Path)
             "--env-file",
             str(env_file),
         ],
-        input="\ngateway\n123\n\n",
+        input="\n123\n\n",
     )
 
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
     assert "DISCORD_MODE=gateway" in env_text
     assert "DISCORD_ALLOWED_USER_IDS=123" in env_text
+    assert "Discord mode: gateway" in result.output
+    assert "Discord mode (gateway, interactions)" not in result.output
     assert "Invite the bot to your server" in result.output
 
 
@@ -547,11 +551,8 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
-            "\n"
             "discord-app\n"
-            "discord-token\n"
-            "123\n"
-            "\n"
+            "discord-public\n"
             "creem-key\n"
             "creem-webhook\n"
             "\n"
@@ -564,6 +565,12 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
+    assert "DISCORD_MODE=interactions" in env_text
+    assert "DISCORD_APPLICATION_ID=discord-app" in env_text
+    assert "DISCORD_PUBLIC_KEY=discord-public" in env_text
+    assert "Discord mode: interactions (hosted)" in result.output
+    assert "Discord mode (gateway, interactions)" not in result.output
+    assert "Set this Interactions Endpoint URL" in result.output
     assert "CREEM_API_KEY=creem-key" in env_text
     assert "CREEM_WEBHOOK_SECRET=creem-webhook" in env_text
     assert "CREEM_PRODUCT_STANDARD_MONTHLY=standard-monthly" in env_text

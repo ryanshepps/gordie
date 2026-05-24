@@ -341,7 +341,7 @@ def _prompt_for_answers(
     )
 
     for medium in chat_media:
-        values.update(_prompt_medium_values(medium, existing_values))
+        values.update(_prompt_medium_values(medium, existing_values, hosted=hosted))
 
     if hosted:
         values.update(_prompt_billing_values(existing_values))
@@ -398,6 +398,8 @@ def _prompt_llm_values(
 def _prompt_medium_values(
     medium: ChatMedium,
     existing_values: Mapping[str, str],
+    *,
+    hosted: bool,
 ) -> dict[str, str]:
     typer.echo("")
     if medium is ChatMedium.TELEGRAM:
@@ -412,7 +414,7 @@ def _prompt_medium_values(
         }
 
     if medium is ChatMedium.DISCORD:
-        mode = _prompt_discord_mode(existing_values)
+        mode = _discord_mode_for_setup(hosted=hosted)
         typer.echo(f"Application ID: {_DISCORD_APPLICATIONS_URL} (General Information)")
         application_id = _existing_or_prompt_required(
             "DISCORD_APPLICATION_ID",
@@ -586,18 +588,13 @@ def _prompt_enum[T: StrEnum](
             typer.secho(f"Choose one of: {choices}.", fg=typer.colors.RED)
 
 
-def _prompt_discord_mode(existing_values: Mapping[str, str]) -> DiscordMode:
-    existing_mode = _existing_value(existing_values, "DISCORD_MODE")
-    if existing_mode is not None:
-        try:
-            default = DiscordMode(existing_mode.strip().lower())
-        except ValueError:
-            typer.secho("Existing discord mode is invalid.", fg=typer.colors.RED)
-            default = DiscordMode.GATEWAY
-        else:
-            return _prompt_enum("Discord mode", DiscordMode, default=default)
+def _discord_mode_for_setup(*, hosted: bool) -> DiscordMode:
+    if hosted:
+        typer.echo("Discord mode: interactions (hosted)")
+        return DiscordMode.INTERACTIONS
 
-    return _prompt_enum("Discord mode", DiscordMode, default=DiscordMode.GATEWAY)
+    typer.echo("Discord mode: gateway")
+    return DiscordMode.GATEWAY
 
 
 def _existing_or_prompt_required(

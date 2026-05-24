@@ -14,7 +14,7 @@ Discord is optional. Gordie supports two Discord modes:
 
 ## 2. Configure environment variables
 
-Gateway mode is recommended for local Docker installs:
+`uv run gordie init` configures gateway mode for local Docker installs:
 
 ```bash
 DISCORD_MODE=gateway
@@ -24,7 +24,7 @@ DISCORD_ALLOWED_USER_IDS=<your discord user id>
 DISCORD_REQUIRE_MENTION=true
 ```
 
-Interactions mode is recommended for hosted installs:
+`uv run gordie init --hosted` configures interactions mode for hosted installs:
 
 ```bash
 DISCORD_MODE=interactions
