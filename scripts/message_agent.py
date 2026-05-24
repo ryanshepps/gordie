@@ -1,4 +1,6 @@
 import argparse
+from dataclasses import dataclass
+from typing import cast
 from uuid import UUID
 
 from langchain_core.runnables import RunnableConfig
@@ -12,6 +14,14 @@ from module.logger import get_logger
 logger = get_logger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class AgentRunResult:
+    """Final agent response and state for caller-owned delivery."""
+
+    response_text: str
+    state: AgentState
+
+
 def message_agent(
     message: str,
     thread_id: str,
@@ -22,8 +32,32 @@ def message_agent(
     original_subject: str | None = None,
     original_message: str | None = None,
     billing_context: str | None = None,
-    dispatch_response: bool = True,
 ) -> str:
+    """Send a message to the agent graph and return the response text."""
+    return run_message_agent(
+        message=message,
+        thread_id=thread_id,
+        channel=channel,
+        user_id=user_id,
+        external_id=external_id,
+        team_context=team_context,
+        original_subject=original_subject,
+        original_message=original_message,
+        billing_context=billing_context,
+    ).response_text
+
+
+def run_message_agent(
+    message: str,
+    thread_id: str,
+    channel: Medium,
+    user_id: str,
+    external_id: str,
+    team_context: str | None = None,
+    original_subject: str | None = None,
+    original_message: str | None = None,
+    billing_context: str | None = None,
+) -> AgentRunResult:
     """
     Send a message to the agent graph and continue the conversation.
 
@@ -38,36 +72,35 @@ def message_agent(
         original_message: Original user message for quoting in replies
 
     Returns:
-        Agent's response as a string, or empty string if error occurs
+        Agent response text plus final graph state.
     """
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+
+    message_payload = {"role": "user", "content": message}
+    if team_context:
+        message_payload["team_context"] = team_context
+
+    initial_state: AgentState = {
+        "user_id": user_id,
+        "external_id": external_id,
+        "thread_id": thread_id,
+        "channel": channel,
+        "messages": [message_payload],
+        "user_teams": [],
+        "league_id": None,
+        "team_id": None,
+        "response": None,
+        "route_to": None,
+        "agent_flow": [],
+        "current_agent_index": 0,
+        "flow_complete": False,
+        "flow_reasoning": None,
+        "original_subject": original_subject,
+        "original_message": original_message or message,
+        "billing_context": billing_context,
+    }
+
     try:
-        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-
-        message_payload = {"role": "user", "content": message}
-        if team_context:
-            message_payload["team_context"] = team_context
-
-        initial_state: AgentState = {
-            "user_id": user_id,
-            "external_id": external_id,
-            "thread_id": thread_id,
-            "channel": channel,
-            "messages": [message_payload],
-            "user_teams": [],
-            "league_id": None,
-            "team_id": None,
-            "response": None,
-            "route_to": None,
-            "agent_flow": [],
-            "current_agent_index": 0,
-            "flow_complete": False,
-            "flow_reasoning": None,
-            "original_subject": original_subject,
-            "original_message": original_message or message,
-            "billing_context": billing_context,
-            "dispatch_response": dispatch_response,
-        }
-
         repo = ConversationRepository()
         try:
             repo.add_message(
@@ -81,17 +114,19 @@ def message_agent(
         finally:
             repo.close()
 
-        response = agent.invoke(initial_state, config)
+        response = cast(AgentState | None, agent.invoke(initial_state, config))
+        final_state = response or initial_state
 
         logger.info("\nGordie's Response:\n")
 
         response_text = ""
-        if response and response.get("response"):
-            response_text = response["response"]
+        response_value = final_state.get("response")
+        if response_value:
+            response_text = str(response_value)
             logger.info(response_text)
-        elif response and "messages" in response:
+        else:
             response_parts = []
-            new_messages = response["messages"][len(initial_state["messages"]) :]
+            new_messages = final_state["messages"][len(initial_state["messages"]) :]
             for msg in new_messages:
                 if hasattr(msg, "content") and hasattr(msg, "type") and msg.type != "human":
                     response_parts.append(msg.content)
@@ -112,11 +147,11 @@ def message_agent(
             finally:
                 repo.close()
 
-        return response_text.strip()
+        return AgentRunResult(response_text=response_text.strip(), state=final_state)
 
     except Exception as e:
         logger.error(f"\n✗ Failed to send message to agent: {e}")
-        return ""
+        return AgentRunResult(response_text="", state=initial_state)
 
 
 def main() -> None:
@@ -152,7 +187,9 @@ def main() -> None:
         finally:
             thread_repo.close()
 
-        message_agent(
+        from server.adapters.delivery import deliver_agent_response
+
+        result = run_message_agent(
             message=args.message,
             thread_id=thread_info.thread_id,
             channel=Medium.EMAIL,
@@ -160,6 +197,7 @@ def main() -> None:
             external_id=args.email,
             team_context=args.team_context,
         )
+        deliver_agent_response(Medium.EMAIL, args.email, result.response_text, result.state)
     except Exception as e:
         logger.error(f"\n✗ Failed to message agent: {e}")
         raise

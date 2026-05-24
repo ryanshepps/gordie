@@ -49,7 +49,6 @@ def test_gateway_mode_sends_returned_agent_text(monkeypatch) -> None:
             inbound_message_id="message-1",
             send_text=send_text,
             logger=MagicMock(),
-            dispatch_agent_response=False,
         )
 
     assert result.status == "processed"
@@ -57,7 +56,6 @@ def test_gateway_mode_sends_returned_agent_text(monkeypatch) -> None:
     send_text.assert_called_once_with(thread_id, "Go with Matthews tonight.")
     message_agent.assert_called_once()
     assert message_agent.call_args.kwargs["channel"] is Medium.DISCORD
-    assert message_agent.call_args.kwargs["dispatch_response"] is False
 
 
 def test_duplicate_message_skips_agent(monkeypatch) -> None:
@@ -90,7 +88,6 @@ def test_duplicate_message_skips_agent(monkeypatch) -> None:
             inbound_message_id="message-1",
             send_text=MagicMock(),
             logger=MagicMock(),
-            dispatch_agent_response=False,
         )
 
     assert result.status == "duplicate"

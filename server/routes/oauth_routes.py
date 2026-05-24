@@ -158,15 +158,19 @@ def register_oauth_routes(app):
             # Spawn background thread to re-invoke agent
             def resume_agent():
                 try:
-                    from scripts.message_agent import message_agent
+                    from scripts.message_agent import run_message_agent
+                    from server.adapters.delivery import deliver_agent_response
 
-                    message_agent(
+                    result = run_message_agent(
                         message="I've completed the OAuth authentication!",
                         thread_id=thread_id,
                         channel=medium,
                         user_id=str(user_id),
                         external_id=str(external_id),
                         original_subject="Yahoo Fantasy Authentication",
+                    )
+                    deliver_agent_response(
+                        medium, str(external_id), result.response_text, result.state
                     )
                     logger.info(f"Agent resumed for user_id={user_id} thread={thread_id}")
                 except Exception as e:

@@ -194,7 +194,6 @@ def _process_discord_interaction(
             inbound_message_id=interaction_id,
             send_text=send_discord_text,
             logger=logger,
-            dispatch_agent_response=True,
             on_thread_resolved=upsert_interaction_target,
         )
     except Exception as exc:

@@ -16,6 +16,7 @@ def signing_key(monkeypatch) -> SigningKey:
     key = SigningKey.generate()
     monkeypatch.setenv("DISCORD_PUBLIC_KEY", key.verify_key.encode().hex())
     monkeypatch.setenv("DISCORD_APPLICATION_ID", "app-1")
+    monkeypatch.setenv("DISCORD_MODE", "interactions")
     return key
 
 
@@ -137,7 +138,7 @@ class TestProcessDiscordInteraction:
         processed_repo.claim.return_value = True
         gateway = MagicMock()
         gateway.check_question_allowed.return_value = (True, "")
-        message_agent = MagicMock()
+        message_agent = MagicMock(return_value="Go with Matthews tonight.")
         message_agent_module = ModuleType("scripts.message_agent")
         message_agent_module.__dict__["message_agent"] = message_agent
         monkeypatch.setitem(sys.modules, "scripts.message_agent", message_agent_module)
@@ -154,6 +155,7 @@ class TestProcessDiscordInteraction:
                 return_value=processed_repo,
             ),
             patch("billing.get_gateway", return_value=gateway),
+            patch("server.adapters.discord_adapter.send_discord_text") as send_discord_text,
         ):
             _process_discord_interaction(
                 application_id="app-1",
@@ -174,6 +176,7 @@ class TestProcessDiscordInteraction:
         assert message_agent.call_args.kwargs["thread_id"] == thread_id
         assert message_agent.call_args.kwargs["user_id"] == str(user_id)
         assert message_agent.call_args.kwargs["external_id"] == "discord-user-1"
+        send_discord_text.assert_called_once_with(thread_id, "Go with Matthews tonight.")
 
     def test_unknown_user_receives_oauth_link(self) -> None:
         from server.routes.discord_routes import _process_discord_interaction

@@ -29,7 +29,6 @@ def process_discord_message(
     inbound_message_id: str,
     send_text: SendDiscordText,
     logger: logging.Logger,
-    dispatch_agent_response: bool,
     on_thread_resolved: ThreadResolvedCallback | None = None,
 ) -> DiscordProcessResult:
     """Process one Discord message from either HTTP interactions or Gateway."""
@@ -104,10 +103,9 @@ def process_discord_message(
         user_id=str(user_id),
         external_id=discord_user_id,
         billing_context=billing_ctx,
-        dispatch_response=dispatch_agent_response,
     )
 
-    if not dispatch_agent_response and response_text:
+    if response_text:
         send_text(thread_id, response_text)
 
     if response_text:

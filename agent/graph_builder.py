@@ -18,7 +18,7 @@ def build_agent_graph(graph_checkpointer: object | None = checkpointer):
     workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("data_quality", data_quality_node)
     workflow.add_node("voice_rewrite", make_voice_rewrite_node(registry))  # pyright: ignore[reportArgumentType]
-    workflow.add_node("response", make_response_node(registry))  # pyright: ignore[reportArgumentType]
+    workflow.add_node("response", make_response_node())  # pyright: ignore[reportArgumentType]
 
     workflow.set_entry_point("context")
     workflow.add_edge("context", "supervisor")

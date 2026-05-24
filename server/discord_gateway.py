@@ -159,7 +159,6 @@ class GordieDiscordClient(discord.Client):
                     inbound_message_id=str(message.id),
                     send_text=send_text,
                     logger=logger,
-                    dispatch_agent_response=False,
                 )
             if result.status == "empty_response":
                 _ = await message.channel.send(

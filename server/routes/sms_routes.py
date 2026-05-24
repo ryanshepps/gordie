@@ -251,9 +251,10 @@ def register_sms_routes(app):
                 if not allowed:
                     billing_ctx = gateway.build_billing_context(user_email, reason, Medium.SMS)
 
-                from scripts.message_agent import message_agent
+                from scripts.message_agent import run_message_agent
+                from server.adapters.delivery import deliver_agent_response
 
-                message_agent(
+                result = run_message_agent(
                     message=message_body,
                     thread_id=thread_info.thread_id,
                     channel=Medium.SMS,
@@ -261,6 +262,7 @@ def register_sms_routes(app):
                     external_id=phone_number,
                     billing_context=billing_ctx,
                 )
+                deliver_agent_response(Medium.SMS, phone_number, result.response_text, result.state)
                 logger.info(f"Agent processing complete for SMS from {phone_number}")
             except Exception as e:
                 logger.error(f"Error processing SMS from {phone_number}: {e}", exc_info=True)
