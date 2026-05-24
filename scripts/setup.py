@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Final, cast
+from urllib.parse import urlparse
 
 import typer
 
@@ -59,6 +60,9 @@ _DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/20634
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
+_CLOUDFLARE_TUNNEL_DOC_URL: Final = (
+    "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
+)
 
 
 @app.callback()
@@ -108,6 +112,7 @@ def build_env_values(
         "ADMIN_API_KEY": admin_api_key or secrets.token_hex(32),
         "ENVIRONMENT": answers.values.get("ENVIRONMENT", "development"),
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
+        "CLOUDFLARED_TUNNEL_TOKEN": answers.values.get("CLOUDFLARED_TUNNEL_TOKEN", ""),
         "CHAT_MEDIA": ",".join(medium.value for medium in answers.chat_media),
         "LLM_PROVIDER": answers.llm_provider.value,
         "LLM_MODEL": answers.values.get("LLM_MODEL", _default_llm_model(answers.llm_provider)),
@@ -314,14 +319,8 @@ def _prompt_for_answers(
         existing_value=_existing_value(existing_values, "LLM_PROVIDER"),
     )
 
-    values: dict[str, str] = {
-        "OAUTH_BASE_URL": _existing_or_prompt_text(
-            "OAUTH_BASE_URL",
-            "OAuth base URL",
-            existing_values,
-            default="http://localhost:8000",
-        ),
-    }
+    values: dict[str, str] = {}
+    values.update(_prompt_cloudflare_tunnel_values(existing_values))
     values.update(_prompt_llm_values(llm_provider, existing_values))
 
     typer.echo("")
@@ -393,6 +392,41 @@ def _prompt_llm_values(
             hide_input=True,
         )
     }
+
+
+def _prompt_cloudflare_tunnel_values(existing_values: Mapping[str, str]) -> dict[str, str]:
+    typer.echo("")
+    typer.echo("Cloudflare Tunnel setup")
+    typer.echo(f"Create a named tunnel and public hostname: {_CLOUDFLARE_TUNNEL_DOC_URL}")
+    typer.echo("Set the tunnel public hostname service to: http://server:8000")
+
+    return {
+        "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
+        "CLOUDFLARED_TUNNEL_TOKEN": _existing_or_prompt_required(
+            "CLOUDFLARED_TUNNEL_TOKEN",
+            "Cloudflare tunnel token",
+            existing_values,
+            hide_input=True,
+        ),
+    }
+
+
+def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
+    existing_value = _existing_value(existing_values, "OAUTH_BASE_URL")
+    if existing_value is not None:
+        try:
+            normalized = _normalize_https_base_url(existing_value)
+            typer.echo("OAuth base URL: using existing value")
+            return normalized
+        except SetupInputError as exc:
+            typer.secho(f"Existing OAUTH_BASE_URL is invalid: {exc}", fg=typer.colors.RED)
+
+    while True:
+        raw_value = _prompt_required("Cloudflare public HTTPS URL")
+        try:
+            return _normalize_https_base_url(raw_value)
+        except SetupInputError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
 
 
 def _prompt_medium_values(
@@ -682,6 +716,9 @@ def _print_next_steps(answers: SetupAnswers) -> None:
     typer.echo("")
     typer.echo("Next steps:")
     typer.echo("  Server health: http://localhost:8000/health")
+    oauth_base_url = answers.values["OAUTH_BASE_URL"].rstrip("/")
+    typer.echo(f"  Public health: {oauth_base_url}/health")
+    typer.echo(f"  Yahoo redirect URI: {oauth_base_url}/callback")
 
     if ChatMedium.DISCORD not in answers.chat_media:
         return
@@ -697,7 +734,6 @@ def _print_next_steps(answers: SetupAnswers) -> None:
         typer.echo("     @Gordie Who should I start tonight?")
         return
 
-    oauth_base_url = answers.values["OAUTH_BASE_URL"].rstrip("/")
     typer.echo("")
     typer.echo("Discord Interactions:")
     typer.echo("  1. Set this Interactions Endpoint URL in the Discord Developer Portal:")
@@ -744,6 +780,7 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
     required_keys = [
         "ADMIN_API_KEY",
         "OAUTH_BASE_URL",
+        "CLOUDFLARED_TUNNEL_TOKEN",
         "YAHOO_CLIENT_ID",
         "YAHOO_CLIENT_SECRET",
         *(_llm_required_keys(answers.llm_provider)),
@@ -754,6 +791,8 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
     if missing:
         missing_list = ", ".join(missing)
         raise SetupInputError(f"Missing required setup values: {missing_list}.")
+
+    _ = _normalize_https_base_url(values["OAUTH_BASE_URL"])
 
 
 def _llm_required_keys(provider: LLMProvider) -> tuple[str, ...]:
@@ -822,6 +861,16 @@ def _default_llm_model(provider: LLMProvider) -> str:
     if provider is LLMProvider.OPENAI:
         return "gpt-4o-mini"
     return "claude-sonnet-4-5"
+
+
+def _normalize_https_base_url(value: str) -> str:
+    normalized = value.strip().rstrip("/")
+    parsed = urlparse(normalized)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise SetupInputError("OAUTH_BASE_URL must be a public HTTPS URL, for example https://gordie.example.com.")
+    if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+        raise SetupInputError("OAUTH_BASE_URL must not include a path, query string, or fragment.")
+    return normalized
 
 
 def _serialize_env_value(value: str) -> str:

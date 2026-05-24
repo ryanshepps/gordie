@@ -36,11 +36,12 @@ Yahoo OAuth still uses the shared callback URL:
 
 ```bash
 OAUTH_BASE_URL=https://your-public-host
+CLOUDFLARED_TUNNEL_TOKEN=<cloudflare tunnel token>
 YAHOO_CLIENT_ID=<consumer key>
 YAHOO_CLIENT_SECRET=<consumer secret>
 ```
 
-Gateway mode removes the public URL requirement for Discord chat. It does not remove Yahoo's OAuth callback requirement; Yahoo still redirects the user to `OAUTH_BASE_URL/callback`.
+Gateway mode removes the public URL requirement for Discord chat. It does not remove Yahoo's OAuth callback requirement; Yahoo still redirects the user to `OAUTH_BASE_URL/callback` through the Cloudflare Tunnel.
 
 ## 3. Configure the interaction endpoint
 

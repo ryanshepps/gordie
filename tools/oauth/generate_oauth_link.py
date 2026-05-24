@@ -4,12 +4,13 @@ import os
 import secrets
 from urllib.parse import urlencode
 
-from langchain.tools import tool
+from langchain.tools import tool  # pyright: ignore[reportUnknownVariableType]
 from pydantic import BaseModel, Field
 
 from data.models import Medium
 from data.pending_oauth_repository import PendingOAuthRepository
 from module.logger import get_logger
+from server.oauth_config import OAuthConfigurationError, get_oauth_base_url
 
 logger = get_logger(__name__)
 
@@ -44,10 +45,15 @@ def generate_oauth_link(
         The OAuth authorization URL as a string, or an error message if configuration is missing.
     """
     client_id = os.getenv("YAHOO_CLIENT_ID")
-    oauth_base_url = os.getenv("OAUTH_BASE_URL", "http://localhost:8000")
 
     if not client_id:
         error_msg = "OAuth configuration error: YAHOO_CLIENT_ID not found. Please contact support."
+        logger.error(error_msg)
+        return error_msg
+    try:
+        oauth_base_url = get_oauth_base_url()
+    except OAuthConfigurationError as exc:
+        error_msg = f"OAuth configuration error: {exc}. Please contact support."
         logger.error(error_msg)
         return error_msg
 
