@@ -669,12 +669,12 @@ def _start_docker_compose(*, skip_docker_start: bool) -> None:
     typer.echo("")
     typer.echo("Starting Docker services...")
     try:
-        _ = subprocess.run(["docker", "compose", "up", "-d"], check=True)
+        _ = subprocess.run(["docker", "compose", "up", "-d", "--build"], check=True)
     except FileNotFoundError as exc:
         raise SetupInputError("Docker Compose was not found.") from exc
     except subprocess.CalledProcessError as exc:
         raise SetupInputError(
-            f"docker compose up -d failed with exit code {exc.returncode}."
+            f"docker compose up -d --build failed with exit code {exc.returncode}."
         ) from exc
 
 

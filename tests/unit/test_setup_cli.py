@@ -270,7 +270,7 @@ def test_init_command_starts_docker_compose_by_default(
     )
 
     assert result.exit_code == 0, result.output
-    assert docker_calls == [(["docker", "compose", "up", "-d"], True)]
+    assert docker_calls == [(["docker", "compose", "up", "-d", "--build"], True)]
     assert "Starting Docker services..." in result.output
     assert "Server health: http://localhost:8000/health" in result.output
 
