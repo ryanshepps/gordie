@@ -70,6 +70,10 @@
 		<p class="hero-sub">
 			Gordie sends free digest updates for one fantasy team. Upgrade to ask questions and connect up to three teams.
 		</p>
+		<div class="hero-actions">
+			<a class="btn btn-primary" href="/trial">Try Gordie now</a>
+			<a class="btn btn-outline" href="#signup">Join by email</a>
+		</div>
 		<SignupForm />
 	</div>
 </section>
@@ -158,8 +162,15 @@
 	.hero-sub {
 		font-size: 1.2rem;
 		color: var(--color-text-muted);
-		margin-bottom: 2rem;
+		margin-bottom: 1.25rem;
 		line-height: 1.7;
+	}
+
+	.hero-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin-bottom: 2rem;
 	}
 
 	.features-section {
