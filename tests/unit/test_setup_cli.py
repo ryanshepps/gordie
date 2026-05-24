@@ -491,6 +491,10 @@ def test_init_command_can_discover_ngrok_dev_domain(
     assert commands == [
         ["/usr/local/bin/ngrok", "config", "add-authtoken", "ngrok-token"],
     ]
+    assert (
+        "Find your ngrok authtoken here: https://dashboard.ngrok.com/get-started/your-authtoken"
+        in result.output
+    )
     assert "ngrok tunnel configured" in result.output
     env_text = env_file.read_text()
     assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text

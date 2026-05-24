@@ -427,12 +427,7 @@ def _prompt_ngrok_tunnel_values(
     if existing_oauth_base_url is not None and existing_authtoken is not None:
         return {
             "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
-            "NGROK_AUTHTOKEN": _existing_or_prompt_required(
-                "NGROK_AUTHTOKEN",
-                "ngrok authtoken",
-                existing_values,
-                hide_input=True,
-            ),
+            "NGROK_AUTHTOKEN": _prompt_ngrok_authtoken(existing_values),
         }
 
     if not skip_automation:
@@ -440,17 +435,11 @@ def _prompt_ngrok_tunnel_values(
         if automated_values is not None:
             return automated_values
 
-    typer.echo(f"ngrok authtoken: {_NGROK_AUTHTOKEN_URL}")
     typer.echo(f"The Docker connector sends tunnel traffic to: {_NGROK_TUNNEL_SERVICE}")
 
     return {
         "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
-        "NGROK_AUTHTOKEN": _existing_or_prompt_required(
-            "NGROK_AUTHTOKEN",
-            "ngrok authtoken",
-            existing_values,
-            hide_input=True,
-        ),
+        "NGROK_AUTHTOKEN": _prompt_ngrok_authtoken(existing_values),
     }
 
 
@@ -468,12 +457,7 @@ def _prompt_ngrok_tunnel_automation(
         typer.echo("Skipping ngrok automation.")
         return None
 
-    authtoken = _existing_or_prompt_required(
-        "NGROK_AUTHTOKEN",
-        "ngrok authtoken",
-        existing_values,
-        hide_input=True,
-    )
+    authtoken = _prompt_ngrok_authtoken(existing_values)
     if not _configure_ngrok_authtoken(ngrok_path, authtoken):
         return None
 
@@ -493,6 +477,18 @@ def _prompt_ngrok_tunnel_automation(
         "OAUTH_BASE_URL": oauth_base_url,
         "NGROK_AUTHTOKEN": authtoken,
     }
+
+
+def _prompt_ngrok_authtoken(existing_values: Mapping[str, str]) -> str:
+    if _existing_value(existing_values, "NGROK_AUTHTOKEN") is None:
+        typer.echo(f"Find your ngrok authtoken here: {_NGROK_AUTHTOKEN_URL}")
+
+    return _existing_or_prompt_required(
+        "NGROK_AUTHTOKEN",
+        "ngrok authtoken",
+        existing_values,
+        hide_input=True,
+    )
 
 
 def _ensure_ngrok_available() -> str | None:
