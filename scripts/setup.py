@@ -57,9 +57,18 @@ class SetupAnswers:
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
 _CHAT_MEDIUM_VALUES = ", ".join(medium.value for medium in ChatMedium)
+_OPENAI_API_KEYS_URL: Final = "https://platform.openai.com/api-keys"
+_ANTHROPIC_API_KEYS_URL: Final = "https://console.anthropic.com/settings/keys"
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
+_TELEGRAM_BOTFATHER_URL: Final = "https://t.me/BotFather"
 _DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
 _DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID"
+_MAILGUN_API_SECURITY_URL: Final = "https://app.mailgun.com/app/account/security/api_keys"
+_MAILGUN_DOMAINS_URL: Final = "https://app.mailgun.com/mg/sending/domains"
+_SINCH_SMS_SERVICE_APIS_URL: Final = "https://dashboard.sinch.com/sms/api/services"
+_SINCH_NUMBERS_URL: Final = "https://dashboard.sinch.com/numbers/your-numbers"
+_CREEM_DASHBOARD_URL: Final = "https://www.creem.io/dashboard"
+_CREEM_PRODUCTS_URL: Final = "https://www.creem.io/dashboard/products"
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
@@ -327,21 +336,24 @@ def _prompt_for_answers(
     typer.echo(f"Chat media choices: {_CHAT_MEDIUM_VALUES}")
     chat_media = _prompt_chat_media(existing_value=_existing_value(existing_values, "CHAT_MEDIA"))
 
+    values: dict[str, str] = {}
+    for medium in chat_media:
+        values.update(_prompt_medium_values(medium, existing_values, hosted=hosted))
+
     llm_provider = _prompt_enum(
         "LLM provider",
         LLMProvider,
         default=LLMProvider.OPENAI,
         existing_value=_existing_value(existing_values, "LLM_PROVIDER"),
     )
+    values.update(_prompt_llm_values(llm_provider, existing_values))
 
-    values: dict[str, str] = {}
     values.update(
         _prompt_ngrok_tunnel_values(
             existing_values,
             skip_automation=skip_ngrok_automation,
         )
     )
-    values.update(_prompt_llm_values(llm_provider, existing_values))
 
     typer.echo("")
     typer.echo(f"Create a Yahoo app at {_YAHOO_APP_URL}")
@@ -351,16 +363,17 @@ def _prompt_for_answers(
         "YAHOO_CLIENT_ID",
         "Yahoo client ID",
         existing_values,
+        help_url=_YAHOO_APP_URL,
+        help_label="Yahoo developer apps",
     )
     values["YAHOO_CLIENT_SECRET"] = _existing_or_prompt_required(
         "YAHOO_CLIENT_SECRET",
         "Yahoo client secret",
         existing_values,
         hide_input=True,
+        help_url=_YAHOO_APP_URL,
+        help_label="Yahoo developer apps",
     )
-
-    for medium in chat_media:
-        values.update(_prompt_medium_values(medium, existing_values, hosted=hosted))
 
     if hosted:
         values.update(_prompt_billing_values(existing_values))
@@ -401,6 +414,8 @@ def _prompt_llm_values(
                 "OpenAI API key",
                 existing_values,
                 hide_input=True,
+                help_url=_OPENAI_API_KEYS_URL,
+                help_label="OpenAI API keys",
             )
         }
 
@@ -410,6 +425,8 @@ def _prompt_llm_values(
             "Anthropic API key",
             existing_values,
             hide_input=True,
+            help_url=_ANTHROPIC_API_KEYS_URL,
+            help_label="Anthropic API keys",
         )
     }
 
@@ -660,30 +677,35 @@ def _prompt_medium_values(
                 "Telegram bot token",
                 existing_values,
                 hide_input=True,
+                help_url=_TELEGRAM_BOTFATHER_URL,
+                help_label="Create or manage your Telegram bot with BotFather",
             )
         }
 
     if medium is ChatMedium.DISCORD:
         mode = _discord_mode_for_setup(hosted=hosted)
-        typer.echo(f"Application ID: {_DISCORD_APPLICATIONS_URL} (General Information)")
         application_id = _existing_or_prompt_required(
             "DISCORD_APPLICATION_ID",
             "Discord application ID",
             existing_values,
+            help_url=f"{_DISCORD_APPLICATIONS_URL} (General Information)",
+            help_label="Discord application",
         )
         if mode is DiscordMode.GATEWAY:
-            typer.echo(f"Bot Token: {_discord_bot_url(application_id)}")
             bot_token = _existing_or_prompt_required(
                 "DISCORD_BOT_TOKEN",
                 "Discord bot token",
                 existing_values,
                 hide_input=True,
+                help_url=_discord_bot_url(application_id),
+                help_label="Discord bot token",
             )
-            typer.echo(f"Allowed User IDs: {_DISCORD_USER_ID_HELP_URL}")
             allowed_user_ids = _existing_or_prompt_required(
                 "DISCORD_ALLOWED_USER_IDS",
                 "Discord allowed user IDs",
                 existing_values,
+                help_url=_DISCORD_USER_ID_HELP_URL,
+                help_label="Discord user ID help",
             )
             typer.echo(f"Message Content Intent: {_discord_bot_url(application_id)}")
             typer.echo("Enable Message Content Intent for Gateway mode.")
@@ -700,12 +722,13 @@ def _prompt_medium_values(
                 ),
             }
 
-        typer.echo(f"Public Key: {_DISCORD_APPLICATIONS_URL} (General Information)")
         public_key = _existing_or_prompt_required(
             "DISCORD_PUBLIC_KEY",
             "Discord public key",
             existing_values,
             hide_input=True,
+            help_url=f"{_DISCORD_APPLICATIONS_URL} (General Information)",
+            help_label="Discord public key",
         )
         return {
             "DISCORD_MODE": mode.value,
@@ -719,6 +742,8 @@ def _prompt_medium_values(
             "MAILGUN_DOMAIN",
             "Mailgun domain",
             existing_values,
+            help_url=_MAILGUN_DOMAINS_URL,
+            help_label="Mailgun sending domains",
         )
         return {
             "MAILGUN_API_KEY": _existing_or_prompt_required(
@@ -726,6 +751,8 @@ def _prompt_medium_values(
                 "Mailgun API key",
                 existing_values,
                 hide_input=True,
+                help_url=_MAILGUN_API_SECURITY_URL,
+                help_label="Mailgun API keys",
             ),
             "MAILGUN_DOMAIN": domain,
             "MAILGUN_FROM_EMAIL": _existing_or_prompt_text(
@@ -739,6 +766,8 @@ def _prompt_medium_values(
                 "Mailgun webhook signing key",
                 existing_values,
                 hide_input=True,
+                help_url=_MAILGUN_API_SECURITY_URL,
+                help_label="Mailgun HTTP webhook signing key",
             ),
         }
 
@@ -748,23 +777,31 @@ def _prompt_medium_values(
             "SINCH_SERVICE_PLAN_ID",
             "Sinch service plan ID",
             existing_values,
+            help_url=_SINCH_SMS_SERVICE_APIS_URL,
+            help_label="Sinch SMS Service APIs",
         ),
         "SINCH_API_TOKEN": _existing_or_prompt_required(
             "SINCH_API_TOKEN",
             "Sinch API token",
             existing_values,
             hide_input=True,
+            help_url=_SINCH_SMS_SERVICE_APIS_URL,
+            help_label="Sinch SMS Service APIs",
         ),
         "SINCH_FROM_NUMBER": _existing_or_prompt_required(
             "SINCH_FROM_NUMBER",
             "Sinch from number",
             existing_values,
+            help_url=_SINCH_NUMBERS_URL,
+            help_label="Sinch numbers",
         ),
         "SINCH_WEBHOOK_TOKEN": _existing_or_prompt_required(
             "SINCH_WEBHOOK_TOKEN",
             "Sinch webhook token",
             existing_values,
             hide_input=True,
+            help_url=_SINCH_SMS_SERVICE_APIS_URL,
+            help_label="Set this webhook token in Sinch SMS callbacks",
         ),
     }
 
@@ -778,12 +815,16 @@ def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]
             "Creem API key",
             existing_values,
             hide_input=True,
+            help_url=_CREEM_DASHBOARD_URL,
+            help_label="Creem dashboard API keys",
         ),
         "CREEM_WEBHOOK_SECRET": _existing_or_prompt_required(
             "CREEM_WEBHOOK_SECRET",
             "Creem webhook secret",
             existing_values,
             hide_input=True,
+            help_url=_CREEM_DASHBOARD_URL,
+            help_label="Creem dashboard webhooks",
         ),
         "CREEM_API_BASE_URL": _existing_or_prompt_text(
             "CREEM_API_BASE_URL",
@@ -795,21 +836,29 @@ def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]
             "CREEM_PRODUCT_STANDARD_MONTHLY",
             "Creem standard monthly product ID",
             existing_values,
+            help_url=_CREEM_PRODUCTS_URL,
+            help_label="Creem products",
         ),
         "CREEM_PRODUCT_STANDARD_ANNUAL": _existing_or_prompt_required(
             "CREEM_PRODUCT_STANDARD_ANNUAL",
             "Creem standard annual product ID",
             existing_values,
+            help_url=_CREEM_PRODUCTS_URL,
+            help_label="Creem products",
         ),
         "CREEM_PRODUCT_ALLSTAR_MONTHLY": _existing_or_prompt_required(
             "CREEM_PRODUCT_ALLSTAR_MONTHLY",
             "Creem all-star monthly product ID",
             existing_values,
+            help_url=_CREEM_PRODUCTS_URL,
+            help_label="Creem products",
         ),
         "CREEM_PRODUCT_ALLSTAR_ANNUAL": _existing_or_prompt_required(
             "CREEM_PRODUCT_ALLSTAR_ANNUAL",
             "Creem all-star annual product ID",
             existing_values,
+            help_url=_CREEM_PRODUCTS_URL,
+            help_label="Creem products",
         ),
     }
 
@@ -853,11 +902,16 @@ def _existing_or_prompt_required(
     existing_values: Mapping[str, str],
     *,
     hide_input: bool = False,
+    help_url: str | None = None,
+    help_label: str | None = None,
 ) -> str:
     existing_value = _existing_value(existing_values, key)
     if existing_value is not None:
         typer.echo(f"{label}: using existing value")
         return existing_value
+
+    if help_url is not None:
+        typer.echo(f"{help_label or label}: {help_url}")
 
     return _prompt_required(label, hide_input=hide_input)
 

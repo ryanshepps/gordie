@@ -261,16 +261,17 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\n\n\n"
-            "https://gordie.ngrok-free.app\n"
-            "ngrok-token\n"
-            "sk-test\n"
-            "yahoo-id\n"
-            "yahoo-secret\n"
+            "\n\n"
             "discord-app\n"
             "discord-token\n"
             "123\n"
             "\n"
+            "\n"
+            "sk-test\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
         ),
     )
 
@@ -289,13 +290,20 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert "DISCORD_REQUIRE_MENTION=true" in env_text
     assert "Discord mode: gateway" in result.output
     assert "Discord mode (gateway, interactions)" not in result.output
-    assert "Application ID: https://discord.com/developers/applications" in result.output
-    assert "Bot Token: https://discord.com/developers/applications/discord-app/bot" in result.output
-    assert "Allowed User IDs: https://support.discord.com/" in result.output
+    assert "Discord application: https://discord.com/developers/applications" in result.output
+    assert (
+        "Discord bot token: https://discord.com/developers/applications/discord-app/bot"
+        in result.output
+    )
+    assert "Discord user ID help: https://support.discord.com/" in result.output
     assert (
         "Message Content Intent: https://discord.com/developers/applications/discord-app/bot"
         in result.output
     )
+    assert "OpenAI API keys: https://platform.openai.com/api-keys" in result.output
+    assert "Yahoo developer apps: https://developer.yahoo.com/apps/" in result.output
+    assert result.output.index("Discord application:") < result.output.index("LLM provider")
+    assert result.output.index("OpenAI API keys:") < result.output.index("ngrok tunnel setup")
     assert "CREEM_API_KEY=" in env_text
     assert "Server health: http://localhost:8000/health" in result.output
     assert "Public health: https://gordie.ngrok-free.app/health" in result.output
@@ -340,14 +348,15 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\ntelegram\n\n"
+            "\ntelegram\n"
+            "telegram-token\n"
+            "\n"
+            "sk-test\n"
             "http://localhost:8000\n"
             "https://gordie.ngrok-free.app\n"
             "ngrok-token\n"
-            "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
-            "telegram-token\n"
         ),
     )
 
@@ -356,6 +365,87 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
     env_text = env_file.read_text()
     assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text
     assert "NGROK_AUTHTOKEN=ngrok-token" in env_text
+
+
+def test_init_command_shows_dashboard_links_for_provider_credentials(tmp_path: Path) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "NGROK_AUTHTOKEN=",
+                "ANTHROPIC_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "MAILGUN_API_KEY=",
+                "MAILGUN_DOMAIN=",
+                "MAILGUN_FROM_EMAIL=",
+                "MAILGUN_WEBHOOK_SIGNING_KEY=",
+                "SINCH_SERVICE_PLAN_ID=",
+                "SINCH_API_TOKEN=",
+                "SINCH_FROM_NUMBER=",
+                "SINCH_WEBHOOK_TOKEN=",
+            ]
+        )
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-docker-start",
+            "--skip-ngrok-automation",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input=(
+            "\nemail,sms\n"
+            "mg.example.com\n"
+            "mailgun-key\n"
+            "\n"
+            "mailgun-webhook\n"
+            "sinch-plan\n"
+            "sinch-token\n"
+            "+15551234567\n"
+            "sinch-webhook\n"
+            "anthropic\n"
+            "anthropic-key\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Mailgun sending domains: https://app.mailgun.com/mg/sending/domains" in result.output
+    assert (
+        "Mailgun API keys: https://app.mailgun.com/app/account/security/api_keys" in result.output
+    )
+    assert (
+        "Mailgun HTTP webhook signing key: https://app.mailgun.com/app/account/security/api_keys"
+        in result.output
+    )
+    assert "Sinch SMS Service APIs: https://dashboard.sinch.com/sms/api/services" in result.output
+    assert "Sinch numbers: https://dashboard.sinch.com/numbers/your-numbers" in result.output
+    assert "Anthropic API keys: https://console.anthropic.com/settings/keys" in result.output
+    assert (
+        "Find your ngrok authtoken here: https://dashboard.ngrok.com/get-started/your-authtoken"
+        in result.output
+    )
+    assert "Yahoo developer apps: https://developer.yahoo.com/apps/" in result.output
+    assert result.output.index("Email setup") < result.output.index("LLM provider")
+    assert result.output.index("Anthropic API keys:") < result.output.index("ngrok tunnel setup")
 
 
 def test_init_command_falls_back_when_ngrok_install_is_declined(
@@ -402,14 +492,15 @@ def test_init_command_falls_back_when_ngrok_install_is_declined(
             str(env_file),
         ],
         input=(
-            "\ntelegram\n\n"
+            "\ntelegram\n"
+            "telegram-token\n"
+            "\n"
+            "sk-test\n"
             "n\n"
             "https://gordie.ngrok-free.app\n"
             "ngrok-token\n"
-            "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
-            "telegram-token\n"
         ),
     )
 
@@ -484,7 +575,7 @@ def test_init_command_can_discover_ngrok_dev_domain(
             "--env-file",
             str(env_file),
         ],
-        input=("\ntelegram\n\ny\nngrok-token\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n"),
+        input=("\ntelegram\ntelegram-token\n\nsk-test\ny\nngrok-token\nyahoo-id\nyahoo-secret\n"),
     )
 
     assert result.exit_code == 0, result.output
@@ -545,13 +636,14 @@ def test_init_command_starts_docker_compose_by_default(
             str(env_file),
         ],
         input=(
-            "\ntelegram\n\n"
+            "\ntelegram\n"
+            "telegram-token\n"
+            "\n"
+            "sk-test\n"
             "https://gordie.ngrok-free.app\n"
             "ngrok-token\n"
-            "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
-            "telegram-token\n"
         ),
     )
 
@@ -790,13 +882,14 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\nslack\ntelegram\n\n"
+            "\nslack\ntelegram\n"
+            "telegram-token\n"
+            "\n"
+            "sk-test\n"
             "https://gordie.ngrok-free.app\n"
             "ngrok-token\n"
-            "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
-            "telegram-token\n"
         ),
     )
 
@@ -853,14 +946,15 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\n\n\n"
-            "https://gordie.ngrok-free.app\n"
-            "ngrok-token\n"
-            "sk-test\n"
-            "yahoo-id\n"
-            "yahoo-secret\n"
+            "\n\n"
             "discord-app\n"
             "discord-public\n"
+            "\n"
+            "sk-test\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
             "creem-key\n"
             "creem-webhook\n"
             "\n"
@@ -879,6 +973,9 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
     assert "DISCORD_PUBLIC_KEY=discord-public" in env_text
     assert "Discord mode: interactions (hosted)" in result.output
     assert "Discord mode (gateway, interactions)" not in result.output
+    assert "Discord public key: https://discord.com/developers/applications" in result.output
+    assert "Creem dashboard API keys: https://www.creem.io/dashboard" in result.output
+    assert "Creem products: https://www.creem.io/dashboard/products" in result.output
     assert "Set this Interactions Endpoint URL" in result.output
     assert "CREEM_API_KEY=creem-key" in env_text
     assert "CREEM_WEBHOOK_SECRET=creem-webhook" in env_text
