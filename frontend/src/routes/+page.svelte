@@ -298,7 +298,7 @@
 		height: 48px;
 		border-radius: 50%;
 		background: var(--color-primary);
-		color: #05091D;
+		color: #0F0D09;
 		font-weight: 700;
 		font-size: 1.25rem;
 		margin-bottom: 1rem;
@@ -323,7 +323,7 @@
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(ellipse at 50% 50%, rgba(0, 229, 255, 0.05) 0%, transparent 60%);
+		background: radial-gradient(ellipse at 50% 50%, rgba(255, 184, 0, 0.05) 0%, transparent 60%);
 		pointer-events: none;
 	}
 

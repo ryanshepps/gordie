@@ -57,7 +57,7 @@
 		position: sticky;
 		top: 0;
 		z-index: 100;
-		background: rgba(5, 9, 29, 0.9);
+		background: rgba(15, 13, 9, 0.9);
 		backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--color-border);
 		height: var(--header-height);

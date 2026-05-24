@@ -320,7 +320,7 @@
 	}
 
 	textarea:focus {
-		outline: 2px solid rgba(0, 229, 255, 0.35);
+		outline: 2px solid rgba(255, 184, 0, 0.35);
 		border-color: var(--color-primary);
 	}
 
@@ -384,7 +384,7 @@
 	}
 
 	input[type='email']:focus {
-		outline: 2px solid rgba(0, 229, 255, 0.35);
+		outline: 2px solid rgba(255, 184, 0, 0.35);
 		border-color: var(--color-primary);
 	}
 

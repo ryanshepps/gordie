@@ -160,7 +160,7 @@
 		height: 44px;
 		border-radius: 50%;
 		background: var(--color-primary);
-		color: #05091D;
+		color: #0F0D09;
 		font-weight: 700;
 		font-size: 1.1rem;
 		flex-shrink: 0;
