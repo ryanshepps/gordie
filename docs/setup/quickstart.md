@@ -17,25 +17,20 @@ You do **not** need Mailgun, Sinch, Discord, Creem, or Cloudflare to boot the se
 git clone https://github.com/ryanshepps/gordie.git
 cd gordie
 
-cp .env.example .env
+uv run gordie init
 ```
 
-Open `.env` and set the bare minimum:
-
-```bash
-OPENAI_API_KEY=sk-...
-```
-
-You can leave Yahoo, Mailgun, Sinch, Discord, and Creem blank for now. Yahoo is required to *talk to a league* but the server boots without it.
+The setup wizard writes `.env`, verifies Docker is installed, prompts for your chat medium, LLM provider, Yahoo app credentials, and skips hosted billing unless you pass `--hosted`.
 
 ## 2. Start Postgres + the server
 
 ```bash
 docker compose up -d
-docker compose exec server uv run alembic upgrade head
 curl http://localhost:8000/health
 # {"status":"ok"}
 ```
+
+The server applies Alembic migrations automatically before it starts accepting requests.
 
 ## 3. Send Gordie a message without configuring email
 
@@ -76,7 +71,7 @@ See `tests/README.md` for which suites need which credentials.
 - `docs/setup/yahoo-oauth.md` — register a Yahoo Fantasy app
 - `docs/setup/email-mailgun.md` — wire up inbound/outbound email
 - `docs/setup/sms-sinch.md` — wire up SMS (optional; consider swapping Twilio)
-- `docs/setup/discord.md` — wire up Discord slash commands (optional)
+- `docs/setup/discord.md` — wire up Discord Gateway or slash commands (optional)
 - `docs/setup/configuration.md` — full env-var reference
 
 ## Troubleshooting

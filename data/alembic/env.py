@@ -7,12 +7,12 @@ from sqlalchemy import engine_from_config, pool
 
 from data.models import Base
 
-load_dotenv()
+_ = load_dotenv()
 
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Override sqlalchemy.url from environment
 _raw_url = os.environ.get("DATABASE_URL", "")

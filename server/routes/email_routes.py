@@ -108,6 +108,9 @@ def register_email_routes(app):
         def process_email():
             try:
                 from billing import get_gateway
+                from data.models import Medium
+                from scripts.message_agent import run_message_agent
+                from server.adapters.delivery import deliver_agent_response
 
                 gateway = get_gateway()
                 billing_ctx = None
@@ -115,10 +118,8 @@ def register_email_routes(app):
                 if not allowed:
                     billing_ctx = gateway.build_billing_context(sender_email, reason, Medium.EMAIL)
 
-                from scripts.message_agent import message_agent
-
                 logger.info(f"Processing email from {sender_email}")
-                message_agent(
+                result = run_message_agent(
                     message=message_body,
                     thread_id=thread_info.thread_id,
                     channel=Medium.EMAIL,
@@ -127,6 +128,9 @@ def register_email_routes(app):
                     original_subject=subject,
                     original_message=message_body,
                     billing_context=billing_ctx,
+                )
+                deliver_agent_response(
+                    Medium.EMAIL, sender_email, result.response_text, result.state
                 )
                 logger.info(f"Agent processing complete for {sender_email}")
 

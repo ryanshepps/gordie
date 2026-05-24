@@ -85,9 +85,10 @@ def register_signup_routes(app):
 
             def process_email_signup():
                 try:
-                    from scripts.message_agent import message_agent
+                    from scripts.message_agent import run_message_agent
+                    from server.adapters.delivery import deliver_agent_response
 
-                    message_agent(
+                    result = run_message_agent(
                         message="Hi! I just signed up on the website. I'd like to get started with Gordie.",
                         thread_id=thread_info.thread_id,
                         channel=Medium.EMAIL,
@@ -95,6 +96,7 @@ def register_signup_routes(app):
                         external_id=email,
                         original_subject="Welcome to Gordie",
                     )
+                    deliver_agent_response(Medium.EMAIL, email, result.response_text, result.state)
                     logger.info(f"Signup agent processing complete for {email}")
                 except Exception as e:
                     logger.error(f"Error processing signup for {email}: {e}", exc_info=True)
