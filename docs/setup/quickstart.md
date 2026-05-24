@@ -6,7 +6,7 @@ The fastest path to a working local instance. ~15 minutes.
 
 - Docker + Docker Compose
 - [uv](https://docs.astral.sh/uv/) for Python (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- A Cloudflare account with a named Tunnel and public hostname
+- A Cloudflare account with a domain you can use for a Tunnel
 - Node.js 22 + pnpm (for the frontend) — `mise install` works if you use mise
 - An OpenAI API key (Anthropic also supported — see configuration)
 
@@ -22,7 +22,7 @@ uv run gordie init
 ```
 
 The setup wizard writes `.env`, verifies Docker is installed, prompts for your chat medium, LLM provider, Yahoo app credentials, and skips hosted billing unless you pass `--hosted`.
-It also asks for your Cloudflare Tunnel public HTTPS URL and tunnel token. In Cloudflare, route the public hostname to the Docker service URL `http://server:8000`.
+It also detects `cloudflared`, offers to install it when it is missing, and can create the Cloudflare Tunnel plus DNS route for you after `cloudflared tunnel login`. If you skip that automation, enter an existing Cloudflare Tunnel public HTTPS URL and tunnel token manually. The Docker connector sends tunnel traffic to `http://server:8000`.
 
 ## 2. Start Postgres + the server
 

@@ -234,6 +234,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -312,6 +313,7 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -334,6 +336,163 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
     env_text = env_file.read_text()
     assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
     assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
+
+
+def test_init_command_falls_back_when_cloudflared_install_is_declined(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+
+    def missing_cloudflared(name: str) -> str | None:
+        if name == "cloudflared":
+            return None
+        return f"/usr/bin/{name}"
+
+    monkeypatch.setattr("scripts.setup.shutil.which", missing_cloudflared)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-docker-start",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input=(
+            "\ntelegram\n\n"
+            "n\n"
+            "https://gordie.example.com\n"
+            "cloudflare-token\n"
+            "sk-test\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+            "telegram-token\n"
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "cloudflared was not found on PATH" in result.output
+    assert "Skipping cloudflared automation" in result.output
+    env_text = env_file.read_text()
+    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
+    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
+
+
+def test_init_command_can_create_cloudflare_tunnel_after_login(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+    commands: list[list[str]] = []
+
+    def fake_which(name: str) -> str | None:
+        if name == "cloudflared":
+            return "/usr/local/bin/cloudflared"
+        return f"/usr/bin/{name}"
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = check, capture_output, text
+        commands.append(command)
+        if command[1:] == ["tunnel", "list"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="not logged in")
+        if command[1:] == ["tunnel", "token", "gordie"]:
+            return subprocess.CompletedProcess(command, 0, stdout="generated-cloudflare-token\n")
+        return subprocess.CompletedProcess(command, 0, stdout="")
+
+    monkeypatch.setattr("scripts.setup.shutil.which", fake_which)
+    monkeypatch.setattr("scripts.setup.subprocess.run", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-docker-start",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input=(
+            "\ntelegram\n\n"
+            "y\n"
+            "https://gordie.example.com\n"
+            "\n"
+            "y\n"
+            "sk-test\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+            "telegram-token\n"
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert commands == [
+        ["/usr/local/bin/cloudflared", "tunnel", "list"],
+        ["/usr/local/bin/cloudflared", "tunnel", "login"],
+        ["/usr/local/bin/cloudflared", "tunnel", "create", "gordie"],
+        [
+            "/usr/local/bin/cloudflared",
+            "tunnel",
+            "route",
+            "dns",
+            "gordie",
+            "gordie.example.com",
+        ],
+        ["/usr/local/bin/cloudflared", "tunnel", "token", "gordie"],
+    ]
+    assert "Cloudflare Tunnel configured" in result.output
+    env_text = env_file.read_text()
+    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
+    assert "CLOUDFLARED_TUNNEL_TOKEN=generated-cloudflare-token" in env_text
 
 
 def test_init_command_starts_docker_compose_by_default(
@@ -373,6 +532,7 @@ def test_init_command_starts_docker_compose_by_default(
         [
             "init",
             "--skip-docker-check",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -447,6 +607,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -523,6 +684,7 @@ def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> No
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -549,6 +711,7 @@ def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(tmp_path / "missing.env.example"),
             "--env-file",
@@ -614,6 +777,7 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
             "init",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -676,6 +840,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "--hosted",
             "--skip-docker-check",
             "--skip-docker-start",
+            "--skip-cloudflared-automation",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -720,7 +885,11 @@ def test_docker_compose_runs_cloudflared_with_named_tunnel_token() -> None:
 
     assert "cloudflared:" in compose_text
     assert "image: cloudflare/cloudflared:latest" in compose_text
-    assert "command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}" in compose_text
+    cloudflared_command = (
+        "command: tunnel --no-autoupdate run --url http://server:8000 "
+        + "--token ${CLOUDFLARED_TUNNEL_TOKEN}"
+    )
+    assert cloudflared_command in compose_text
     assert "depends_on:\n      - server" in compose_text
 
 
@@ -729,6 +898,7 @@ def test_yahoo_oauth_docs_make_cloudflare_primary_and_ngrok_dev_only() -> None:
     quickstart_docs = Path("docs/setup/quickstart.md").read_text()
 
     assert "named Cloudflare Tunnel" in yahoo_docs
+    assert "https://one.dash.cloudflare.com/" in yahoo_docs
     assert "http://server:8000" in yahoo_docs
     assert "Dev-only fallback: ngrok" in yahoo_docs
     assert "not Gordie's recommended self-hosted production path" in yahoo_docs

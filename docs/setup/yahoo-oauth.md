@@ -6,7 +6,11 @@ Gordie reads your Yahoo Fantasy league via the Yahoo Fantasy Sports API. You nee
 
 Gordie's default Docker stack runs `cloudflared` next to the server. Use a named Cloudflare Tunnel, not a Quick Tunnel, so the Yahoo redirect URI stays stable after restarts.
 
-1. In Cloudflare Zero Trust, create a named Tunnel.
+The easiest path is `uv run gordie init`. The setup wizard detects `cloudflared`, offers to install it when it is missing, opens the `cloudflared tunnel login` flow when needed, and can create the named tunnel plus DNS route for you. The Docker connector sends tunnel traffic to `http://server:8000`.
+
+If you prefer the Cloudflare dashboard, open Cloudflare Zero Trust at https://one.dash.cloudflare.com/ and go to **Networks → Tunnels**.
+
+1. Create a named Tunnel.
 2. Add a public hostname such as `gordie.example.com`.
 3. Point that hostname's service to:
 
@@ -38,7 +42,7 @@ Run the setup wizard:
 uv run gordie init
 ```
 
-It writes these values into `.env`:
+When the wizard creates the tunnel automatically, it writes the public URL and generated token into `.env`. If you skip automation, enter these values manually:
 
 ```bash
 OAUTH_BASE_URL=https://your-public-host

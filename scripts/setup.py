@@ -60,9 +60,9 @@ _DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/20634
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
-_CLOUDFLARE_TUNNEL_DOC_URL: Final = (
-    "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
-)
+_CLOUDFLARE_TUNNEL_DASHBOARD_URL: Final = "https://one.dash.cloudflare.com/"
+_CLOUDFLARE_TUNNEL_SERVICE: Final = "http://server:8000"
+_DEFAULT_CLOUDFLARE_TUNNEL_NAME: Final = "gordie"
 
 
 @app.callback()
@@ -243,6 +243,14 @@ def init(
         bool,
         typer.Option("--skip-docker-start", help="Skip docker compose startup.", hidden=True),
     ] = False,
+    skip_cloudflared_automation: Annotated[
+        bool,
+        typer.Option(
+            "--skip-cloudflared-automation",
+            help="Skip cloudflared install and tunnel creation prompts.",
+            hidden=True,
+        ),
+    ] = False,
 ) -> None:
     """Create a local .env file through an interactive setup wizard."""
 
@@ -259,6 +267,7 @@ def init(
         answers = _prompt_for_answers(
             hosted=hosted,
             skip_docker_check=skip_docker_check,
+            skip_cloudflared_automation=skip_cloudflared_automation,
             existing_values=existing_values,
         )
         generated_values = build_env_values(
@@ -296,6 +305,7 @@ def _prompt_for_answers(
     *,
     hosted: bool,
     skip_docker_check: bool,
+    skip_cloudflared_automation: bool,
     existing_values: Mapping[str, str],
 ) -> SetupAnswers:
     typer.echo("Gordie setup")
@@ -320,7 +330,12 @@ def _prompt_for_answers(
     )
 
     values: dict[str, str] = {}
-    values.update(_prompt_cloudflare_tunnel_values(existing_values))
+    values.update(
+        _prompt_cloudflare_tunnel_values(
+            existing_values,
+            skip_automation=skip_cloudflared_automation,
+        )
+    )
     values.update(_prompt_llm_values(llm_provider, existing_values))
 
     typer.echo("")
@@ -394,11 +409,35 @@ def _prompt_llm_values(
     }
 
 
-def _prompt_cloudflare_tunnel_values(existing_values: Mapping[str, str]) -> dict[str, str]:
+def _prompt_cloudflare_tunnel_values(
+    existing_values: Mapping[str, str],
+    *,
+    skip_automation: bool,
+) -> dict[str, str]:
     typer.echo("")
     typer.echo("Cloudflare Tunnel setup")
-    typer.echo(f"Create a named tunnel and public hostname: {_CLOUDFLARE_TUNNEL_DOC_URL}")
-    typer.echo("Set the tunnel public hostname service to: http://server:8000")
+
+    existing_oauth_base_url = _existing_value(existing_values, "OAUTH_BASE_URL")
+    existing_tunnel_token = _existing_value(existing_values, "CLOUDFLARED_TUNNEL_TOKEN")
+    if existing_oauth_base_url is not None and existing_tunnel_token is not None:
+        return {
+            "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
+            "CLOUDFLARED_TUNNEL_TOKEN": _existing_or_prompt_required(
+                "CLOUDFLARED_TUNNEL_TOKEN",
+                "Cloudflare tunnel token",
+                existing_values,
+                hide_input=True,
+            ),
+        }
+
+    if not skip_automation:
+        automated_values = _prompt_cloudflare_tunnel_automation(existing_values)
+        if automated_values is not None:
+            return automated_values
+
+    typer.echo(f"Cloudflare dashboard: {_CLOUDFLARE_TUNNEL_DASHBOARD_URL}")
+    typer.echo("Create a named tunnel and public hostname.")
+    typer.echo(f"The Docker connector sends tunnel traffic to: {_CLOUDFLARE_TUNNEL_SERVICE}")
 
     return {
         "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
@@ -409,6 +448,157 @@ def _prompt_cloudflare_tunnel_values(existing_values: Mapping[str, str]) -> dict
             hide_input=True,
         ),
     }
+
+
+def _prompt_cloudflare_tunnel_automation(
+    existing_values: Mapping[str, str],
+) -> dict[str, str] | None:
+    cloudflared_path = _ensure_cloudflared_available()
+    if cloudflared_path is None:
+        return None
+
+    if not typer.confirm(
+        "Create and configure a Cloudflare Tunnel with cloudflared?",
+        default=True,
+    ):
+        typer.echo("Skipping cloudflared automation.")
+        return None
+
+    oauth_base_url = _prompt_https_oauth_base_url(existing_values)
+    hostname = _hostname_from_oauth_base_url(oauth_base_url)
+    tunnel_name = _prompt_text(
+        "Cloudflare tunnel name",
+        default=_DEFAULT_CLOUDFLARE_TUNNEL_NAME,
+    ).strip()
+    if not tunnel_name:
+        tunnel_name = _DEFAULT_CLOUDFLARE_TUNNEL_NAME
+
+    if not _ensure_cloudflared_logged_in(cloudflared_path):
+        return None
+
+    try:
+        _ = _run_setup_command([cloudflared_path, "tunnel", "create", tunnel_name])
+        _ = _run_setup_command(
+            [
+                cloudflared_path,
+                "tunnel",
+                "route",
+                "dns",
+                tunnel_name,
+                hostname,
+            ]
+        )
+        token_process = _run_setup_command(
+            [cloudflared_path, "tunnel", "token", tunnel_name],
+            capture_output=True,
+        )
+    except SetupInputError as exc:
+        typer.secho(f"Automatic Cloudflare tunnel setup failed: {exc}", fg=typer.colors.RED)
+        return None
+
+    tunnel_token = token_process.stdout.strip()
+    if not tunnel_token:
+        typer.secho(
+            "cloudflared did not return a tunnel token. Falling back to manual setup.",
+            fg=typer.colors.RED,
+        )
+        return None
+
+    typer.secho("Cloudflare Tunnel configured.", fg=typer.colors.GREEN)
+    return {
+        "OAUTH_BASE_URL": oauth_base_url,
+        "CLOUDFLARED_TUNNEL_TOKEN": tunnel_token,
+    }
+
+
+def _ensure_cloudflared_available() -> str | None:
+    cloudflared_path = shutil.which("cloudflared")
+    if cloudflared_path is not None:
+        typer.echo("cloudflared: found on PATH")
+        return cloudflared_path
+
+    typer.secho("cloudflared was not found on PATH.", fg=typer.colors.YELLOW)
+    if not typer.confirm("Install cloudflared now?", default=True):
+        typer.echo("Skipping cloudflared automation.")
+        return None
+
+    if not _install_cloudflared():
+        return None
+
+    cloudflared_path = shutil.which("cloudflared")
+    if cloudflared_path is None:
+        typer.secho(
+            "cloudflared installation finished, but cloudflared is still not on PATH.",
+            fg=typer.colors.RED,
+        )
+        return None
+    return cloudflared_path
+
+
+def _install_cloudflared() -> bool:
+    brew_path = shutil.which("brew")
+    if brew_path is None:
+        typer.secho(
+            "Automatic cloudflared install currently needs Homebrew. Falling back to manual setup.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
+
+    try:
+        _ = _run_setup_command([brew_path, "install", "cloudflared"])
+    except SetupInputError as exc:
+        typer.secho(f"cloudflared install failed: {exc}", fg=typer.colors.RED)
+        return False
+
+    return True
+
+
+def _ensure_cloudflared_logged_in(cloudflared_path: str) -> bool:
+    login_check = _run_setup_command(
+        [cloudflared_path, "tunnel", "list"],
+        capture_output=True,
+        check=False,
+    )
+    if login_check.returncode == 0:
+        return True
+
+    typer.secho(
+        "cloudflared is not logged in to Cloudflare yet.",
+        fg=typer.colors.YELLOW,
+    )
+    if not typer.confirm("Log in with cloudflared now?", default=True):
+        typer.echo("Skipping cloudflared automation.")
+        return False
+
+    try:
+        _ = _run_setup_command([cloudflared_path, "tunnel", "login"])
+    except SetupInputError as exc:
+        typer.secho(f"cloudflared login failed: {exc}", fg=typer.colors.RED)
+        return False
+
+    return True
+
+
+def _run_setup_command(
+    command: Sequence[str],
+    *,
+    capture_output: bool = False,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        completed = subprocess.run(
+            list(command),
+            check=check,
+            capture_output=capture_output,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise SetupInputError(f"{command[0]} was not found.") from exc
+    except subprocess.CalledProcessError as exc:
+        command_text = " ".join(command)
+        raise SetupInputError(f"`{command_text}` failed with exit code {exc.returncode}.") from exc
+
+    return completed
 
 
 def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
@@ -427,6 +617,13 @@ def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
             return _normalize_https_base_url(raw_value)
         except SetupInputError as exc:
             typer.secho(str(exc), fg=typer.colors.RED)
+
+
+def _hostname_from_oauth_base_url(value: str) -> str:
+    hostname = urlparse(value).hostname
+    if hostname is None:
+        raise SetupInputError("OAUTH_BASE_URL must include a hostname.")
+    return hostname
 
 
 def _prompt_medium_values(

@@ -8,7 +8,7 @@ Every runtime knob is an environment variable read at process start. `.env.examp
 |-----|----------|---------|-------|
 | `DATABASE_URL` | Yes | `postgresql://localhost:5432/fantasy_agent` | psycopg v3 driver is injected automatically — no need to write `postgresql+psycopg://`. |
 | `OAUTH_BASE_URL` | Yes (for Yahoo) | — | Public HTTPS URL Yahoo redirects to. Must match the redirect URI on your Yahoo app. |
-| `CLOUDFLARED_TUNNEL_TOKEN` | Yes | — | Token for the named Cloudflare Tunnel connector in `docker-compose.yml`. The tunnel public hostname should route to `http://server:8000`. |
+| `CLOUDFLARED_TUNNEL_TOKEN` | Yes | — | Token for the named Cloudflare Tunnel connector in `docker-compose.yml`. `uv run gordie init` can create the tunnel with `cloudflared`; the Docker connector sends tunnel traffic to `http://server:8000`. |
 | `SERVER_HOST` | No | `localhost` | Bind address. Set to `0.0.0.0` inside Docker (already set in the image). |
 | `SERVER_PORT` | No | `8000` | |
 

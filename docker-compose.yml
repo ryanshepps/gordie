@@ -50,7 +50,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: gordie-cloudflared
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --url http://server:8000 --token ${CLOUDFLARED_TUNNEL_TOKEN}
     depends_on:
       - server
     restart: unless-stopped
