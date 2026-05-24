@@ -174,9 +174,13 @@ def downgrade() -> None:
         op.f("ix_temporary_chat_messages_temporary_session_id"),
         table_name="temporary_chat_messages",
     )
-    op.drop_index(op.f("ix_temporary_chat_messages_expires_at"), table_name="temporary_chat_messages")
+    op.drop_index(
+        op.f("ix_temporary_chat_messages_expires_at"), table_name="temporary_chat_messages"
+    )
     op.drop_table("temporary_chat_messages")
-    op.drop_index("idx_fantasy_provider_connections_user", table_name="fantasy_provider_connections")
+    op.drop_index(
+        "idx_fantasy_provider_connections_user", table_name="fantasy_provider_connections"
+    )
     op.drop_index(
         "idx_fantasy_provider_connections_session",
         table_name="fantasy_provider_connections",
