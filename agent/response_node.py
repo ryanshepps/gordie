@@ -79,7 +79,7 @@ def make_response_node(
             logger.warning("No AI message found to send")
             return Command(goto=END_NODE, update=state)
 
-        if channel == "cli":
+        if channel == "cli" or state.get("dispatch_response") is False:
             _store_conversation_memory(state, messages)
             return Command(goto=END_NODE, update=state)
 

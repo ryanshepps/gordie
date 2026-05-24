@@ -86,9 +86,10 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
             "ANTHROPIC_API_KEY": "anthropic-key",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
+            "DISCORD_MODE": "gateway",
             "DISCORD_APPLICATION_ID": "discord-app",
-            "DISCORD_PUBLIC_KEY": "discord-public",
             "DISCORD_BOT_TOKEN": "discord-token",
+            "DISCORD_ALLOWED_USER_IDS": "123",
             "MAILGUN_API_KEY": "mailgun-key",
             "MAILGUN_DOMAIN": "example.com",
             "MAILGUN_FROM_EMAIL": "Gordie <gordie@example.com>",
@@ -105,7 +106,10 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
     assert values["LLM_PROVIDER"] == "anthropic"
     assert values["ANTHROPIC_API_KEY"] == "anthropic-key"
     assert values["CHAT_MEDIA"] == "discord,email,sms"
+    assert values["DISCORD_MODE"] == "gateway"
     assert values["DISCORD_APPLICATION_ID"] == "discord-app"
+    assert values["DISCORD_BOT_TOKEN"] == "discord-token"
+    assert values["DISCORD_ALLOWED_USER_IDS"] == "123"
     assert values["MAILGUN_DOMAIN"] == "example.com"
     assert values["SINCH_FROM_NUMBER"] == "+15551234567"
 
@@ -166,9 +170,12 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
                 "YAHOO_CLIENT_ID=",
                 "YAHOO_CLIENT_SECRET=",
                 "CHAT_MEDIA=",
+                "DISCORD_MODE=",
                 "DISCORD_APPLICATION_ID=",
                 "DISCORD_PUBLIC_KEY=",
                 "DISCORD_BOT_TOKEN=",
+                "DISCORD_ALLOWED_USER_IDS=",
+                "DISCORD_REQUIRE_MENTION=",
                 "CREEM_API_KEY=",
                 "CREEM_WEBHOOK_SECRET=",
             ]
@@ -186,7 +193,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             "--env-file",
             str(env_file),
         ],
-        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\ndiscord-app\ndiscord-public\ndiscord-token\n",
+        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\n\ndiscord-app\ndiscord-token\n123\n\n",
     )
 
     assert result.exit_code == 0, result.output
@@ -195,12 +202,18 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     assert "LLM_PROVIDER=openai" in env_text
     assert "OPENAI_API_KEY=sk-test" in env_text
     assert "YAHOO_CLIENT_ID=yahoo-id" in env_text
+    assert "DISCORD_MODE=gateway" in env_text
     assert "DISCORD_APPLICATION_ID=discord-app" in env_text
-    assert "DISCORD_PUBLIC_KEY=discord-public" in env_text
     assert "DISCORD_BOT_TOKEN=discord-token" in env_text
+    assert "DISCORD_ALLOWED_USER_IDS=123" in env_text
+    assert "DISCORD_REQUIRE_MENTION=true" in env_text
     assert "Application ID: https://discord.com/developers/applications" in result.output
-    assert "Public Key: https://discord.com/developers/applications" in result.output
     assert "Bot Token: https://discord.com/developers/applications/discord-app/bot" in result.output
+    assert "Allowed User IDs: https://support.discord.com/" in result.output
+    assert (
+        "Message Content Intent: https://discord.com/developers/applications/discord-app/bot"
+        in result.output
+    )
     assert "CREEM_API_KEY=" in env_text
     assert "docker compose up -d" in result.output
     assert "docker compose exec server uv run alembic upgrade head" not in result.output
@@ -379,9 +392,11 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
                 "YAHOO_CLIENT_ID=",
                 "YAHOO_CLIENT_SECRET=",
                 "CHAT_MEDIA=",
+                "DISCORD_MODE=",
                 "DISCORD_APPLICATION_ID=",
                 "DISCORD_PUBLIC_KEY=",
                 "DISCORD_BOT_TOKEN=",
+                "DISCORD_ALLOWED_USER_IDS=",
                 "CREEM_API_KEY=",
                 "CREEM_WEBHOOK_SECRET=",
                 "CREEM_API_BASE_URL=",
@@ -410,9 +425,11 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
+            "\n"
             "discord-app\n"
-            "discord-public\n"
             "discord-token\n"
+            "123\n"
+            "\n"
             "creem-key\n"
             "creem-webhook\n"
             "\n"

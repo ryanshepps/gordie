@@ -67,6 +67,29 @@ class TestResponseNodeDispatch:
         assert adapter.sent == [("discord-user-1", "Go with Matthews tonight.")]
         assert result.goto == "__end__"
 
+    def test_skips_adapter_dispatch_when_state_disables_it(self) -> None:
+        from agent.response_node import make_response_node
+
+        adapter = FakeAdapter(Medium.DISCORD)
+        response_node = make_response_node(AdapterRegistry({Medium.DISCORD: adapter}))
+        state: AgentState = {
+            "messages": [
+                HumanMessage(content="Who should I start?"),
+                AIMessage(content="Go with Matthews tonight."),
+            ],
+            "channel": Medium.DISCORD,
+            "thread_id": "7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58",
+            "user_id": "user-1",
+            "external_id": "discord-user-1",
+            "dispatch_response": False,
+        }
+
+        with patch("agent.response_node._store_conversation_memory"):
+            result = response_node(state)
+
+        assert adapter.sent == []
+        assert result.goto == "__end__"
+
     def test_logs_warning_when_no_ai_message(self) -> None:
         from agent.response_node import make_response_node
 

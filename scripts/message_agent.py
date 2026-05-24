@@ -22,6 +22,7 @@ def message_agent(
     original_subject: str | None = None,
     original_message: str | None = None,
     billing_context: str | None = None,
+    dispatch_response: bool = True,
 ) -> str:
     """
     Send a message to the agent graph and continue the conversation.
@@ -64,6 +65,7 @@ def message_agent(
             "original_subject": original_subject,
             "original_message": original_message or message,
             "billing_context": billing_context,
+            "dispatch_response": dispatch_response,
         }
 
         repo = ConversationRepository()

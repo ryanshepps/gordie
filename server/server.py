@@ -75,6 +75,7 @@ class Server:
 
         # Set up routes
         self._setup_routes()
+        self._setup_discord_gateway()
 
     @staticmethod
     def _refresh_stats_db_on_startup() -> None:
@@ -118,6 +119,13 @@ class Server:
         async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
+
+    @staticmethod
+    def _setup_discord_gateway() -> None:
+        """Start the outbound Discord Gateway client when local mode is enabled."""
+        from server.discord_gateway import start_discord_gateway_in_background
+
+        _ = start_discord_gateway_in_background()
 
     def run(self) -> None:
         """

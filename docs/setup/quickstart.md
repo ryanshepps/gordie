@@ -71,7 +71,7 @@ See `tests/README.md` for which suites need which credentials.
 - `docs/setup/yahoo-oauth.md` — register a Yahoo Fantasy app
 - `docs/setup/email-mailgun.md` — wire up inbound/outbound email
 - `docs/setup/sms-sinch.md` — wire up SMS (optional; consider swapping Twilio)
-- `docs/setup/discord.md` — wire up Discord slash commands (optional)
+- `docs/setup/discord.md` — wire up Discord Gateway or slash commands (optional)
 - `docs/setup/configuration.md` — full env-var reference
 
 ## Troubleshooting

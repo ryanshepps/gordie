@@ -10,7 +10,6 @@ from typing import cast
 
 from quart import Quart, jsonify, request
 
-from data.models import Medium
 from module.logger import get_logger
 from server.webhook_verification import verify_discord_interaction
 
@@ -80,7 +79,10 @@ def _validate_application_id(application_id: str) -> bool:
 
 
 def _discord_configured() -> bool:
-    return bool(os.getenv("DISCORD_PUBLIC_KEY") and os.getenv("DISCORD_APPLICATION_ID"))
+    mode = os.getenv("DISCORD_MODE", "interactions").strip().lower()
+    return mode != "gateway" and bool(
+        os.getenv("DISCORD_PUBLIC_KEY") and os.getenv("DISCORD_APPLICATION_ID")
+    )
 
 
 def register_discord_routes(app: Quart) -> None:
@@ -175,78 +177,26 @@ def _process_discord_interaction(
 ) -> None:
     try:
         from data.discord_interaction_repository import DiscordInteractionRepository
-        from data.processed_inbound_message_repository import ProcessedInboundMessageRepository
-        from data.thread_repository import ThreadRepository
-        from data.user_repository import UserRepository
+        from server.adapters.discord_adapter import send_discord_text
+        from server.discord_message_processor import process_discord_message
 
-        user_repo = UserRepository()
-        try:
-            user_id = user_repo.resolve_user_id(
-                Medium.DISCORD,
-                discord_user_id,
-                display_name or discord_user_id,
-            )
-            user_email = user_repo.get_identity_external_id(user_id, Medium.EMAIL)
-        finally:
-            user_repo.close()
+        def upsert_interaction_target(thread_id: str) -> None:
+            target_repo = DiscordInteractionRepository()
+            try:
+                target_repo.upsert_target(thread_id, application_id, interaction_token)
+            finally:
+                target_repo.close()
 
-        thread_repo = ThreadRepository()
-        try:
-            thread_info = thread_repo.resolve(user_id, Medium.DISCORD)
-            thread_id = thread_info.thread_id
-        finally:
-            thread_repo.close()
-
-        target_repo = DiscordInteractionRepository()
-        try:
-            target_repo.upsert_target(thread_id, application_id, interaction_token)
-        finally:
-            target_repo.close()
-
-        processed_repo = ProcessedInboundMessageRepository()
-        try:
-            if not processed_repo.claim(Medium.DISCORD, interaction_id, discord_user_id):
-                logger.info(f"Duplicate Discord interaction {interaction_id}, skipping")
-                return
-        finally:
-            processed_repo.close()
-
-        if not user_email:
-            from server.adapters.discord_adapter import send_discord_text
-            from server.oauth_link_service import generate_cold_start_oauth_link
-
-            oauth_url = generate_cold_start_oauth_link(
-                Medium.DISCORD,
-                discord_user_id,
-                thread_id,
-            )
-            oauth_message = (
-                "Hey, I'm Gordie - your fantasy sports guy.\n"
-                f"Connect your Yahoo league here: {oauth_url}"
-            )
-            send_discord_text(thread_id, oauth_message)
-            logger.info(f"Sent cold-start OAuth Discord response to {discord_user_id}")
-            return
-
-        from billing import get_gateway
-
-        gateway = get_gateway()
-        billing_ctx = None
-        allowed, reason = gateway.check_question_allowed(user_email, message_body)
-        if not allowed:
-            billing_ctx = gateway.build_billing_context(user_email, reason, Medium.DISCORD)
-
-        from scripts.message_agent import message_agent
-
-        _ = message_agent(
-            message=message_body,
-            thread_id=thread_id,
-            channel=Medium.DISCORD,
-            user_id=str(user_id),
-            external_id=discord_user_id,
-            billing_context=billing_ctx,
+        _ = process_discord_message(
+            discord_user_id=discord_user_id,
+            display_name=display_name,
+            message_body=message_body,
+            inbound_message_id=interaction_id,
+            send_text=send_discord_text,
+            logger=logger,
+            dispatch_agent_response=True,
+            on_thread_resolved=upsert_interaction_target,
         )
-        logger.info(f"Agent processing complete for Discord user {discord_user_id}")
     except Exception as exc:
         logger.error(
             f"Error processing Discord interaction from {discord_user_id}: {exc}",

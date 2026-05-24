@@ -15,7 +15,7 @@ DISCORD_TRUNCATION_NOTICE = (
 )
 
 
-def _fit_discord_content(content: str) -> str:
+def fit_discord_content(content: str) -> str:
     """Constrain outbound content to Discord's message limit."""
     if len(content) <= DISCORD_MAX_CONTENT_LENGTH:
         return content
@@ -44,7 +44,7 @@ class DiscordService:
         """Edit the original deferred Discord interaction response."""
         url = f"{DISCORD_WEBHOOK_BASE_URL}/{application_id}/{interaction_token}/messages/@original"
         payload: dict[str, object] = {
-            "content": _fit_discord_content(content),
+            "content": fit_discord_content(content),
             "allowed_mentions": {"parse": []},
         }
 

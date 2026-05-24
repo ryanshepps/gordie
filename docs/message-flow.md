@@ -4,13 +4,14 @@ How user messages reach Gordie and how Gordie responds, from webhook to delivery
 
 ## Entry Points
 
-Three webhooks accept inbound messages. Each returns immediately and processes the message in a background thread.
+Three webhooks accept inbound messages. Each returns immediately and processes the message in a background thread. Discord can also run through an outbound Gateway bot for local installs.
 
 | Channel | Endpoint | Provider | Route File |
 |---------|----------|----------|------------|
 | Email | `POST /email/webhook` | Mailgun | `server/routes/email_routes.py` |
 | SMS | `POST /sms/webhook` | Sinch | `server/routes/sms_routes.py` |
-| Discord | `POST /discord/interactions` | Discord interactions | `server/routes/discord_routes.py` |
+| Discord interactions | `POST /discord/interactions` | Discord interactions | `server/routes/discord_routes.py` |
+| Discord gateway | Outbound websocket | Discord Gateway | `server/discord_gateway.py` |
 
 ## Webhook Validation
 
@@ -22,7 +23,8 @@ Inbound webhooks run the same guard sequence before processing. Verification log
 4. **SMS-only: rate limiting** — in-memory sliding window (5 messages per 60 seconds per phone number)
 5. **SMS-only: opt-out/opt-in** — STOP/START keywords (and variants like UNSUBSCRIBE, CANCEL, END, QUIT) are handled inline and short-circuit before reaching the agent. Opted-out users receive no responses until they send START
 6. **SMS-only: cold start** — if the phone number has no registered user, a pending user record is created and an OAuth link is sent via SMS instead of invoking the agent
-7. **Discord-only: deferred response** — slash commands return Discord response type `5`, then Gordie edits the original interaction response after the agent finishes
+7. **Discord interactions-only: deferred response** — slash commands return Discord response type `5`, then Gordie edits the original interaction response after the agent finishes
+8. **Discord gateway-only: allowlist + mention filter** — direct messages are accepted from `DISCORD_ALLOWED_USER_IDS`; server messages require an @mention unless `DISCORD_REQUIRE_MENTION=false`
 
 ## Billing Enforcement
 
@@ -40,7 +42,7 @@ Each channel resolves a `thread_id` to maintain conversation continuity through 
 
 **SMS** maps each phone number to one `conversation_threads` row for the SMS medium.
 
-**Discord** maps each Discord user ID to one `conversation_threads` row for the Discord medium. The latest Discord interaction token for that thread is stored in `discord_interaction_targets` so the response adapter can edit the deferred original response.
+**Discord** maps each Discord user ID to one `conversation_threads` row for the Discord medium. Interactions mode stores the latest Discord interaction token for that thread in `discord_interaction_targets` so the response adapter can edit the deferred original response. Gateway mode sends the captured response directly back to the Discord channel.
 
 ## Agent Processing
 
@@ -131,11 +133,17 @@ The response node (`agent/response_node.py`) dispatches the final message throug
 1. Strips markdown from the response
 2. Sends as a single SMS via Sinch
 
-**Discord dispatch** (`server/adapters/discord_adapter.py`):
+**Discord interactions dispatch** (`server/adapters/discord_adapter.py`):
 
 1. Looks up the latest `discord_interaction_targets` row for the thread
 2. Truncates content to Discord's 2000-character response limit
 3. Edits the original deferred Discord interaction response
+
+**Discord gateway dispatch** (`server/discord_gateway.py`):
+
+1. Receives messages from Discord over the bot websocket
+2. Runs the same Discord message processor with adapter dispatch disabled
+3. Sends the returned response directly to the originating Discord channel
 
 **Conversation memory** (`agent/memory_store.py`):
 
@@ -147,14 +155,15 @@ After dispatch, the response node calls `summarize_and_store_conversation()` whi
 ## Sequence Overview
 
 ```
-User sends SMS/Email/Discord command
+User sends SMS/Email/Discord message
         │
         ▼
   Webhook handler
   (verify signature, deduplicate, timestamp check)
         │
         ├── SMS-only: rate limit, opt-out, cold-start checks
-        ├── Discord-only: defer response + store interaction target
+        ├── Discord interactions: defer response + store interaction target
+        ├── Discord gateway: allowlist + mention filter
         │
         ├── Billing tier enforcement
         │

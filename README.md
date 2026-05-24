@@ -45,7 +45,7 @@ Real conversations with Gordie.
                 ┌──────────────────────────────────────────┐
    Email ──►    │  Quart HTTP server (server/server.py)    │
    SMS   ──►    │  /email/webhook  /sms/webhook  /callback │
-   Discord ─►   │  /discord/interactions                   │
+   Discord ─►   │  /discord/interactions or Gateway client │
                 └────────────────┬─────────────────────────┘
                                  │
                                  ▼

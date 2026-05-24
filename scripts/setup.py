@@ -36,6 +36,11 @@ class LLMProvider(StrEnum):
     ANTHROPIC = "anthropic"
 
 
+class DiscordMode(StrEnum):
+    GATEWAY = "gateway"
+    INTERACTIONS = "interactions"
+
+
 @dataclass(frozen=True, slots=True)
 class SetupAnswers:
     deployment_target: DeploymentTarget
@@ -49,6 +54,7 @@ _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
 _CHAT_MEDIUM_VALUES = ", ".join(medium.value for medium in ChatMedium)
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
 _DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
+_DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID"
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
@@ -401,12 +407,42 @@ def _prompt_medium_values(
         }
 
     if medium is ChatMedium.DISCORD:
+        mode = _prompt_discord_mode(existing_values)
         typer.echo(f"Application ID: {_DISCORD_APPLICATIONS_URL} (General Information)")
         application_id = _existing_or_prompt_required(
             "DISCORD_APPLICATION_ID",
             "Discord application ID",
             existing_values,
         )
+        if mode is DiscordMode.GATEWAY:
+            typer.echo(f"Bot Token: {_discord_bot_url(application_id)}")
+            bot_token = _existing_or_prompt_required(
+                "DISCORD_BOT_TOKEN",
+                "Discord bot token",
+                existing_values,
+                hide_input=True,
+            )
+            typer.echo(f"Allowed User IDs: {_DISCORD_USER_ID_HELP_URL}")
+            allowed_user_ids = _existing_or_prompt_required(
+                "DISCORD_ALLOWED_USER_IDS",
+                "Discord allowed user IDs",
+                existing_values,
+            )
+            typer.echo(f"Message Content Intent: {_discord_bot_url(application_id)}")
+            typer.echo("Enable Message Content Intent for Gateway mode.")
+            return {
+                "DISCORD_MODE": mode.value,
+                "DISCORD_APPLICATION_ID": application_id,
+                "DISCORD_BOT_TOKEN": bot_token,
+                "DISCORD_ALLOWED_USER_IDS": allowed_user_ids,
+                "DISCORD_REQUIRE_MENTION": _existing_or_prompt_text(
+                    "DISCORD_REQUIRE_MENTION",
+                    "Require @mention in servers",
+                    existing_values,
+                    default="true",
+                ),
+            }
+
         typer.echo(f"Public Key: {_DISCORD_APPLICATIONS_URL} (General Information)")
         public_key = _existing_or_prompt_required(
             "DISCORD_PUBLIC_KEY",
@@ -414,17 +450,10 @@ def _prompt_medium_values(
             existing_values,
             hide_input=True,
         )
-        typer.echo(f"Bot Token: {_discord_bot_url(application_id)}")
-        bot_token = _existing_or_prompt_required(
-            "DISCORD_BOT_TOKEN",
-            "Discord bot token",
-            existing_values,
-            hide_input=True,
-        )
         return {
+            "DISCORD_MODE": mode.value,
             "DISCORD_APPLICATION_ID": application_id,
             "DISCORD_PUBLIC_KEY": public_key,
-            "DISCORD_BOT_TOKEN": bot_token,
         }
 
     if medium is ChatMedium.EMAIL:
@@ -552,6 +581,23 @@ def _prompt_enum[T: StrEnum](
             typer.secho(f"Choose one of: {choices}.", fg=typer.colors.RED)
 
 
+def _prompt_discord_mode(existing_values: Mapping[str, str]) -> DiscordMode:
+    existing_mode = _existing_value(existing_values, "DISCORD_MODE")
+    if existing_mode is not None:
+        return _prompt_enum(
+            "Discord mode",
+            DiscordMode,
+            default=DiscordMode.GATEWAY,
+            existing_value=existing_mode,
+        )
+
+    if _existing_value(existing_values, "DISCORD_PUBLIC_KEY") is not None:
+        typer.echo("Discord mode: using interactions because DISCORD_PUBLIC_KEY exists")
+        return DiscordMode.INTERACTIONS
+
+    return _prompt_enum("Discord mode", DiscordMode, default=DiscordMode.GATEWAY)
+
+
 def _existing_or_prompt_required(
     key: str,
     label: str,
@@ -621,10 +667,14 @@ def _medium_env_values(medium: ChatMedium, values: Mapping[str, str]) -> dict[st
     if medium is ChatMedium.TELEGRAM:
         return {"TELEGRAM_BOT_TOKEN": values["TELEGRAM_BOT_TOKEN"]}
     if medium is ChatMedium.DISCORD:
+        discord_mode = values.get("DISCORD_MODE", DiscordMode.GATEWAY.value)
         return {
+            "DISCORD_MODE": discord_mode,
             "DISCORD_APPLICATION_ID": values["DISCORD_APPLICATION_ID"],
-            "DISCORD_PUBLIC_KEY": values["DISCORD_PUBLIC_KEY"],
-            "DISCORD_BOT_TOKEN": values["DISCORD_BOT_TOKEN"],
+            "DISCORD_PUBLIC_KEY": values.get("DISCORD_PUBLIC_KEY", ""),
+            "DISCORD_BOT_TOKEN": values.get("DISCORD_BOT_TOKEN", ""),
+            "DISCORD_ALLOWED_USER_IDS": values.get("DISCORD_ALLOWED_USER_IDS", ""),
+            "DISCORD_REQUIRE_MENTION": values.get("DISCORD_REQUIRE_MENTION", "true"),
         }
     if medium is ChatMedium.EMAIL:
         return {
@@ -648,7 +698,7 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
         "YAHOO_CLIENT_ID",
         "YAHOO_CLIENT_SECRET",
         *(_llm_required_keys(answers.llm_provider)),
-        *(_medium_required_keys(answers.chat_media)),
+        *(_medium_required_keys(answers.chat_media, values)),
         *(_billing_required_keys(answers.hosted)),
     ]
     missing = [key for key in required_keys if not values.get(key, "").strip()]
@@ -663,13 +713,16 @@ def _llm_required_keys(provider: LLMProvider) -> tuple[str, ...]:
     return ("ANTHROPIC_API_KEY",)
 
 
-def _medium_required_keys(media: Sequence[ChatMedium]) -> tuple[str, ...]:
+def _medium_required_keys(
+    media: Sequence[ChatMedium],
+    values: Mapping[str, str],
+) -> tuple[str, ...]:
     required: list[str] = []
     for medium in media:
         if medium is ChatMedium.TELEGRAM:
             required.append("TELEGRAM_BOT_TOKEN")
         elif medium is ChatMedium.DISCORD:
-            required.extend(("DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN"))
+            required.extend(_discord_required_keys(values))
         elif medium is ChatMedium.EMAIL:
             required.extend(
                 (
@@ -689,6 +742,18 @@ def _medium_required_keys(media: Sequence[ChatMedium]) -> tuple[str, ...]:
                 )
             )
     return tuple(required)
+
+
+def _discord_required_keys(values: Mapping[str, str]) -> tuple[str, ...]:
+    mode = values.get("DISCORD_MODE", DiscordMode.GATEWAY.value).strip().lower()
+    if mode == DiscordMode.INTERACTIONS.value:
+        return ("DISCORD_MODE", "DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY")
+    return (
+        "DISCORD_MODE",
+        "DISCORD_APPLICATION_ID",
+        "DISCORD_BOT_TOKEN",
+        "DISCORD_ALLOWED_USER_IDS",
+    )
 
 
 def _billing_required_keys(hosted: bool) -> tuple[str, ...]:
