@@ -1,5 +1,6 @@
 """Tests for the Gordie setup CLI."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -188,6 +189,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
         [
             "init",
             "--skip-docker-check",
+            "--skip-docker-start",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -215,8 +217,60 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
         in result.output
     )
     assert "CREEM_API_KEY=" in env_text
-    assert "docker compose up -d" in result.output
+    assert "Server health: http://localhost:8000/health" in result.output
+    assert "Invite the bot to your server" in result.output
+    assert "docker compose up -d" not in result.output
     assert "docker compose exec server uv run alembic upgrade head" not in result.output
+
+
+def test_init_command_starts_docker_compose_by_default(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+    docker_calls: list[tuple[list[str], bool]] = []
+
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+        docker_calls.append((command, check))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("scripts.setup.subprocess.run", fake_run)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input="\ntelegram\n\n\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert docker_calls == [(["docker", "compose", "up", "-d"], True)]
+    assert "Starting Docker services..." in result.output
+    assert "Server health: http://localhost:8000/health" in result.output
 
 
 def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
@@ -268,6 +322,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
         [
             "init",
             "--skip-docker-check",
+            "--skip-docker-start",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -292,6 +347,70 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
     assert "CREEM_API_BASE_URL=https://existing-creem.example.com/v1" in env_text
 
 
+def test_init_command_can_switch_existing_discord_env_to_gateway(tmp_path: Path) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "DISCORD_MODE=",
+                "DISCORD_APPLICATION_ID=",
+                "DISCORD_PUBLIC_KEY=",
+                "DISCORD_BOT_TOKEN=",
+                "DISCORD_ALLOWED_USER_IDS=",
+                "DISCORD_REQUIRE_MENTION=",
+            ]
+        )
+    )
+    _ = env_file.write_text(
+        "\n".join(
+            [
+                "OAUTH_BASE_URL=https://gordie.example.com",
+                "OPENAI_API_KEY=existing-openai",
+                "LLM_PROVIDER=openai",
+                "YAHOO_CLIENT_ID=existing-yahoo-id",
+                "YAHOO_CLIENT_SECRET=existing-yahoo-secret",
+                "CHAT_MEDIA=discord",
+                "DISCORD_MODE=interactions",
+                "DISCORD_APPLICATION_ID=discord-app",
+                "DISCORD_PUBLIC_KEY=discord-public",
+                "DISCORD_BOT_TOKEN=discord-token",
+                "",
+            ]
+        )
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-docker-start",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input="\ngateway\n123\n\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    env_text = env_file.read_text()
+    assert "DISCORD_MODE=gateway" in env_text
+    assert "DISCORD_ALLOWED_USER_IDS=123" in env_text
+    assert "Invite the bot to your server" in result.output
+
+
 def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:
     runner = CliRunner()
 
@@ -300,6 +419,7 @@ def test_init_command_rejects_missing_template_file(tmp_path: Path) -> None:
         [
             "init",
             "--skip-docker-check",
+            "--skip-docker-start",
             "--template-file",
             str(tmp_path / "missing.env.example"),
             "--env-file",
@@ -363,6 +483,7 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
         [
             "init",
             "--skip-docker-check",
+            "--skip-docker-start",
             "--template-file",
             str(template_file),
             "--env-file",
@@ -415,6 +536,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "init",
             "--hosted",
             "--skip-docker-check",
+            "--skip-docker-start",
             "--template-file",
             str(template_file),
             "--env-file",

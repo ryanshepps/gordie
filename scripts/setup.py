@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import secrets
 import shutil
+import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -233,6 +234,10 @@ def init(
         bool,
         typer.Option("--skip-docker-check", help="Skip Docker detection.", hidden=True),
     ] = False,
+    skip_docker_start: Annotated[
+        bool,
+        typer.Option("--skip-docker-start", help="Skip docker compose startup.", hidden=True),
+    ] = False,
 ) -> None:
     """Create a local .env file through an interactive setup wizard."""
 
@@ -257,14 +262,14 @@ def init(
         )
         env_text = render_env_file(template_file.read_text(), existing_values | generated_values)
         _ = env_file.write_text(env_text)
+        typer.secho(f"Wrote {env_file}", fg=typer.colors.GREEN)
+        if answers.deployment_target is DeploymentTarget.DOCKER:
+            _start_docker_compose(skip_docker_start=skip_docker_start)
     except SetupInputError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    typer.secho(f"Wrote {env_file}", fg=typer.colors.GREEN)
-    typer.echo("")
-    typer.echo("Next step:")
-    typer.echo("  docker compose up -d")
+    _print_next_steps(answers)
 
 
 def parse_env_values(env_text: str) -> dict[str, str]:
@@ -584,16 +589,13 @@ def _prompt_enum[T: StrEnum](
 def _prompt_discord_mode(existing_values: Mapping[str, str]) -> DiscordMode:
     existing_mode = _existing_value(existing_values, "DISCORD_MODE")
     if existing_mode is not None:
-        return _prompt_enum(
-            "Discord mode",
-            DiscordMode,
-            default=DiscordMode.GATEWAY,
-            existing_value=existing_mode,
-        )
-
-    if _existing_value(existing_values, "DISCORD_PUBLIC_KEY") is not None:
-        typer.echo("Discord mode: using interactions because DISCORD_PUBLIC_KEY exists")
-        return DiscordMode.INTERACTIONS
+        try:
+            default = DiscordMode(existing_mode.strip().lower())
+        except ValueError:
+            typer.secho("Existing discord mode is invalid.", fg=typer.colors.RED)
+            default = DiscordMode.GATEWAY
+        else:
+            return _prompt_enum("Discord mode", DiscordMode, default=default)
 
     return _prompt_enum("Discord mode", DiscordMode, default=DiscordMode.GATEWAY)
 
@@ -654,6 +656,56 @@ def _prompt_text(
 
 def _discord_bot_url(application_id: str) -> str:
     return f"{_DISCORD_APPLICATIONS_URL}/{application_id}/bot"
+
+
+def _discord_invite_url(application_id: str) -> str:
+    return (
+        "https://discord.com/oauth2/authorize"
+        f"?client_id={application_id}&scope=bot&permissions=68608"
+    )
+
+
+def _start_docker_compose(*, skip_docker_start: bool) -> None:
+    if skip_docker_start:
+        return
+
+    typer.echo("")
+    typer.echo("Starting Docker services...")
+    try:
+        _ = subprocess.run(["docker", "compose", "up", "-d"], check=True)
+    except FileNotFoundError as exc:
+        raise SetupInputError("Docker Compose was not found.") from exc
+    except subprocess.CalledProcessError as exc:
+        raise SetupInputError(
+            f"docker compose up -d failed with exit code {exc.returncode}."
+        ) from exc
+
+
+def _print_next_steps(answers: SetupAnswers) -> None:
+    typer.echo("")
+    typer.echo("Next steps:")
+    typer.echo("  Server health: http://localhost:8000/health")
+
+    if ChatMedium.DISCORD not in answers.chat_media:
+        return
+
+    application_id = answers.values.get("DISCORD_APPLICATION_ID", "")
+    discord_mode = answers.values.get("DISCORD_MODE", DiscordMode.GATEWAY.value)
+    if discord_mode == DiscordMode.GATEWAY.value:
+        typer.echo("")
+        typer.echo("Discord Gateway:")
+        typer.echo(f"  1. Enable Message Content Intent: {_discord_bot_url(application_id)}")
+        typer.echo(f"  2. Invite the bot to your server: {_discord_invite_url(application_id)}")
+        typer.echo("  3. DM the bot, or mention it in a server channel:")
+        typer.echo("     @Gordie Who should I start tonight?")
+        return
+
+    oauth_base_url = answers.values["OAUTH_BASE_URL"].rstrip("/")
+    typer.echo("")
+    typer.echo("Discord Interactions:")
+    typer.echo("  1. Set this Interactions Endpoint URL in the Discord Developer Portal:")
+    typer.echo(f"     {oauth_base_url}/discord/interactions")
+    typer.echo("  2. Use the /gordie command after Discord verifies the endpoint.")
 
 
 def _existing_value(values: Mapping[str, str], key: str) -> str | None:
