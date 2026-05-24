@@ -38,7 +38,8 @@ def test_build_env_values_skips_billing_by_default() -> None:
         llm_provider=LLMProvider.OPENAI,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "http://localhost:8000",
+            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
             "OPENAI_API_KEY": "sk-test",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -61,7 +62,8 @@ def test_build_env_values_rejects_missing_required_keys() -> None:
         llm_provider=LLMProvider.ANTHROPIC,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "http://localhost:8000",
+            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
             "ANTHROPIC_API_KEY": "anthropic-key",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -76,6 +78,45 @@ def test_build_env_values_rejects_missing_required_keys() -> None:
         _ = build_env_values(answers, admin_api_key="admin-token")
 
 
+def test_build_env_values_rejects_plain_http_oauth_base_url() -> None:
+    answers = SetupAnswers(
+        deployment_target=DeploymentTarget.DOCKER,
+        chat_media=(ChatMedium.TELEGRAM,),
+        llm_provider=LLMProvider.OPENAI,
+        hosted=False,
+        values={
+            "OAUTH_BASE_URL": "http://localhost:8000",
+            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
+            "OPENAI_API_KEY": "sk-test",
+            "YAHOO_CLIENT_ID": "yahoo-id",
+            "YAHOO_CLIENT_SECRET": "yahoo-secret",
+            "TELEGRAM_BOT_TOKEN": "telegram-token",
+        },
+    )
+
+    with pytest.raises(SetupInputError, match="public HTTPS URL"):
+        _ = build_env_values(answers, admin_api_key="admin-token")
+
+
+def test_build_env_values_requires_cloudflare_tunnel_token() -> None:
+    answers = SetupAnswers(
+        deployment_target=DeploymentTarget.DOCKER,
+        chat_media=(ChatMedium.TELEGRAM,),
+        llm_provider=LLMProvider.OPENAI,
+        hosted=False,
+        values={
+            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "OPENAI_API_KEY": "sk-test",
+            "YAHOO_CLIENT_ID": "yahoo-id",
+            "YAHOO_CLIENT_SECRET": "yahoo-secret",
+            "TELEGRAM_BOT_TOKEN": "telegram-token",
+        },
+    )
+
+    with pytest.raises(SetupInputError, match="CLOUDFLARED_TUNNEL_TOKEN"):
+        _ = build_env_values(answers, admin_api_key="admin-token")
+
+
 def test_build_env_values_supports_all_media_and_anthropic() -> None:
     answers = SetupAnswers(
         deployment_target=DeploymentTarget.DOCKER,
@@ -83,7 +124,8 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
         llm_provider=LLMProvider.ANTHROPIC,
         hosted=False,
         values={
-            "OAUTH_BASE_URL": "http://localhost:8000",
+            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "CLOUDFLARED_TUNNEL_TOKEN": "cloudflare-token",
             "ANTHROPIC_API_KEY": "anthropic-key",
             "YAHOO_CLIENT_ID": "yahoo-id",
             "YAHOO_CLIENT_SECRET": "yahoo-secret",
@@ -106,6 +148,7 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
 
     assert values["LLM_PROVIDER"] == "anthropic"
     assert values["ANTHROPIC_API_KEY"] == "anthropic-key"
+    assert values["CLOUDFLARED_TUNNEL_TOKEN"] == "cloudflare-token"
     assert values["CHAT_MEDIA"] == "discord,email,sms"
     assert values["DISCORD_MODE"] == "gateway"
     assert values["DISCORD_APPLICATION_ID"] == "discord-app"
@@ -164,6 +207,7 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
                 "ADMIN_API_KEY=",
                 "ENVIRONMENT=",
                 "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
                 "LLM_PROVIDER=",
@@ -195,12 +239,25 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
             "--env-file",
             str(env_file),
         ],
-        input="\n\n\n\nsk-test\nyahoo-id\nyahoo-secret\ndiscord-app\ndiscord-token\n123\n\n",
+        input=(
+            "\n\n\n"
+            "https://gordie.example.com\n"
+            "cloudflare-token\n"
+            "sk-test\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+            "discord-app\n"
+            "discord-token\n"
+            "123\n"
+            "\n"
+        ),
     )
 
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
     assert "CHAT_MEDIA=discord" in env_text
+    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
+    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
     assert "LLM_PROVIDER=openai" in env_text
     assert "OPENAI_API_KEY=sk-test" in env_text
     assert "YAHOO_CLIENT_ID=yahoo-id" in env_text
@@ -220,9 +277,63 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     )
     assert "CREEM_API_KEY=" in env_text
     assert "Server health: http://localhost:8000/health" in result.output
+    assert "Public health: https://gordie.example.com/health" in result.output
+    assert "Yahoo redirect URI: https://gordie.example.com/callback" in result.output
     assert "Invite the bot to your server" in result.output
     assert "docker compose up -d" not in result.output
     assert "docker compose exec server uv run alembic upgrade head" not in result.output
+
+
+def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-docker-start",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input=(
+            "\ntelegram\n\n"
+            "http://localhost:8000\n"
+            "https://gordie.example.com\n"
+            "cloudflare-token\n"
+            "sk-test\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+            "telegram-token\n"
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "OAUTH_BASE_URL must be a public HTTPS URL" in result.output
+    env_text = env_file.read_text()
+    assert "OAUTH_BASE_URL=https://gordie.example.com" in env_text
+    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
 
 
 def test_init_command_starts_docker_compose_by_default(
@@ -237,6 +348,7 @@ def test_init_command_starts_docker_compose_by_default(
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -266,7 +378,15 @@ def test_init_command_starts_docker_compose_by_default(
             "--env-file",
             str(env_file),
         ],
-        input="\ntelegram\n\n\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n",
+        input=(
+            "\ntelegram\n\n"
+            "https://gordie.example.com\n"
+            "cloudflare-token\n"
+            "sk-test\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+            "telegram-token\n"
+        ),
     )
 
     assert result.exit_code == 0, result.output
@@ -284,6 +404,7 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
                 "LLM_PROVIDER=",
@@ -303,7 +424,8 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
                 "DATABASE_URL=postgresql://existing",
                 "ADMIN_API_KEY=existing-admin",
                 "ENVIRONMENT=production",
-                "OAUTH_BASE_URL=http://existing.example.com",
+                "OAUTH_BASE_URL=https://existing.example.com",
+                "CLOUDFLARED_TUNNEL_TOKEN=existing-cloudflare-token",
                 "OPENAI_API_KEY=existing-openai",
                 "LLM_PROVIDER=openai",
                 "LLM_MODEL=existing-model",
@@ -340,7 +462,8 @@ def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
     assert "DATABASE_URL=postgresql://existing" in env_text
     assert "ADMIN_API_KEY=existing-admin" in env_text
     assert "ENVIRONMENT=production" in env_text
-    assert "OAUTH_BASE_URL=http://existing.example.com" in env_text
+    assert "OAUTH_BASE_URL=https://existing.example.com" in env_text
+    assert "CLOUDFLARED_TUNNEL_TOKEN=existing-cloudflare-token" in env_text
     assert "OPENAI_API_KEY=existing-openai" in env_text
     assert "LLM_MODEL=existing-model" in env_text
     assert "YAHOO_CLIENT_SECRET=existing-yahoo-secret" in env_text
@@ -358,6 +481,7 @@ def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> No
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -377,6 +501,7 @@ def test_init_command_uses_gateway_for_self_hosted_discord(tmp_path: Path) -> No
         "\n".join(
             [
                 "OAUTH_BASE_URL=https://gordie.example.com",
+                "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token",
                 "OPENAI_API_KEY=existing-openai",
                 "LLM_PROVIDER=openai",
                 "YAHOO_CLIENT_ID=existing-yahoo-id",
@@ -470,6 +595,7 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
                 "OPENAI_API_KEY=",
                 "LLM_PROVIDER=",
                 "LLM_MODEL=",
@@ -493,7 +619,15 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
             "--env-file",
             str(env_file),
         ],
-        input="\nslack\ntelegram\n\n\nsk-test\nyahoo-id\nyahoo-secret\ntelegram-token\n",
+        input=(
+            "\nslack\ntelegram\n\n"
+            "https://gordie.example.com\n"
+            "cloudflare-token\n"
+            "sk-test\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+            "telegram-token\n"
+        ),
     )
 
     assert result.exit_code == 0, result.output
@@ -510,6 +644,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
                 "DATABASE_URL=",
                 "ADMIN_API_KEY=",
                 "OAUTH_BASE_URL=",
+                "CLOUDFLARED_TUNNEL_TOKEN=",
                 "OPENAI_API_KEY=",
                 "ANTHROPIC_API_KEY=",
                 "LLM_PROVIDER=",
@@ -547,7 +682,9 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\n\n\n\n"
+            "\n\n\n"
+            "https://gordie.example.com\n"
+            "cloudflare-token\n"
             "sk-test\n"
             "yahoo-id\n"
             "yahoo-secret\n"
@@ -566,6 +703,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     env_text = env_file.read_text()
     assert "DISCORD_MODE=interactions" in env_text
+    assert "CLOUDFLARED_TUNNEL_TOKEN=cloudflare-token" in env_text
     assert "DISCORD_APPLICATION_ID=discord-app" in env_text
     assert "DISCORD_PUBLIC_KEY=discord-public" in env_text
     assert "Discord mode: interactions (hosted)" in result.output
@@ -575,3 +713,23 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
     assert "CREEM_WEBHOOK_SECRET=creem-webhook" in env_text
     assert "CREEM_PRODUCT_STANDARD_MONTHLY=standard-monthly" in env_text
     assert "CREEM_PRODUCT_ALLSTAR_ANNUAL=allstar-annual" in env_text
+
+
+def test_docker_compose_runs_cloudflared_with_named_tunnel_token() -> None:
+    compose_text = Path("docker-compose.yml").read_text()
+
+    assert "cloudflared:" in compose_text
+    assert "image: cloudflare/cloudflared:latest" in compose_text
+    assert "command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}" in compose_text
+    assert "depends_on:\n      - server" in compose_text
+
+
+def test_yahoo_oauth_docs_make_cloudflare_primary_and_ngrok_dev_only() -> None:
+    yahoo_docs = Path("docs/setup/yahoo-oauth.md").read_text()
+    quickstart_docs = Path("docs/setup/quickstart.md").read_text()
+
+    assert "named Cloudflare Tunnel" in yahoo_docs
+    assert "http://server:8000" in yahoo_docs
+    assert "Dev-only fallback: ngrok" in yahoo_docs
+    assert "not Gordie's recommended self-hosted production path" in yahoo_docs
+    assert "Cloudflare Tunnel is part of the default Docker stack" in quickstart_docs

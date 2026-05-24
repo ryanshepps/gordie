@@ -8,6 +8,7 @@ from uuid import UUID
 from quart import request
 
 from module.logger import get_logger
+from server.oauth_config import OAuthConfigurationError, get_oauth_base_url
 
 logger = get_logger(__name__)
 
@@ -71,10 +72,14 @@ def register_oauth_routes(app):
             # Exchange code for tokens
             client_id = os.getenv("YAHOO_CLIENT_ID")
             client_secret = os.getenv("YAHOO_CLIENT_SECRET")
-            oauth_base_url = os.getenv("OAUTH_BASE_URL", "http://localhost:8000")
 
             if not client_id or not client_secret:
                 logger.error("YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET must be set")
+                return _error_html("Configuration Error", "OAuth is not properly configured."), 500
+            try:
+                oauth_base_url = get_oauth_base_url()
+            except OAuthConfigurationError as exc:
+                logger.error(f"{exc}, cannot exchange OAuth callback")
                 return _error_html("Configuration Error", "OAuth is not properly configured."), 500
 
             callback_url = f"{oauth_base_url.rstrip('/')}/callback"
