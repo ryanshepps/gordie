@@ -1,5 +1,5 @@
 # Full-stack compose for fantasy-agent.
-# Brings up Postgres + the Quart server.
+# Brings up Postgres, the Quart server, and the ngrok tunnel connector.
 # Copy `.env.example` to `.env` and fill in keys before running.
 #
 # Usage:
@@ -45,6 +45,16 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: gordie-ngrok
+    command: http http://server:8000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - server
     restart: unless-stopped
 
 volumes:

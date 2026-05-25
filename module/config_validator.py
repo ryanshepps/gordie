@@ -13,6 +13,7 @@ from module.config_requirements import (
     discord_required_config,
     required_config_for_runtime,
 )
+from server.oauth_config import OAuthConfigurationError, normalize_oauth_base_url
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"", "0", "false", "no", "off"}
@@ -50,6 +51,7 @@ def validate_startup_config(env: Mapping[str, str]) -> None:
     invalid: list[str] = []
     llm_provider = _parse_llm_provider(env, invalid)
     chat_media = _parse_chat_media(env, invalid)
+    _validate_oauth_base_url(env, invalid)
     _validate_discord_mode(env, chat_media, invalid)
     _validate_server_port(env, invalid)
 
@@ -108,6 +110,16 @@ def _parse_chat_media(env: Mapping[str, str], invalid: list[str]) -> tuple[ChatM
         invalid_list = ", ".join(invalid_media)
         invalid.append(f"Unknown chat medium: {invalid_list}. Choose from: {chat_medium_values()}.")
     return tuple(media)
+
+
+def _validate_oauth_base_url(env: Mapping[str, str], invalid: list[str]) -> None:
+    raw_value = _env_value(env, "OAUTH_BASE_URL")
+    if not raw_value:
+        return
+    try:
+        _ = normalize_oauth_base_url(raw_value)
+    except OAuthConfigurationError as exc:
+        invalid.append(str(exc))
 
 
 def _validate_discord_mode(

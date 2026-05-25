@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import re
 import secrets
+import selectors
 import shutil
 import subprocess
-from collections.abc import Mapping
+import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated, Final, cast
+from urllib.parse import urlparse
 
 import typer
 
@@ -46,12 +50,26 @@ class SetupAnswers:
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
 _CHAT_MEDIUM_VALUES = chat_medium_values()
+_OPENAI_API_KEYS_URL: Final = "https://platform.openai.com/api-keys"
+_ANTHROPIC_API_KEYS_URL: Final = "https://console.anthropic.com/settings/keys"
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
+_TELEGRAM_BOTFATHER_URL: Final = "https://t.me/BotFather"
 _DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
 _DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID"
+_MAILGUN_API_SECURITY_URL: Final = "https://app.mailgun.com/app/account/security/api_keys"
+_MAILGUN_DOMAINS_URL: Final = "https://app.mailgun.com/mg/sending/domains"
+_SINCH_SMS_SERVICE_APIS_URL: Final = "https://dashboard.sinch.com/sms/api/services"
+_SINCH_NUMBERS_URL: Final = "https://dashboard.sinch.com/numbers/your-numbers"
+_CREEM_DASHBOARD_URL: Final = "https://www.creem.io/dashboard"
+_CREEM_PRODUCTS_URL: Final = "https://www.creem.io/dashboard/products"
 _DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
+_NGROK_AUTHTOKEN_URL: Final = "https://dashboard.ngrok.com/get-started/your-authtoken"
+_NGROK_TUNNEL_SERVICE: Final = "http://server:8000"
+_NGROK_DISCOVERY_SERVICE: Final = "http://localhost:8000"
+_NGROK_DISCOVERY_TIMEOUT_SECONDS: Final = 20.0
+_NGROK_PUBLIC_URL_RE = re.compile(r"https://[A-Za-z0-9.-]+\.ngrok(?:-free)?\.(?:app|dev|pizza|io)")
 
 
 @app.callback()
@@ -83,6 +101,7 @@ def build_env_values(
         "ADMIN_API_KEY": admin_api_key or secrets.token_hex(32),
         "ENVIRONMENT": answers.values.get("ENVIRONMENT", "development"),
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
+        "NGROK_AUTHTOKEN": answers.values.get("NGROK_AUTHTOKEN", ""),
         "CHAT_MEDIA": ",".join(medium.value for medium in answers.chat_media),
         "LLM_PROVIDER": answers.llm_provider.value,
         "LLM_MODEL": answers.values.get("LLM_MODEL", default_llm_model(answers.llm_provider)),
@@ -197,6 +216,14 @@ def init(
         bool,
         typer.Option("--skip-docker-start", help="Skip docker compose startup.", hidden=True),
     ] = False,
+    skip_ngrok_automation: Annotated[
+        bool,
+        typer.Option(
+            "--skip-ngrok-automation",
+            help="Skip ngrok install and dev-domain discovery prompts.",
+            hidden=True,
+        ),
+    ] = False,
 ) -> None:
     """Create a local .env file through an interactive setup wizard."""
 
@@ -213,6 +240,7 @@ def init(
         answers = _prompt_for_answers(
             hosted=hosted,
             skip_docker_check=skip_docker_check,
+            skip_ngrok_automation=skip_ngrok_automation,
             existing_values=existing_values,
         )
         generated_values = build_env_values(
@@ -250,6 +278,7 @@ def _prompt_for_answers(
     *,
     hosted: bool,
     skip_docker_check: bool,
+    skip_ngrok_automation: bool,
     existing_values: Mapping[str, str],
 ) -> SetupAnswers:
     typer.echo("Gordie setup")
@@ -266,22 +295,24 @@ def _prompt_for_answers(
     typer.echo(f"Chat media choices: {_CHAT_MEDIUM_VALUES}")
     chat_media = _prompt_chat_media(existing_value=_existing_value(existing_values, "CHAT_MEDIA"))
 
+    values: dict[str, str] = {}
+    for medium in chat_media:
+        values.update(_prompt_medium_values(medium, existing_values, hosted=hosted))
+
     llm_provider = _prompt_enum(
         "LLM provider",
         LLMProvider,
         default=LLMProvider.OPENAI,
         existing_value=_existing_value(existing_values, "LLM_PROVIDER"),
     )
-
-    values: dict[str, str] = {
-        "OAUTH_BASE_URL": _existing_or_prompt_text(
-            "OAUTH_BASE_URL",
-            "OAuth base URL",
-            existing_values,
-            default="http://localhost:8000",
-        ),
-    }
     values.update(_prompt_llm_values(llm_provider, existing_values))
+
+    values.update(
+        _prompt_ngrok_tunnel_values(
+            existing_values,
+            skip_automation=skip_ngrok_automation,
+        )
+    )
 
     typer.echo("")
     typer.echo(f"Create a Yahoo app at {_YAHOO_APP_URL}")
@@ -291,16 +322,17 @@ def _prompt_for_answers(
         "YAHOO_CLIENT_ID",
         "Yahoo client ID",
         existing_values,
+        help_url=_YAHOO_APP_URL,
+        help_label="Yahoo developer apps",
     )
     values["YAHOO_CLIENT_SECRET"] = _existing_or_prompt_required(
         "YAHOO_CLIENT_SECRET",
         "Yahoo client secret",
         existing_values,
         hide_input=True,
+        help_url=_YAHOO_APP_URL,
+        help_label="Yahoo developer apps",
     )
-
-    for medium in chat_media:
-        values.update(_prompt_medium_values(medium, existing_values, hosted=hosted))
 
     if hosted:
         values.update(_prompt_billing_values(existing_values))
@@ -341,6 +373,8 @@ def _prompt_llm_values(
                 "OpenAI API key",
                 existing_values,
                 hide_input=True,
+                help_url=_OPENAI_API_KEYS_URL,
+                help_label="OpenAI API keys",
             )
         }
 
@@ -350,8 +384,241 @@ def _prompt_llm_values(
             "Anthropic API key",
             existing_values,
             hide_input=True,
+            help_url=_ANTHROPIC_API_KEYS_URL,
+            help_label="Anthropic API keys",
         )
     }
+
+
+def _prompt_ngrok_tunnel_values(
+    existing_values: Mapping[str, str],
+    *,
+    skip_automation: bool,
+) -> dict[str, str]:
+    typer.echo("")
+    typer.echo("ngrok tunnel setup")
+
+    existing_oauth_base_url = _existing_value(existing_values, "OAUTH_BASE_URL")
+    existing_authtoken = _existing_value(existing_values, "NGROK_AUTHTOKEN")
+    if existing_oauth_base_url is not None and existing_authtoken is not None:
+        return {
+            "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
+            "NGROK_AUTHTOKEN": _prompt_ngrok_authtoken(existing_values),
+        }
+
+    if not skip_automation:
+        automated_values = _prompt_ngrok_tunnel_automation(existing_values)
+        if automated_values is not None:
+            return automated_values
+
+    typer.echo(f"The Docker connector sends tunnel traffic to: {_NGROK_TUNNEL_SERVICE}")
+
+    return {
+        "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
+        "NGROK_AUTHTOKEN": _prompt_ngrok_authtoken(existing_values),
+    }
+
+
+def _prompt_ngrok_tunnel_automation(
+    existing_values: Mapping[str, str],
+) -> dict[str, str] | None:
+    ngrok_path = _ensure_ngrok_available()
+    if ngrok_path is None:
+        return None
+
+    if not typer.confirm(
+        "Configure ngrok and use your account's dev domain?",
+        default=True,
+    ):
+        typer.echo("Skipping ngrok automation.")
+        return None
+
+    authtoken = _prompt_ngrok_authtoken(existing_values)
+    if not _configure_ngrok_authtoken(ngrok_path, authtoken):
+        return None
+
+    oauth_base_url = _discover_ngrok_oauth_base_url(ngrok_path)
+    if oauth_base_url is None:
+        typer.secho(
+            "Could not detect your ngrok dev domain. Falling back to manual URL entry.",
+            fg=typer.colors.YELLOW,
+        )
+        return {
+            "OAUTH_BASE_URL": _prompt_https_oauth_base_url(existing_values),
+            "NGROK_AUTHTOKEN": authtoken,
+        }
+
+    typer.secho("ngrok tunnel configured.", fg=typer.colors.GREEN)
+    return {
+        "OAUTH_BASE_URL": oauth_base_url,
+        "NGROK_AUTHTOKEN": authtoken,
+    }
+
+
+def _prompt_ngrok_authtoken(existing_values: Mapping[str, str]) -> str:
+    if _existing_value(existing_values, "NGROK_AUTHTOKEN") is None:
+        typer.echo(f"Find your ngrok authtoken here: {_NGROK_AUTHTOKEN_URL}")
+
+    return _existing_or_prompt_required(
+        "NGROK_AUTHTOKEN",
+        "ngrok authtoken",
+        existing_values,
+        hide_input=True,
+    )
+
+
+def _ensure_ngrok_available() -> str | None:
+    ngrok_path = shutil.which("ngrok")
+    if ngrok_path is not None:
+        typer.echo("ngrok: found on PATH")
+        return ngrok_path
+
+    typer.secho("ngrok was not found on PATH.", fg=typer.colors.YELLOW)
+    if not typer.confirm("Install ngrok now?", default=True):
+        typer.echo("Skipping ngrok automation.")
+        return None
+
+    if not _install_ngrok():
+        return None
+
+    ngrok_path = shutil.which("ngrok")
+    if ngrok_path is None:
+        typer.secho(
+            "ngrok installation finished, but ngrok is still not on PATH.",
+            fg=typer.colors.RED,
+        )
+        return None
+    return ngrok_path
+
+
+def _install_ngrok() -> bool:
+    brew_path = shutil.which("brew")
+    if brew_path is None:
+        typer.secho(
+            "Automatic ngrok install currently needs Homebrew. Falling back to manual setup.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
+
+    try:
+        _ = _run_setup_command([brew_path, "install", "ngrok"])
+    except SetupInputError as exc:
+        typer.secho(f"ngrok install failed: {exc}", fg=typer.colors.RED)
+        return False
+
+    return True
+
+
+def _configure_ngrok_authtoken(ngrok_path: str, authtoken: str) -> bool:
+    try:
+        _ = _run_setup_command([ngrok_path, "config", "add-authtoken", authtoken])
+    except SetupInputError as exc:
+        typer.secho(f"ngrok auth setup failed: {exc}", fg=typer.colors.RED)
+        return False
+
+    return True
+
+
+def _discover_ngrok_oauth_base_url(ngrok_path: str) -> str | None:
+    typer.echo("Starting ngrok briefly to detect your assigned dev domain...")
+    process = subprocess.Popen(
+        [
+            ngrok_path,
+            "http",
+            _NGROK_DISCOVERY_SERVICE,
+            "--log",
+            "stdout",
+            "--log-format",
+            "json",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        return _read_ngrok_public_url(process)
+    finally:
+        _stop_process(process)
+
+
+def _read_ngrok_public_url(process: subprocess.Popen[str]) -> str | None:
+    stdout = process.stdout
+    if stdout is None:
+        return None
+
+    selector = selectors.DefaultSelector()
+    _ = selector.register(stdout, selectors.EVENT_READ)
+    deadline = time.monotonic() + _NGROK_DISCOVERY_TIMEOUT_SECONDS
+    try:
+        while time.monotonic() < deadline:
+            timeout = max(0.0, deadline - time.monotonic())
+            events = selector.select(timeout=timeout)
+            if not events:
+                return None
+
+            line = stdout.readline()
+            public_url_match = _NGROK_PUBLIC_URL_RE.search(line)
+            if public_url_match is not None:
+                return _normalize_https_base_url(public_url_match.group(0))
+            if process.poll() is not None:
+                return None
+    finally:
+        _ = selector.unregister(stdout)
+        selector.close()
+
+    return None
+
+
+def _stop_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+
+    process.terminate()
+    try:
+        _ = process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        _ = process.wait(timeout=5)
+
+
+def _run_setup_command(
+    command: Sequence[str],
+    *,
+    capture_output: bool = False,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        completed = subprocess.run(
+            list(command),
+            check=check,
+            capture_output=capture_output,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise SetupInputError(f"{command[0]} was not found.") from exc
+    except subprocess.CalledProcessError as exc:
+        command_text = " ".join(command)
+        raise SetupInputError(f"`{command_text}` failed with exit code {exc.returncode}.") from exc
+
+    return completed
+
+
+def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
+    existing_value = _existing_value(existing_values, "OAUTH_BASE_URL")
+    if existing_value is not None:
+        try:
+            normalized = _normalize_https_base_url(existing_value)
+            typer.echo("OAuth base URL: using existing value")
+            return normalized
+        except SetupInputError as exc:
+            typer.secho(f"Existing OAUTH_BASE_URL is invalid: {exc}", fg=typer.colors.RED)
+
+    while True:
+        raw_value = _prompt_required("ngrok public HTTPS URL")
+        try:
+            return _normalize_https_base_url(raw_value)
+        except SetupInputError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
 
 
 def _prompt_medium_values(
@@ -369,30 +636,35 @@ def _prompt_medium_values(
                 "Telegram bot token",
                 existing_values,
                 hide_input=True,
+                help_url=_TELEGRAM_BOTFATHER_URL,
+                help_label="Create or manage your Telegram bot with BotFather",
             )
         }
 
     if medium is ChatMedium.DISCORD:
         mode = _discord_mode_for_setup(hosted=hosted)
-        typer.echo(f"Application ID: {_DISCORD_APPLICATIONS_URL} (General Information)")
         application_id = _existing_or_prompt_required(
             "DISCORD_APPLICATION_ID",
             "Discord application ID",
             existing_values,
+            help_url=f"{_DISCORD_APPLICATIONS_URL} (General Information)",
+            help_label="Discord application",
         )
         if mode is DiscordMode.GATEWAY:
-            typer.echo(f"Bot Token: {_discord_bot_url(application_id)}")
             bot_token = _existing_or_prompt_required(
                 "DISCORD_BOT_TOKEN",
                 "Discord bot token",
                 existing_values,
                 hide_input=True,
+                help_url=_discord_bot_url(application_id),
+                help_label="Discord bot token",
             )
-            typer.echo(f"Allowed User IDs: {_DISCORD_USER_ID_HELP_URL}")
             allowed_user_ids = _existing_or_prompt_required(
                 "DISCORD_ALLOWED_USER_IDS",
                 "Discord allowed user IDs",
                 existing_values,
+                help_url=_DISCORD_USER_ID_HELP_URL,
+                help_label="Discord user ID help",
             )
             typer.echo(f"Message Content Intent: {_discord_bot_url(application_id)}")
             typer.echo("Enable Message Content Intent for Gateway mode.")
@@ -409,12 +681,13 @@ def _prompt_medium_values(
                 ),
             }
 
-        typer.echo(f"Public Key: {_DISCORD_APPLICATIONS_URL} (General Information)")
         public_key = _existing_or_prompt_required(
             "DISCORD_PUBLIC_KEY",
             "Discord public key",
             existing_values,
             hide_input=True,
+            help_url=f"{_DISCORD_APPLICATIONS_URL} (General Information)",
+            help_label="Discord public key",
         )
         return {
             "DISCORD_MODE": mode.value,
@@ -428,6 +701,8 @@ def _prompt_medium_values(
             "MAILGUN_DOMAIN",
             "Mailgun domain",
             existing_values,
+            help_url=_MAILGUN_DOMAINS_URL,
+            help_label="Mailgun sending domains",
         )
         return {
             "MAILGUN_API_KEY": _existing_or_prompt_required(
@@ -435,6 +710,8 @@ def _prompt_medium_values(
                 "Mailgun API key",
                 existing_values,
                 hide_input=True,
+                help_url=_MAILGUN_API_SECURITY_URL,
+                help_label="Mailgun API keys",
             ),
             "MAILGUN_DOMAIN": domain,
             "MAILGUN_FROM_EMAIL": _existing_or_prompt_text(
@@ -448,6 +725,8 @@ def _prompt_medium_values(
                 "Mailgun webhook signing key",
                 existing_values,
                 hide_input=True,
+                help_url=_MAILGUN_API_SECURITY_URL,
+                help_label="Mailgun HTTP webhook signing key",
             ),
         }
 
@@ -457,23 +736,31 @@ def _prompt_medium_values(
             "SINCH_SERVICE_PLAN_ID",
             "Sinch service plan ID",
             existing_values,
+            help_url=_SINCH_SMS_SERVICE_APIS_URL,
+            help_label="Sinch SMS Service APIs",
         ),
         "SINCH_API_TOKEN": _existing_or_prompt_required(
             "SINCH_API_TOKEN",
             "Sinch API token",
             existing_values,
             hide_input=True,
+            help_url=_SINCH_SMS_SERVICE_APIS_URL,
+            help_label="Sinch SMS Service APIs",
         ),
         "SINCH_FROM_NUMBER": _existing_or_prompt_required(
             "SINCH_FROM_NUMBER",
             "Sinch from number",
             existing_values,
+            help_url=_SINCH_NUMBERS_URL,
+            help_label="Sinch numbers",
         ),
         "SINCH_WEBHOOK_TOKEN": _existing_or_prompt_required(
             "SINCH_WEBHOOK_TOKEN",
             "Sinch webhook token",
             existing_values,
             hide_input=True,
+            help_url=_SINCH_SMS_SERVICE_APIS_URL,
+            help_label="Set this webhook token in Sinch SMS callbacks",
         ),
     }
 
@@ -487,12 +774,16 @@ def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]
             "Creem API key",
             existing_values,
             hide_input=True,
+            help_url=_CREEM_DASHBOARD_URL,
+            help_label="Creem dashboard API keys",
         ),
         "CREEM_WEBHOOK_SECRET": _existing_or_prompt_required(
             "CREEM_WEBHOOK_SECRET",
             "Creem webhook secret",
             existing_values,
             hide_input=True,
+            help_url=_CREEM_DASHBOARD_URL,
+            help_label="Creem dashboard webhooks",
         ),
         "CREEM_API_BASE_URL": _existing_or_prompt_text(
             "CREEM_API_BASE_URL",
@@ -504,6 +795,8 @@ def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]
             "CREEM_PRODUCT_HOSTED_MONTHLY",
             "Creem hosted monthly product ID",
             existing_values,
+            help_url=_CREEM_PRODUCTS_URL,
+            help_label="Creem products",
         ),
     }
 
@@ -547,11 +840,16 @@ def _existing_or_prompt_required(
     existing_values: Mapping[str, str],
     *,
     hide_input: bool = False,
+    help_url: str | None = None,
+    help_label: str | None = None,
 ) -> str:
     existing_value = _existing_value(existing_values, key)
     if existing_value is not None:
         typer.echo(f"{label}: using existing value")
         return existing_value
+
+    if help_url is not None:
+        typer.echo(f"{help_label or label}: {help_url}")
 
     return _prompt_required(label, hide_input=hide_input)
 
@@ -626,6 +924,9 @@ def _print_next_steps(answers: SetupAnswers) -> None:
     typer.echo("")
     typer.echo("Next steps:")
     typer.echo("  Server health: http://localhost:8000/health")
+    oauth_base_url = answers.values["OAUTH_BASE_URL"].rstrip("/")
+    typer.echo(f"  Public health: {oauth_base_url}/health")
+    typer.echo(f"  Yahoo redirect URI: {oauth_base_url}/callback")
 
     if ChatMedium.DISCORD not in answers.chat_media:
         return
@@ -641,7 +942,6 @@ def _print_next_steps(answers: SetupAnswers) -> None:
         typer.echo("     @Gordie Who should I start tonight?")
         return
 
-    oauth_base_url = answers.values["OAUTH_BASE_URL"].rstrip("/")
     typer.echo("")
     typer.echo("Discord Interactions:")
     typer.echo("  1. Set this Interactions Endpoint URL in the Discord Developer Portal:")
@@ -685,18 +985,53 @@ def _medium_env_values(medium: ChatMedium, values: Mapping[str, str]) -> dict[st
 
 
 def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) -> None:
-    required_keys = required_keys_for_runtime(
-        llm_provider=answers.llm_provider,
-        chat_media=answers.chat_media,
-        values=values,
-        billing_enabled=answers.hosted,
-        include_database_url=False,
-        include_admin_api_key=True,
-    )
+    required_keys = [
+        "NGROK_AUTHTOKEN",
+        *required_keys_for_runtime(
+            llm_provider=answers.llm_provider,
+            chat_media=answers.chat_media,
+            values=values,
+            billing_enabled=answers.hosted,
+            include_database_url=False,
+            include_admin_api_key=True,
+        ),
+    ]
     missing = [key for key in required_keys if not values.get(key, "").strip()]
     if missing:
         missing_list = ", ".join(missing)
         raise SetupInputError(f"Missing required setup values: {missing_list}.")
+
+    _ = _normalize_https_base_url(values["OAUTH_BASE_URL"])
+
+
+def _normalize_https_base_url(value: str) -> str:
+    normalized = value.strip().rstrip("/")
+    parsed = urlparse(normalized)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise SetupInputError(
+            "OAUTH_BASE_URL must be a public HTTPS URL, for example https://gordie.example.com."
+        )
+    hostname = parsed.hostname
+    if hostname is None or _is_private_hostname(hostname):
+        raise SetupInputError(
+            "OAUTH_BASE_URL must be a public HTTPS URL, for example https://gordie.example.com."
+        )
+    if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+        raise SetupInputError("OAUTH_BASE_URL must not include a path, query string, or fragment.")
+    return normalized
+
+
+def _is_private_hostname(hostname: str) -> bool:
+    normalized = hostname.strip().lower().rstrip(".")
+    if normalized in {"localhost"} or normalized.endswith(".localhost"):
+        return True
+
+    try:
+        parsed_ip = ip_address(normalized)
+    except ValueError:
+        return False
+
+    return not parsed_ip.is_global
 
 
 def _serialize_env_value(value: str) -> str:
