@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 _ = load_dotenv()
 
+from module.config_validator import ConfigValidationError, validate_startup_config  # noqa: E402
 from module.logger import get_logger, redirect_stderr_to_logger  # noqa: E402
 
 if TYPE_CHECKING:
@@ -51,10 +52,10 @@ def create_server(host: str, port: int) -> "Server":
 
 def main() -> None:
     """Start the server."""
-    host = os.getenv("SERVER_HOST", "localhost")
-    port = int(os.getenv("SERVER_PORT", "8000"))
-
     try:
+        validate_startup_config(os.environ)
+        host = os.getenv("SERVER_HOST", "localhost")
+        port = int(os.getenv("SERVER_PORT", "8000"))
         run_migrations()
         if should_redirect_stderr():
             redirect_stderr_to_logger(logger)
@@ -65,7 +66,14 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("Shutting down server...")
         sys.exit(0)
-    except (CommandError, OSError, RuntimeError, SQLAlchemyError, ValueError) as e:
+    except (
+        ConfigValidationError,
+        CommandError,
+        OSError,
+        RuntimeError,
+        SQLAlchemyError,
+        ValueError,
+    ) as e:
         logger.error(f"Server error: {e}")
         sys.exit(1)
 

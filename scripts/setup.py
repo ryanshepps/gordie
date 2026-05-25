@@ -6,13 +6,23 @@ import re
 import secrets
 import shutil
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Final, cast
 
 import typer
+
+from module.config_requirements import (
+    ChatMedium,
+    DiscordMode,
+    LLMProvider,
+    chat_medium_values,
+    default_llm_model,
+    parse_chat_media_values,
+    required_keys_for_runtime,
+)
 
 app = typer.Typer(help="Gordie developer and self-hosting utilities.")
 
@@ -25,23 +35,6 @@ class DeploymentTarget(StrEnum):
     DOCKER = "docker"
 
 
-class ChatMedium(StrEnum):
-    TELEGRAM = "telegram"
-    DISCORD = "discord"
-    EMAIL = "email"
-    SMS = "sms"
-
-
-class LLMProvider(StrEnum):
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-
-
-class DiscordMode(StrEnum):
-    GATEWAY = "gateway"
-    INTERACTIONS = "interactions"
-
-
 @dataclass(frozen=True, slots=True)
 class SetupAnswers:
     deployment_target: DeploymentTarget
@@ -52,7 +45,7 @@ class SetupAnswers:
 
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
-_CHAT_MEDIUM_VALUES = ", ".join(medium.value for medium in ChatMedium)
+_CHAT_MEDIUM_VALUES = chat_medium_values()
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
 _DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
 _DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID"
@@ -69,28 +62,10 @@ def main() -> None:
 def parse_chat_media(raw_value: str) -> tuple[ChatMedium, ...]:
     """Parse a comma-separated chat medium list in user-entered order."""
 
-    values = [value.strip().lower() for value in raw_value.split(",") if value.strip()]
-    if not values:
-        raise SetupInputError("Choose at least one chat medium.")
-
-    media: list[ChatMedium] = []
-    invalid: list[str] = []
-    for value in values:
-        try:
-            medium = ChatMedium(value)
-        except ValueError:
-            invalid.append(value)
-            continue
-        if medium not in media:
-            media.append(medium)
-
-    if invalid:
-        invalid_list = ", ".join(invalid)
-        raise SetupInputError(
-            f"Unknown chat medium: {invalid_list}. Choose from: {_CHAT_MEDIUM_VALUES}."
-        )
-
-    return tuple(media)
+    try:
+        return parse_chat_media_values(raw_value, require_non_empty=True)
+    except ValueError as exc:
+        raise SetupInputError(str(exc)) from exc
 
 
 def build_env_values(
@@ -110,7 +85,7 @@ def build_env_values(
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
         "CHAT_MEDIA": ",".join(medium.value for medium in answers.chat_media),
         "LLM_PROVIDER": answers.llm_provider.value,
-        "LLM_MODEL": answers.values.get("LLM_MODEL", _default_llm_model(answers.llm_provider)),
+        "LLM_MODEL": answers.values.get("LLM_MODEL", default_llm_model(answers.llm_provider)),
         "OPENAI_API_KEY": answers.values.get("OPENAI_API_KEY", ""),
         "ANTHROPIC_API_KEY": answers.values.get("ANTHROPIC_API_KEY", ""),
         "YAHOO_CLIENT_ID": answers.values["YAHOO_CLIENT_ID"],
@@ -132,10 +107,7 @@ def build_env_values(
                 "CREEM_API_KEY": answers.values["CREEM_API_KEY"],
                 "CREEM_WEBHOOK_SECRET": answers.values["CREEM_WEBHOOK_SECRET"],
                 "CREEM_API_BASE_URL": answers.values["CREEM_API_BASE_URL"],
-                "CREEM_PRODUCT_STANDARD_MONTHLY": answers.values["CREEM_PRODUCT_STANDARD_MONTHLY"],
-                "CREEM_PRODUCT_STANDARD_ANNUAL": answers.values["CREEM_PRODUCT_STANDARD_ANNUAL"],
-                "CREEM_PRODUCT_ALLSTAR_MONTHLY": answers.values["CREEM_PRODUCT_ALLSTAR_MONTHLY"],
-                "CREEM_PRODUCT_ALLSTAR_ANNUAL": answers.values["CREEM_PRODUCT_ALLSTAR_ANNUAL"],
+                "CREEM_PRODUCT_HOSTED_MONTHLY": answers.values["CREEM_PRODUCT_HOSTED_MONTHLY"],
             }
         )
     else:
@@ -147,21 +119,8 @@ def build_env_values(
                     "CREEM_API_BASE_URL",
                     "https://test-api.creem.io/v1",
                 ),
-                "CREEM_PRODUCT_STANDARD_MONTHLY": answers.values.get(
-                    "CREEM_PRODUCT_STANDARD_MONTHLY",
-                    "",
-                ),
-                "CREEM_PRODUCT_STANDARD_ANNUAL": answers.values.get(
-                    "CREEM_PRODUCT_STANDARD_ANNUAL",
-                    "",
-                ),
-                "CREEM_PRODUCT_ALLSTAR_MONTHLY": answers.values.get(
-                    "CREEM_PRODUCT_ALLSTAR_MONTHLY",
-                    "",
-                ),
-                "CREEM_PRODUCT_ALLSTAR_ANNUAL": answers.values.get(
-                    "CREEM_PRODUCT_ALLSTAR_ANNUAL",
-                    "",
+                "CREEM_PRODUCT_HOSTED_MONTHLY": answers.values.get(
+                    "CREEM_PRODUCT_HOSTED_MONTHLY", ""
                 ),
             }
         )
@@ -541,24 +500,9 @@ def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]
             existing_values,
             default="https://test-api.creem.io/v1",
         ),
-        "CREEM_PRODUCT_STANDARD_MONTHLY": _existing_or_prompt_required(
-            "CREEM_PRODUCT_STANDARD_MONTHLY",
-            "Creem standard monthly product ID",
-            existing_values,
-        ),
-        "CREEM_PRODUCT_STANDARD_ANNUAL": _existing_or_prompt_required(
-            "CREEM_PRODUCT_STANDARD_ANNUAL",
-            "Creem standard annual product ID",
-            existing_values,
-        ),
-        "CREEM_PRODUCT_ALLSTAR_MONTHLY": _existing_or_prompt_required(
-            "CREEM_PRODUCT_ALLSTAR_MONTHLY",
-            "Creem all-star monthly product ID",
-            existing_values,
-        ),
-        "CREEM_PRODUCT_ALLSTAR_ANNUAL": _existing_or_prompt_required(
-            "CREEM_PRODUCT_ALLSTAR_ANNUAL",
-            "Creem all-star annual product ID",
+        "CREEM_PRODUCT_HOSTED_MONTHLY": _existing_or_prompt_required(
+            "CREEM_PRODUCT_HOSTED_MONTHLY",
+            "Creem hosted monthly product ID",
             existing_values,
         ),
     }
@@ -741,87 +685,18 @@ def _medium_env_values(medium: ChatMedium, values: Mapping[str, str]) -> dict[st
 
 
 def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) -> None:
-    required_keys = [
-        "ADMIN_API_KEY",
-        "OAUTH_BASE_URL",
-        "YAHOO_CLIENT_ID",
-        "YAHOO_CLIENT_SECRET",
-        *(_llm_required_keys(answers.llm_provider)),
-        *(_medium_required_keys(answers.chat_media, values)),
-        *(_billing_required_keys(answers.hosted)),
-    ]
+    required_keys = required_keys_for_runtime(
+        llm_provider=answers.llm_provider,
+        chat_media=answers.chat_media,
+        values=values,
+        billing_enabled=answers.hosted,
+        include_database_url=False,
+        include_admin_api_key=True,
+    )
     missing = [key for key in required_keys if not values.get(key, "").strip()]
     if missing:
         missing_list = ", ".join(missing)
         raise SetupInputError(f"Missing required setup values: {missing_list}.")
-
-
-def _llm_required_keys(provider: LLMProvider) -> tuple[str, ...]:
-    if provider is LLMProvider.OPENAI:
-        return ("OPENAI_API_KEY",)
-    return ("ANTHROPIC_API_KEY",)
-
-
-def _medium_required_keys(
-    media: Sequence[ChatMedium],
-    values: Mapping[str, str],
-) -> tuple[str, ...]:
-    required: list[str] = []
-    for medium in media:
-        if medium is ChatMedium.TELEGRAM:
-            required.append("TELEGRAM_BOT_TOKEN")
-        elif medium is ChatMedium.DISCORD:
-            required.extend(_discord_required_keys(values))
-        elif medium is ChatMedium.EMAIL:
-            required.extend(
-                (
-                    "MAILGUN_API_KEY",
-                    "MAILGUN_DOMAIN",
-                    "MAILGUN_FROM_EMAIL",
-                    "MAILGUN_WEBHOOK_SIGNING_KEY",
-                )
-            )
-        else:
-            required.extend(
-                (
-                    "SINCH_SERVICE_PLAN_ID",
-                    "SINCH_API_TOKEN",
-                    "SINCH_FROM_NUMBER",
-                    "SINCH_WEBHOOK_TOKEN",
-                )
-            )
-    return tuple(required)
-
-
-def _discord_required_keys(values: Mapping[str, str]) -> tuple[str, ...]:
-    mode = values.get("DISCORD_MODE", DiscordMode.GATEWAY.value).strip().lower()
-    if mode == DiscordMode.INTERACTIONS.value:
-        return ("DISCORD_MODE", "DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY")
-    return (
-        "DISCORD_MODE",
-        "DISCORD_APPLICATION_ID",
-        "DISCORD_BOT_TOKEN",
-        "DISCORD_ALLOWED_USER_IDS",
-    )
-
-
-def _billing_required_keys(hosted: bool) -> tuple[str, ...]:
-    if not hosted:
-        return ()
-    return (
-        "CREEM_API_KEY",
-        "CREEM_WEBHOOK_SECRET",
-        "CREEM_PRODUCT_STANDARD_MONTHLY",
-        "CREEM_PRODUCT_STANDARD_ANNUAL",
-        "CREEM_PRODUCT_ALLSTAR_MONTHLY",
-        "CREEM_PRODUCT_ALLSTAR_ANNUAL",
-    )
-
-
-def _default_llm_model(provider: LLMProvider) -> str:
-    if provider is LLMProvider.OPENAI:
-        return "gpt-4o-mini"
-    return "claude-sonnet-4-5"
 
 
 def _serialize_env_value(value: str) -> str:
