@@ -8,9 +8,12 @@ import selectors
 import shutil
 import subprocess
 import time
-from collections.abc import Mapping, Sequence
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from http.client import HTTPResponse
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated, Final, cast
@@ -70,6 +73,10 @@ _NGROK_TUNNEL_SERVICE: Final = "http://server:8000"
 _NGROK_DISCOVERY_SERVICE: Final = "http://localhost:8000"
 _NGROK_DISCOVERY_TIMEOUT_SECONDS: Final = 20.0
 _NGROK_PUBLIC_URL_RE = re.compile(r"https://[A-Za-z0-9.-]+\.ngrok(?:-free)?\.(?:app|dev|pizza|io)")
+_SERVER_HEALTH_URL: Final = "http://localhost:8000/health"
+_SERVER_HEALTH_TIMEOUT_SECONDS: Final = 30.0
+_SERVER_HEALTH_INTERVAL_SECONDS: Final = 2.0
+HealthProbe = Callable[[str, float], bool]
 
 
 @app.callback()
@@ -283,6 +290,7 @@ def _prompt_for_answers(
 ) -> SetupAnswers:
     typer.echo("Gordie setup")
     typer.echo("")
+    _print_setup_summary(hosted=hosted)
 
     deployment_target = _prompt_enum(
         "Deployment target",
@@ -292,7 +300,6 @@ def _prompt_for_answers(
     if deployment_target is DeploymentTarget.DOCKER and not skip_docker_check:
         _validate_docker_available()
 
-    typer.echo(f"Chat media choices: {_CHAT_MEDIUM_VALUES}")
     chat_media = _prompt_chat_media(existing_value=_existing_value(existing_values, "CHAT_MEDIA"))
 
     values: dict[str, str] = {}
@@ -355,9 +362,13 @@ def _prompt_chat_media(*, existing_value: str | None = None) -> tuple[ChatMedium
             typer.secho(str(exc), fg=typer.colors.RED)
 
     while True:
-        raw_value = _prompt_text("Chat media", default=_DEFAULT_CHAT_MEDIUM.value)
+        _print_chat_media_options()
+        raw_value = _prompt_text(
+            "Chat media numbers",
+            default=_chat_medium_number(_DEFAULT_CHAT_MEDIUM),
+        )
         try:
-            return parse_chat_media(raw_value)
+            return _parse_chat_media_selection(raw_value)
         except SetupInputError as exc:
             typer.secho(str(exc), fg=typer.colors.RED)
 
@@ -893,6 +904,70 @@ def _prompt_text(
     return str(prompted)
 
 
+def _print_setup_summary(*, hosted: bool) -> None:
+    typer.echo("This wizard will:")
+    typer.echo("  - write .env and reuse existing values when present")
+    typer.echo("  - collect required Docker, chat, LLM, ngrok, and Yahoo settings")
+    if hosted:
+        typer.echo("  - collect hosted billing credentials")
+    else:
+        typer.echo("  - skip hosted billing unless you pass --hosted")
+    typer.echo("  - start Docker Compose for the local stack")
+    typer.echo("")
+
+
+def _print_chat_media_options() -> None:
+    typer.echo("Chat media options:")
+    for index, medium in enumerate(ChatMedium, start=1):
+        suffix = " (default for local setup)" if medium is _DEFAULT_CHAT_MEDIUM else ""
+        typer.echo(f"  {index}. {medium.value}{suffix}")
+    typer.echo("Select one or more numbers separated by commas.")
+
+
+def _parse_chat_media_selection(raw_value: str) -> tuple[ChatMedium, ...]:
+    values = [value.strip().lower() for value in raw_value.split(",") if value.strip()]
+    if not values:
+        raise SetupInputError("Choose at least one chat medium.")
+
+    media: list[ChatMedium] = []
+    invalid: list[str] = []
+    by_number = {
+        str(index): medium
+        for index, medium in enumerate(ChatMedium, start=1)
+    }
+    by_name = {medium.value: medium for medium in ChatMedium}
+
+    for value in values:
+        medium = by_number.get(value) or by_name.get(value)
+        if medium is None:
+            invalid.append(value)
+            continue
+        if medium not in media:
+            media.append(medium)
+
+    if invalid:
+        invalid_list = ", ".join(invalid)
+        raise SetupInputError(
+            f"Unknown chat media selection: {invalid_list}. "
+            + f"Choose numbers from: {_chat_media_selection_help()}."
+        )
+
+    return tuple(media)
+
+
+def _chat_media_selection_help() -> str:
+    return ", ".join(
+        f"{index}={medium.value}" for index, medium in enumerate(ChatMedium, start=1)
+    )
+
+
+def _chat_medium_number(medium: ChatMedium) -> str:
+    for index, candidate in enumerate(ChatMedium, start=1):
+        if candidate is medium:
+            return str(index)
+    raise SetupInputError(f"Unsupported chat medium: {medium.value}.")
+
+
 def _discord_bot_url(application_id: str) -> str:
     return f"{_DISCORD_APPLICATIONS_URL}/{application_id}/bot"
 
@@ -910,20 +985,66 @@ def _start_docker_compose(*, skip_docker_start: bool) -> None:
 
     typer.echo("")
     typer.echo("Starting Docker services...")
+    command = ["docker", "compose", "up", "-d", "--build"]
     try:
-        _ = subprocess.run(["docker", "compose", "up", "-d", "--build"], check=True)
+        _ = subprocess.run(command, check=True)
     except FileNotFoundError as exc:
-        raise SetupInputError("Docker Compose was not found.") from exc
+        raise SetupInputError(
+            "Docker Compose was not found. Install Docker Desktop, then re-run "
+            + "`uv run gordie init`."
+        ) from exc
     except subprocess.CalledProcessError as exc:
         raise SetupInputError(
-            f"docker compose up -d --build failed with exit code {exc.returncode}."
+            "Docker Compose failed.\n"
+            + f"  Command: {' '.join(command)}\n"
+            + f"  Exit code: {exc.returncode}\n"
+            + "  Next step: make sure Docker Desktop is running, then run "
+            + "`docker compose logs -f server`."
         ) from exc
+
+    _wait_for_server_health()
+
+
+def _wait_for_server_health(
+    *,
+    url: str = _SERVER_HEALTH_URL,
+    timeout_seconds: float = _SERVER_HEALTH_TIMEOUT_SECONDS,
+    interval_seconds: float = _SERVER_HEALTH_INTERVAL_SECONDS,
+    probe: HealthProbe | None = None,
+) -> None:
+    typer.echo(f"Waiting for server health at {url}...")
+    health_probe = probe or _probe_server_health
+    deadline = time.monotonic() + timeout_seconds
+
+    while True:
+        if health_probe(url, interval_seconds):
+            typer.secho("Server is ready.", fg=typer.colors.GREEN)
+            return
+
+        if time.monotonic() >= deadline:
+            typer.secho(
+                "Server did not become ready before the timeout.\n"
+                + f"  Health check: {url}\n"
+                + "  Next step: run `docker compose logs -f server`.",
+                fg=typer.colors.YELLOW,
+            )
+            return
+
+        time.sleep(interval_seconds)
+
+
+def _probe_server_health(url: str, timeout_seconds: float) -> bool:
+    try:
+        with cast(HTTPResponse, urllib.request.urlopen(url, timeout=timeout_seconds)) as response:
+            return 200 <= response.status < 300
+    except (TimeoutError, urllib.error.URLError):
+        return False
 
 
 def _print_next_steps(answers: SetupAnswers) -> None:
     typer.echo("")
     typer.echo("Next steps:")
-    typer.echo("  Server health: http://localhost:8000/health")
+    typer.echo(f"  Server health: {_SERVER_HEALTH_URL}")
     oauth_base_url = answers.values["OAUTH_BASE_URL"].rstrip("/")
     typer.echo(f"  Public health: {oauth_base_url}/health")
     typer.echo(f"  Yahoo redirect URI: {oauth_base_url}/callback")
@@ -1072,7 +1193,8 @@ def _unescape_double_quoted_value(value: str) -> str:
 def _validate_docker_available() -> None:
     if shutil.which("docker") is None:
         raise SetupInputError(
-            "Docker was not found on PATH. Install Docker, then re-run `uv run gordie init`."
+            "Docker was not found on PATH. Install Docker Desktop, then re-run "
+            + "`uv run gordie init`."
         )
 
 
