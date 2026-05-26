@@ -931,10 +931,7 @@ def _parse_chat_media_selection(raw_value: str) -> tuple[ChatMedium, ...]:
 
     media: list[ChatMedium] = []
     invalid: list[str] = []
-    by_number = {
-        str(index): medium
-        for index, medium in enumerate(ChatMedium, start=1)
-    }
+    by_number = {str(index): medium for index, medium in enumerate(ChatMedium, start=1)}
     by_name = {medium.value: medium for medium in ChatMedium}
 
     for value in values:
@@ -956,9 +953,7 @@ def _parse_chat_media_selection(raw_value: str) -> tuple[ChatMedium, ...]:
 
 
 def _chat_media_selection_help() -> str:
-    return ", ".join(
-        f"{index}={medium.value}" for index, medium in enumerate(ChatMedium, start=1)
-    )
+    return ", ".join(f"{index}={medium.value}" for index, medium in enumerate(ChatMedium, start=1))
 
 
 def _chat_medium_number(medium: ChatMedium) -> str:
@@ -1022,13 +1017,11 @@ def _wait_for_server_health(
             return
 
         if time.monotonic() >= deadline:
-            typer.secho(
+            raise SetupInputError(
                 "Server did not become ready before the timeout.\n"
                 + f"  Health check: {url}\n"
-                + "  Next step: run `docker compose logs -f server`.",
-                fg=typer.colors.YELLOW,
+                + "  Next step: run `docker compose logs -f server`."
             )
-            return
 
         time.sleep(interval_seconds)
 

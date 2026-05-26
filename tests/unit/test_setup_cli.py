@@ -731,10 +731,11 @@ def test_init_command_reports_health_timeout_after_docker_start(
         ),
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1
     assert "Server did not become ready before the timeout." in result.output
     assert "Health check: http://localhost:8000/health" in result.output
     assert "docker compose logs -f server" in result.output
+    assert "Next steps:" not in result.output
 
 
 def test_init_command_reports_docker_compose_failure(
