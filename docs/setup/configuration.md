@@ -42,7 +42,13 @@ See per-service setup docs:
 | `CREEM_API_KEY` | No | empty | Leave empty to disable billing. Calls return 4xx; tier enforcement falls back to "all features enabled". |
 | `CREEM_WEBHOOK_SECRET` | If using Creem webhooks | — | |
 | `CREEM_API_BASE_URL` | No | `https://test-api.creem.io/v1` | Use the prod URL for live customers. |
-| `CREEM_PRODUCT_STANDARD_MONTHLY` etc. | If using Creem | — | Map tier → Creem product ID. |
+| `CREEM_PRODUCT_HOSTED_MONTHLY` | If using Creem | — | Hosted monthly product ID used for upgrade links. |
+
+## Maintenance page
+
+| Var | Required | Default | Notes |
+|-----|----------|---------|-------|
+| `OSS_GITHUB_URL` | No | `https://github.com/ryanshepps/gordie` | Repository link shown by the maintenance server. |
 
 ## Frontend (`frontend/.env` or Cloudflare Pages env)
 

@@ -7,10 +7,10 @@ import pytest
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
+from module.config_requirements import ChatMedium, LLMProvider
+from module.config_validator import validate_startup_config
 from scripts.setup import (
-    ChatMedium,
     DeploymentTarget,
-    LLMProvider,
     SetupAnswers,
     SetupInputError,
     app,
@@ -53,6 +53,7 @@ def test_build_env_values_skips_billing_by_default() -> None:
     assert values["TELEGRAM_BOT_TOKEN"] == "telegram-token"
     assert values["CREEM_API_KEY"] == ""
     assert values["CREEM_WEBHOOK_SECRET"] == ""
+    validate_startup_config(values)
 
 
 def test_build_env_values_rejects_missing_required_keys() -> None:
@@ -176,6 +177,7 @@ def test_build_env_values_supports_all_media_and_anthropic() -> None:
     assert values["DISCORD_ALLOWED_USER_IDS"] == "123"
     assert values["MAILGUN_DOMAIN"] == "example.com"
     assert values["SINCH_FROM_NUMBER"] == "+15551234567"
+    validate_startup_config(values)
 
 
 def test_render_env_file_preserves_comments_and_quotes_values() -> None:
@@ -923,10 +925,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
                 "CREEM_API_KEY=",
                 "CREEM_WEBHOOK_SECRET=",
                 "CREEM_API_BASE_URL=",
-                "CREEM_PRODUCT_STANDARD_MONTHLY=",
-                "CREEM_PRODUCT_STANDARD_ANNUAL=",
-                "CREEM_PRODUCT_ALLSTAR_MONTHLY=",
-                "CREEM_PRODUCT_ALLSTAR_ANNUAL=",
+                "CREEM_PRODUCT_HOSTED_MONTHLY=",
             ]
         )
     )
@@ -958,10 +957,7 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
             "creem-key\n"
             "creem-webhook\n"
             "\n"
-            "standard-monthly\n"
-            "standard-annual\n"
-            "allstar-monthly\n"
-            "allstar-annual\n"
+            "hosted-monthly\n"
         ),
     )
 
@@ -979,8 +975,8 @@ def test_init_command_with_hosted_writes_billing_values(tmp_path: Path) -> None:
     assert "Set this Interactions Endpoint URL" in result.output
     assert "CREEM_API_KEY=creem-key" in env_text
     assert "CREEM_WEBHOOK_SECRET=creem-webhook" in env_text
-    assert "CREEM_PRODUCT_STANDARD_MONTHLY=standard-monthly" in env_text
-    assert "CREEM_PRODUCT_ALLSTAR_ANNUAL=allstar-annual" in env_text
+    assert "CREEM_PRODUCT_HOSTED_MONTHLY=hosted-monthly" in env_text
+    validate_startup_config(parse_env_values(env_text))
 
 
 def test_docker_compose_runs_ngrok_with_authtoken() -> None:
