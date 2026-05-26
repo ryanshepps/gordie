@@ -47,10 +47,10 @@ YAHOO_CLIENT_ID=<consumer key>
 YAHOO_CLIENT_SECRET=<consumer secret>
 ```
 
-Then start or restart the stack:
+`uv run gordie init` starts the Docker Compose stack by default. Restart it manually only if you changed `.env` after setup, skipped Docker startup, or the services are stopped:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 ## 4. Connect your league
