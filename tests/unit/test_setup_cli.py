@@ -278,6 +278,12 @@ def test_init_command_writes_env_file(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
+    assert "This wizard will:" in result.output
+    assert "write .env and reuse existing values when present" in result.output
+    assert "collect required Docker, chat, LLM, ngrok, and Yahoo settings" in result.output
+    assert "skip hosted billing unless you pass --hosted" in result.output
+    assert "start Docker Compose for the local stack" in result.output
+    assert result.output.index("This wizard will:") < result.output.index("Deployment target")
     env_text = env_file.read_text()
     assert "CHAT_MEDIA=discord" in env_text
     assert "OAUTH_BASE_URL=https://gordie.ngrok-free.app" in env_text
@@ -350,7 +356,7 @@ def test_init_command_reprompts_for_http_oauth_base_url(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\ntelegram\n"
+            "\n1\n"
             "telegram-token\n"
             "\n"
             "sk-test\n"
@@ -411,7 +417,7 @@ def test_init_command_shows_dashboard_links_for_provider_credentials(tmp_path: P
             str(env_file),
         ],
         input=(
-            "\nemail,sms\n"
+            "\n3,4\n"
             "mg.example.com\n"
             "mailgun-key\n"
             "\n"
@@ -623,6 +629,143 @@ def test_init_command_starts_docker_compose_by_default(
         docker_calls.append((command, check))
         return subprocess.CompletedProcess(command, 0)
 
+    def fake_probe(_url: str, _timeout_seconds: float) -> bool:
+        return True
+
+    monkeypatch.setattr("scripts.setup.subprocess.run", fake_run)
+    monkeypatch.setattr("scripts.setup._probe_server_health", fake_probe)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-ngrok-automation",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input=(
+            "\n1\n"
+            "telegram-token\n"
+            "\n"
+            "sk-test\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert docker_calls == [(["docker", "compose", "up", "-d", "--build"], True)]
+    assert "Starting Docker services..." in result.output
+    assert "Waiting for server health at http://localhost:8000/health" in result.output
+    assert "Server is ready." in result.output
+    assert "Server health: http://localhost:8000/health" in result.output
+
+
+def test_init_command_reports_health_timeout_after_docker_start(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "NGROK_AUTHTOKEN=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+        _ = check
+        return subprocess.CompletedProcess(command, 0)
+
+    monotonic_values = iter([0.0, 31.0])
+
+    def fake_monotonic() -> float:
+        return next(monotonic_values)
+
+    def fake_probe(_url: str, _timeout_seconds: float) -> bool:
+        return False
+
+    monkeypatch.setattr("scripts.setup.subprocess.run", fake_run)
+    monkeypatch.setattr("scripts.setup.time.monotonic", fake_monotonic)
+    monkeypatch.setattr("scripts.setup._probe_server_health", fake_probe)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--skip-docker-check",
+            "--skip-ngrok-automation",
+            "--template-file",
+            str(template_file),
+            "--env-file",
+            str(env_file),
+        ],
+        input=(
+            "\n1\n"
+            "telegram-token\n"
+            "\n"
+            "sk-test\n"
+            "https://gordie.ngrok-free.app\n"
+            "ngrok-token\n"
+            "yahoo-id\n"
+            "yahoo-secret\n"
+        ),
+    )
+
+    assert result.exit_code == 1
+    assert "Server did not become ready before the timeout." in result.output
+    assert "Health check: http://localhost:8000/health" in result.output
+    assert "docker compose logs -f server" in result.output
+    assert "Next steps:" not in result.output
+
+
+def test_init_command_reports_docker_compose_failure(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    template_file = tmp_path / ".env.example"
+    env_file = tmp_path / ".env"
+    _ = template_file.write_text(
+        "\n".join(
+            [
+                "DATABASE_URL=",
+                "ADMIN_API_KEY=",
+                "OAUTH_BASE_URL=",
+                "NGROK_AUTHTOKEN=",
+                "OPENAI_API_KEY=",
+                "LLM_PROVIDER=",
+                "LLM_MODEL=",
+                "YAHOO_CLIENT_ID=",
+                "YAHOO_CLIENT_SECRET=",
+                "CHAT_MEDIA=",
+                "TELEGRAM_BOT_TOKEN=",
+            ]
+        )
+    )
+
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+        _ = check
+        raise subprocess.CalledProcessError(returncode=7, cmd=command)
+
     monkeypatch.setattr("scripts.setup.subprocess.run", fake_run)
     runner = CliRunner()
 
@@ -638,7 +781,7 @@ def test_init_command_starts_docker_compose_by_default(
             str(env_file),
         ],
         input=(
-            "\ntelegram\n"
+            "\n1\n"
             "telegram-token\n"
             "\n"
             "sk-test\n"
@@ -649,10 +792,12 @@ def test_init_command_starts_docker_compose_by_default(
         ),
     )
 
-    assert result.exit_code == 0, result.output
-    assert docker_calls == [(["docker", "compose", "up", "-d", "--build"], True)]
-    assert "Starting Docker services..." in result.output
-    assert "Server health: http://localhost:8000/health" in result.output
+    assert result.exit_code == 1
+    assert "Docker Compose failed." in result.output
+    assert "Command: docker compose up -d --build" in result.output
+    assert "Exit code: 7" in result.output
+    assert "Docker Desktop is running" in result.output
+    assert "docker compose logs -f server" in result.output
 
 
 def test_init_command_reuses_existing_env_values(tmp_path: Path) -> None:
@@ -884,7 +1029,7 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
             str(env_file),
         ],
         input=(
-            "\nslack\ntelegram\n"
+            "\nslack\n1\n"
             "telegram-token\n"
             "\n"
             "sk-test\n"
@@ -896,7 +1041,9 @@ def test_init_command_reprompts_for_invalid_chat_media(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    assert "Unknown chat medium: slack" in result.output
+    assert "Unknown chat media selection: slack" in result.output
+    assert "Choose numbers from: 1=telegram, 2=discord, 3=email, 4=sms" in result.output
+    assert "Chat media options:" in result.output
     assert "CHAT_MEDIA=telegram" in env_file.read_text()
 
 
