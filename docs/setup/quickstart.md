@@ -33,6 +33,20 @@ curl http://localhost:8000/health
 
 The server applies Alembic migrations automatically before it starts accepting requests. The ngrok connector starts in the same Compose stack, so your public hostname should reach the same `/health` endpoint.
 
+If the health check fails, check the running services first:
+
+```bash
+docker compose ps
+docker compose logs -f server ngrok
+```
+
+Common fixes:
+- Docker is not running: start Docker Desktop, then run `docker compose up -d --build`.
+- Port `8000` is occupied: stop the other process or change the server port before restarting Compose.
+- Startup validation fails: fix the missing or invalid `.env` value shown in the server log, then rerun `uv run gordie init`.
+- ngrok fails: confirm `NGROK_AUTHTOKEN` in `.env`, then check `docker compose logs -f ngrok`.
+- Public health fails: run `curl "$OAUTH_BASE_URL/health"` and confirm Yahoo uses the same base URL plus `/callback`.
+
 Run Compose manually only if setup was interrupted before Docker startup, you intentionally skipped startup, you changed `.env` or `docker-compose.yml` after setup, or the services are stopped later:
 
 ```bash
@@ -46,8 +60,8 @@ The fastest sanity check:
 
 ```bash
 uv run python scripts/message_agent.py \
-  --email you@example.com \
-  --message "What can you do?"
+  you@example.com \
+  "What can you do?"
 ```
 
 Output appears in `server.log` (tail it: `docker compose logs -f server`).

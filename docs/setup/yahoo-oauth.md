@@ -53,12 +53,15 @@ YAHOO_CLIENT_SECRET=<consumer secret>
 docker compose up -d --build
 ```
 
+If local health fails, run `docker compose ps` and `docker compose logs -f server ngrok`.
+If the public callback fails, run `curl "$OAUTH_BASE_URL/health"` and confirm Yahoo is configured with `OAUTH_BASE_URL` plus `/callback`.
+
 ## 4. Connect your league
 
 Send a first message to Gordie:
 
 ```bash
-uv run python scripts/message_agent.py --email you@example.com --message "hi"
+uv run python scripts/message_agent.py you@example.com "hi"
 ```
 
 Gordie replies with an OAuth link. Visit the URL, approve, get redirected back to `/callback?code=...`. Tokens land in `data/platform.db` (or the `yahoo_tokens` table in your Postgres if you've migrated to it).
