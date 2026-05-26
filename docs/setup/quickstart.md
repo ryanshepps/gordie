@@ -21,18 +21,38 @@ cd gordie
 uv run gordie init
 ```
 
-The setup wizard writes `.env`, verifies Docker is installed, prompts for your chat medium, LLM provider, Yahoo app credentials, and skips hosted billing unless you pass `--hosted`.
+The setup wizard writes `.env`, verifies Docker is installed, prompts for your chat medium, LLM provider, Yahoo app credentials, starts the Docker Compose stack, and skips hosted billing unless you pass `--hosted`.
 It also detects `ngrok`, offers to install it when it is missing, asks for your ngrok authtoken, briefly starts ngrok to detect your stable dev-domain URL, and writes that URL as `OAUTH_BASE_URL`. If you skip that automation, enter an existing public HTTPS URL and ngrok authtoken manually. The Docker connector sends tunnel traffic to `http://server:8000`.
 
-## 2. Start Postgres + the server
+## 2. Confirm Postgres + the server are running
 
 ```bash
-docker compose up -d
 curl http://localhost:8000/health
 # {"status":"ok"}
 ```
 
 The server applies Alembic migrations automatically before it starts accepting requests. The ngrok connector starts in the same Compose stack, so your public hostname should reach the same `/health` endpoint.
+
+If the health check fails, check the running services first:
+
+```bash
+docker compose ps
+docker compose logs -f server ngrok
+```
+
+Common fixes:
+- Docker is not running: start Docker Desktop, then run `docker compose up -d --build`.
+- Port `8000` is occupied: stop the other process or change the server port before restarting Compose.
+- Startup validation fails: fix the missing or invalid `.env` value shown in the server log, then rerun `uv run gordie init`.
+- ngrok fails: confirm `NGROK_AUTHTOKEN` in `.env`, then check `docker compose logs -f ngrok`.
+- Public health fails: run `curl "$OAUTH_BASE_URL/health"` and confirm Yahoo uses the same base URL plus `/callback`.
+
+Run Compose manually only if setup was interrupted before Docker startup, you intentionally skipped startup, you changed `.env` or `docker-compose.yml` after setup, or the services are stopped later:
+
+```bash
+docker compose up -d --build
+curl http://localhost:8000/health
+```
 
 ## 3. Send Gordie a message without configuring email
 
@@ -40,8 +60,8 @@ The fastest sanity check:
 
 ```bash
 uv run python scripts/message_agent.py \
-  --email you@example.com \
-  --message "What can you do?"
+  you@example.com \
+  "What can you do?"
 ```
 
 Output appears in `server.log` (tail it: `docker compose logs -f server`).

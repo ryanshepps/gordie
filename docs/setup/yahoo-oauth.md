@@ -47,18 +47,21 @@ YAHOO_CLIENT_ID=<consumer key>
 YAHOO_CLIENT_SECRET=<consumer secret>
 ```
 
-Then start or restart the stack:
+`uv run gordie init` starts the Docker Compose stack by default. Restart it manually only if you changed `.env` after setup, skipped Docker startup, or the services are stopped:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
+
+If local health fails, run `docker compose ps` and `docker compose logs -f server ngrok`.
+If the public callback fails, run `curl "$OAUTH_BASE_URL/health"` and confirm Yahoo is configured with `OAUTH_BASE_URL` plus `/callback`.
 
 ## 4. Connect your league
 
 Send a first message to Gordie:
 
 ```bash
-uv run python scripts/message_agent.py --email you@example.com --message "hi"
+uv run python scripts/message_agent.py you@example.com "hi"
 ```
 
 Gordie replies with an OAuth link. Visit the URL, approve, get redirected back to `/callback?code=...`. Tokens land in `data/platform.db` (or the `yahoo_tokens` table in your Postgres if you've migrated to it).
