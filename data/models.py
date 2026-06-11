@@ -24,6 +24,7 @@ class Medium(StrEnum):
     SMS = "sms"
     TELEGRAM = "telegram"
     DISCORD = "discord"
+    WEB = "web"
 
 
 class Base(DeclarativeBase):
@@ -203,6 +204,82 @@ class PendingUser(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     phone_number: Mapped[str | None] = mapped_column(String)
     email: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class TemporarySession(Base):
+    __tablename__ = "temporary_sessions"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    session_token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    question_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    converted_user_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class FantasyProviderConnection(Base):
+    __tablename__ = "fantasy_provider_connections"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "provider_user_id",
+            name="uq_fantasy_provider_connections_provider_user",
+        ),
+        Index("idx_fantasy_provider_connections_session", "temporary_session_id"),
+        Index("idx_fantasy_provider_connections_user", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    provider: Mapped[str] = mapped_column(String, nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(Text, nullable=False)
+    provider_email: Mapped[str | None] = mapped_column(String)
+    temporary_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("temporary_sessions.id")
+    )
+    user_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"))
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    question_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
+    connected_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class TemporaryChatMessage(Base):
+    __tablename__ = "temporary_chat_messages"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    temporary_session_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("temporary_sessions.id"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class TemporarySessionSaveLink(Base):
+    __tablename__ = "temporary_session_save_links"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    temporary_session_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("temporary_sessions.id"), nullable=False, index=True
+    )
+    email: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

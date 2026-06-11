@@ -59,6 +59,21 @@ def cleanup_processed_messages() -> None:
         repo.close()
 
 
+def cleanup_expired_temporary_sessions() -> None:
+    """Delete expired hosted-trial sessions and anonymous provider tokens."""
+    from data.temporary_session_repository import TemporarySessionRepository
+
+    repo = TemporarySessionRepository()
+    try:
+        deleted_count = repo.cleanup_expired()
+        logger.info(f"Cleaned up {deleted_count} expired temporary sessions")
+    except Exception as e:
+        repo.session.rollback()
+        logger.error(f"Failed to clean up temporary sessions: {e}")
+    finally:
+        repo.close()
+
+
 def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
     """Register all scheduled notification jobs.
 
@@ -143,3 +158,12 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         replace_existing=True,
     )
     logger.info("Registered scheduled job: cleanup_processed_messages (hourly)")
+
+    scheduler.add_job(
+        func=cleanup_expired_temporary_sessions,
+        trigger="interval",
+        hours=1,
+        id="cleanup_expired_temporary_sessions",
+        replace_existing=True,
+    )
+    logger.info("Registered scheduled job: cleanup_expired_temporary_sessions (hourly)")

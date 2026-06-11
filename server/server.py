@@ -8,6 +8,7 @@ for OAuth authentication and email processing.
 import asyncio
 import atexit
 import logging
+import os
 import threading
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -26,6 +27,7 @@ from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
 from server.routes.signup_routes import register_signup_routes
 from server.routes.sms_routes import register_sms_routes
+from server.routes.trial_routes import register_trial_routes
 
 # Suppress Hypercorn's default access logging
 logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
@@ -56,6 +58,7 @@ class Server:
             port: Port to listen on (e.g., 8000)
         """
         billing.validate_billing_config()
+        self._validate_single_web_replica()
 
         self.host = host
         self.port = port
@@ -76,6 +79,17 @@ class Server:
         # Set up routes
         self._setup_routes()
         self._setup_discord_gateway()
+
+    @staticmethod
+    def _validate_single_web_replica() -> None:
+        """Guard scheduled jobs while they still run inside the web process."""
+        replica_count = os.getenv("WEB_PROCESS_REPLICA_COUNT", "1")
+        allow_scaled_scheduler = os.getenv("ALLOW_IN_PROCESS_SCHEDULER_SCALE", "false").lower()
+        if replica_count != "1" and allow_scaled_scheduler not in {"1", "true", "yes"}:
+            raise RuntimeError(
+                "WEB_PROCESS_REPLICA_COUNT must be 1 while scheduled jobs run in-process. "
+                "Move scheduled jobs to a worker before scaling the web process."
+            )
 
     @staticmethod
     def _refresh_stats_db_on_startup() -> None:
@@ -112,6 +126,7 @@ class Server:
         register_discord_routes(self.app)
         register_signup_routes(self.app)
         register_sms_routes(self.app)
+        register_trial_routes(self.app)
         if billing.billing_enabled:
             billing.register_routes(self.app)
 
