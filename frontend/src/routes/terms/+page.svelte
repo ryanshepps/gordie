@@ -81,7 +81,7 @@
 
 		<section>
 			<h2>Changes to These Terms</h2>
-			<p>We may update these terms from time to time. If we make significant changes, we'll notify you by email. Continued use of the Service after changes constitutes acceptance of the updated terms.</p>
+			<p>We may update these terms from time to time. Changes will be published on this page. Continued use of the Service after changes constitutes acceptance of the updated terms.</p>
 		</section>
 
 		<section>

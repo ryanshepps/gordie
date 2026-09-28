@@ -80,7 +80,7 @@
 
 		<section>
 			<h2>Changes to This Policy</h2>
-			<p>We may update this policy from time to time. If we make significant changes, we'll notify you by email.</p>
+			<p>We may update this policy from time to time. Changes will be published on this page.</p>
 		</section>
 
 		<section>
