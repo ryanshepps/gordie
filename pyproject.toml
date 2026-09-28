@@ -22,7 +22,6 @@ dependencies = [
     "requests>=2.32.0",
     "sqlalchemy>=2.0.0",
     "yfpy>=17.0.0",
-    "pynacl>=1.6.2",
     "python-json-logger>=2.0.7",
     "apscheduler>=3.10.4",
     "pytest-cov>=7.0.0",
@@ -31,7 +30,6 @@ dependencies = [
     "numpy>=2.0.0",
     "pybaseball>=2.2.7",
     "typer>=0.25.1",
-    "discord-py>=2.7.1",
 ]
 
 [project.scripts]

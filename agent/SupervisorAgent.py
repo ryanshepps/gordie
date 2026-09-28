@@ -20,7 +20,6 @@ from module.logger import get_logger
 from tools.hockey.stats.query_stats_db import query_hockey_stats_db
 from tools.memory.search_past_conversations import create_search_past_conversations_tool
 from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
-from tools.notifications.manage_notifications import manage_notifications
 from tools.yahoo.onboard_user_team import onboard_user_team
 
 END_NODE: Literal["__end__"] = "__end__"
@@ -44,7 +43,6 @@ def create_supervisor_agent(system_prompt: str):
         query_mlb_stats_db,
         onboard_user_team,
         search_past_conversations,
-        manage_notifications,
     ]
 
     if billing_enabled:

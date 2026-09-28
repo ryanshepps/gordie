@@ -46,7 +46,7 @@
 					{label}
 				</a>
 			{/each}
-			<a href="/#signup" class="btn btn-primary nav-cta" onclick={closeMenu}>Get Started</a>
+			<a href="https://github.com/ryanshepps/gordie" class="btn btn-primary nav-cta" onclick={closeMenu}>Source Code</a>
 		</div>
 	</nav>
 </header>

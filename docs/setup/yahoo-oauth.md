@@ -64,7 +64,7 @@ Send a first message to Gordie:
 uv run python scripts/message_agent.py you@example.com "hi"
 ```
 
-Gordie replies with an OAuth link. Visit the URL, approve, get redirected back to `/callback?code=...`. Tokens land in `data/platform.db` (or the `yahoo_tokens` table in your Postgres if you've migrated to it).
+The command prints an OAuth link. Visit the URL, approve, get redirected back to `/callback?code=...`. Tokens are saved in the `yahoo_tokens` table in Postgres. Run the command again after authorization.
 
 ## 5. Refresh + multi-team
 

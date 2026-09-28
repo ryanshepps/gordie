@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from data.models import Medium
-from data.repository import DatabaseRow, Repository
+from data.repository import Repository
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,21 +69,3 @@ class ThreadRepository(Repository):
                 "Thread creation conflicted but no existing thread was found"
             ) from None
         return ThreadRecord(id=thread_id, user_id=user_id, medium=medium, is_new_thread=True)
-
-    def get_sms_external_id(self, thread_id: str) -> str | None:
-        """Return the SMS external ID for a conversation thread, if it has one."""
-        result: DatabaseRow | None = self.session.execute(
-            text(
-                """
-                SELECT ui.external_id
-                FROM conversation_threads ct
-                JOIN user_identities ui
-                    ON ui.user_id = ct.user_id AND ui.medium = :medium
-                WHERE ct.id = :thread_id
-                """
-            ),
-            {"thread_id": thread_id, "medium": Medium.SMS.value},
-        ).fetchone()
-        if not result:
-            return None
-        return str(result[0])

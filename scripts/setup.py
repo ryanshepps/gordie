@@ -22,12 +22,8 @@ from urllib.parse import urlparse
 import typer
 
 from module.config_requirements import (
-    ChatMedium,
-    DiscordMode,
     LLMProvider,
-    chat_medium_values,
     default_llm_model,
-    parse_chat_media_values,
     required_keys_for_runtime,
 )
 
@@ -45,27 +41,38 @@ class DeploymentTarget(StrEnum):
 @dataclass(frozen=True, slots=True)
 class SetupAnswers:
     deployment_target: DeploymentTarget
-    chat_media: tuple[ChatMedium, ...]
     llm_provider: LLMProvider
     values: Mapping[str, str]
     hosted: bool
 
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
-_CHAT_MEDIUM_VALUES = chat_medium_values()
+_RETIRED_CHANNEL_KEYS = frozenset(
+    {
+        "CHAT_MEDIA",
+        "TELEGRAM_BOT_TOKEN",
+        "DISCORD_MODE",
+        "DISCORD_APPLICATION_ID",
+        "DISCORD_PUBLIC_KEY",
+        "DISCORD_BOT_TOKEN",
+        "DISCORD_ALLOWED_USER_IDS",
+        "DISCORD_REQUIRE_MENTION",
+        "DISCORD_GATEWAY_ENABLED",
+        "MAILGUN_API_KEY",
+        "MAILGUN_DOMAIN",
+        "MAILGUN_FROM_EMAIL",
+        "MAILGUN_WEBHOOK_SIGNING_KEY",
+        "SINCH_SERVICE_PLAN_ID",
+        "SINCH_API_TOKEN",
+        "SINCH_FROM_NUMBER",
+        "SINCH_WEBHOOK_TOKEN",
+    }
+)
 _OPENAI_API_KEYS_URL: Final = "https://platform.openai.com/api-keys"
 _ANTHROPIC_API_KEYS_URL: Final = "https://console.anthropic.com/settings/keys"
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
-_TELEGRAM_BOTFATHER_URL: Final = "https://t.me/BotFather"
-_DISCORD_APPLICATIONS_URL = "https://discord.com/developers/applications"
-_DISCORD_USER_ID_HELP_URL = "https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID"
-_MAILGUN_API_SECURITY_URL: Final = "https://app.mailgun.com/app/account/security/api_keys"
-_MAILGUN_DOMAINS_URL: Final = "https://app.mailgun.com/mg/sending/domains"
-_SINCH_SMS_SERVICE_APIS_URL: Final = "https://dashboard.sinch.com/sms/api/services"
-_SINCH_NUMBERS_URL: Final = "https://dashboard.sinch.com/numbers/your-numbers"
 _CREEM_DASHBOARD_URL: Final = "https://www.creem.io/dashboard"
 _CREEM_PRODUCTS_URL: Final = "https://www.creem.io/dashboard/products"
-_DEFAULT_CHAT_MEDIUM: Final = ChatMedium.DISCORD
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(".env.example")
 _NGROK_AUTHTOKEN_URL: Final = "https://dashboard.ngrok.com/get-started/your-authtoken"
@@ -84,15 +91,6 @@ def main() -> None:
     """Run Gordie setup utilities."""
 
 
-def parse_chat_media(raw_value: str) -> tuple[ChatMedium, ...]:
-    """Parse a comma-separated chat medium list in user-entered order."""
-
-    try:
-        return parse_chat_media_values(raw_value, require_non_empty=True)
-    except ValueError as exc:
-        raise SetupInputError(str(exc)) from exc
-
-
 def build_env_values(
     answers: SetupAnswers,
     *,
@@ -109,7 +107,6 @@ def build_env_values(
         "ENVIRONMENT": answers.values.get("ENVIRONMENT", "development"),
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
         "NGROK_AUTHTOKEN": answers.values.get("NGROK_AUTHTOKEN", ""),
-        "CHAT_MEDIA": ",".join(medium.value for medium in answers.chat_media),
         "LLM_PROVIDER": answers.llm_provider.value,
         "LLM_MODEL": answers.values.get("LLM_MODEL", default_llm_model(answers.llm_provider)),
         "OPENAI_API_KEY": answers.values.get("OPENAI_API_KEY", ""),
@@ -123,9 +120,6 @@ def build_env_values(
         values["OPENAI_API_KEY"] = answers.values["OPENAI_API_KEY"]
     else:
         values["ANTHROPIC_API_KEY"] = answers.values["ANTHROPIC_API_KEY"]
-
-    for medium in answers.chat_media:
-        values.update(_medium_env_values(medium, answers.values))
 
     if answers.hosted:
         values.update(
@@ -254,7 +248,10 @@ def init(
             answers,
             admin_api_key=_existing_value(existing_values, "ADMIN_API_KEY"),
         )
-        env_text = render_env_file(template_file.read_text(), existing_values | generated_values)
+        retained_values = {
+            key: value for key, value in existing_values.items() if key not in _RETIRED_CHANNEL_KEYS
+        }
+        env_text = render_env_file(template_file.read_text(), retained_values | generated_values)
         _ = env_file.write_text(env_text)
         typer.secho(f"Wrote {env_file}", fg=typer.colors.GREEN)
         if answers.deployment_target is DeploymentTarget.DOCKER:
@@ -300,12 +297,7 @@ def _prompt_for_answers(
     if deployment_target is DeploymentTarget.DOCKER and not skip_docker_check:
         _validate_docker_available()
 
-    chat_media = _prompt_chat_media(existing_value=_existing_value(existing_values, "CHAT_MEDIA"))
-
     values: dict[str, str] = {}
-    for medium in chat_media:
-        values.update(_prompt_medium_values(medium, existing_values, hosted=hosted))
-
     llm_provider = _prompt_enum(
         "LLM provider",
         LLMProvider,
@@ -346,31 +338,10 @@ def _prompt_for_answers(
 
     return SetupAnswers(
         deployment_target=deployment_target,
-        chat_media=chat_media,
         llm_provider=llm_provider,
         values=dict(existing_values) | values,
         hosted=hosted,
     )
-
-
-def _prompt_chat_media(*, existing_value: str | None = None) -> tuple[ChatMedium, ...]:
-    if existing_value is not None:
-        try:
-            typer.echo("Chat media: using existing value")
-            return parse_chat_media(existing_value)
-        except SetupInputError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED)
-
-    while True:
-        _print_chat_media_options()
-        raw_value = _prompt_text(
-            "Chat media numbers",
-            default=_chat_medium_number(_DEFAULT_CHAT_MEDIUM),
-        )
-        try:
-            return _parse_chat_media_selection(raw_value)
-        except SetupInputError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED)
 
 
 def _prompt_llm_values(
@@ -632,150 +603,6 @@ def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
             typer.secho(str(exc), fg=typer.colors.RED)
 
 
-def _prompt_medium_values(
-    medium: ChatMedium,
-    existing_values: Mapping[str, str],
-    *,
-    hosted: bool,
-) -> dict[str, str]:
-    typer.echo("")
-    if medium is ChatMedium.TELEGRAM:
-        typer.echo("Telegram setup")
-        return {
-            "TELEGRAM_BOT_TOKEN": _existing_or_prompt_required(
-                "TELEGRAM_BOT_TOKEN",
-                "Telegram bot token",
-                existing_values,
-                hide_input=True,
-                help_url=_TELEGRAM_BOTFATHER_URL,
-                help_label="Create or manage your Telegram bot with BotFather",
-            )
-        }
-
-    if medium is ChatMedium.DISCORD:
-        mode = _discord_mode_for_setup(hosted=hosted)
-        application_id = _existing_or_prompt_required(
-            "DISCORD_APPLICATION_ID",
-            "Discord application ID",
-            existing_values,
-            help_url=f"{_DISCORD_APPLICATIONS_URL} (General Information)",
-            help_label="Discord application",
-        )
-        if mode is DiscordMode.GATEWAY:
-            bot_token = _existing_or_prompt_required(
-                "DISCORD_BOT_TOKEN",
-                "Discord bot token",
-                existing_values,
-                hide_input=True,
-                help_url=_discord_bot_url(application_id),
-                help_label="Discord bot token",
-            )
-            allowed_user_ids = _existing_or_prompt_required(
-                "DISCORD_ALLOWED_USER_IDS",
-                "Discord allowed user IDs",
-                existing_values,
-                help_url=_DISCORD_USER_ID_HELP_URL,
-                help_label="Discord user ID help",
-            )
-            typer.echo(f"Message Content Intent: {_discord_bot_url(application_id)}")
-            typer.echo("Enable Message Content Intent for Gateway mode.")
-            return {
-                "DISCORD_MODE": mode.value,
-                "DISCORD_APPLICATION_ID": application_id,
-                "DISCORD_BOT_TOKEN": bot_token,
-                "DISCORD_ALLOWED_USER_IDS": allowed_user_ids,
-                "DISCORD_REQUIRE_MENTION": _existing_or_prompt_text(
-                    "DISCORD_REQUIRE_MENTION",
-                    "Require @mention in servers",
-                    existing_values,
-                    default="true",
-                ),
-            }
-
-        public_key = _existing_or_prompt_required(
-            "DISCORD_PUBLIC_KEY",
-            "Discord public key",
-            existing_values,
-            hide_input=True,
-            help_url=f"{_DISCORD_APPLICATIONS_URL} (General Information)",
-            help_label="Discord public key",
-        )
-        return {
-            "DISCORD_MODE": mode.value,
-            "DISCORD_APPLICATION_ID": application_id,
-            "DISCORD_PUBLIC_KEY": public_key,
-        }
-
-    if medium is ChatMedium.EMAIL:
-        typer.echo("Email setup (Mailgun)")
-        domain = _existing_or_prompt_required(
-            "MAILGUN_DOMAIN",
-            "Mailgun domain",
-            existing_values,
-            help_url=_MAILGUN_DOMAINS_URL,
-            help_label="Mailgun sending domains",
-        )
-        return {
-            "MAILGUN_API_KEY": _existing_or_prompt_required(
-                "MAILGUN_API_KEY",
-                "Mailgun API key",
-                existing_values,
-                hide_input=True,
-                help_url=_MAILGUN_API_SECURITY_URL,
-                help_label="Mailgun API keys",
-            ),
-            "MAILGUN_DOMAIN": domain,
-            "MAILGUN_FROM_EMAIL": _existing_or_prompt_text(
-                "MAILGUN_FROM_EMAIL",
-                "Mailgun from email",
-                existing_values,
-                default=f"Gordie <gordie@{domain}>",
-            ),
-            "MAILGUN_WEBHOOK_SIGNING_KEY": _existing_or_prompt_required(
-                "MAILGUN_WEBHOOK_SIGNING_KEY",
-                "Mailgun webhook signing key",
-                existing_values,
-                hide_input=True,
-                help_url=_MAILGUN_API_SECURITY_URL,
-                help_label="Mailgun HTTP webhook signing key",
-            ),
-        }
-
-    typer.echo("SMS setup (Sinch)")
-    return {
-        "SINCH_SERVICE_PLAN_ID": _existing_or_prompt_required(
-            "SINCH_SERVICE_PLAN_ID",
-            "Sinch service plan ID",
-            existing_values,
-            help_url=_SINCH_SMS_SERVICE_APIS_URL,
-            help_label="Sinch SMS Service APIs",
-        ),
-        "SINCH_API_TOKEN": _existing_or_prompt_required(
-            "SINCH_API_TOKEN",
-            "Sinch API token",
-            existing_values,
-            hide_input=True,
-            help_url=_SINCH_SMS_SERVICE_APIS_URL,
-            help_label="Sinch SMS Service APIs",
-        ),
-        "SINCH_FROM_NUMBER": _existing_or_prompt_required(
-            "SINCH_FROM_NUMBER",
-            "Sinch from number",
-            existing_values,
-            help_url=_SINCH_NUMBERS_URL,
-            help_label="Sinch numbers",
-        ),
-        "SINCH_WEBHOOK_TOKEN": _existing_or_prompt_required(
-            "SINCH_WEBHOOK_TOKEN",
-            "Sinch webhook token",
-            existing_values,
-            hide_input=True,
-            help_url=_SINCH_SMS_SERVICE_APIS_URL,
-            help_label="Set this webhook token in Sinch SMS callbacks",
-        ),
-    }
-
-
 def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]:
     typer.echo("")
     typer.echo("Hosted billing setup (Creem)")
@@ -834,15 +661,6 @@ def _prompt_enum[T: StrEnum](
             return enum_type(normalized)
         except ValueError:
             typer.secho(f"Choose one of: {choices}.", fg=typer.colors.RED)
-
-
-def _discord_mode_for_setup(*, hosted: bool) -> DiscordMode:
-    if hosted:
-        typer.echo("Discord mode: interactions (hosted)")
-        return DiscordMode.INTERACTIONS
-
-    typer.echo("Discord mode: gateway")
-    return DiscordMode.GATEWAY
 
 
 def _existing_or_prompt_required(
@@ -907,71 +725,13 @@ def _prompt_text(
 def _print_setup_summary(*, hosted: bool) -> None:
     typer.echo("This wizard will:")
     typer.echo("  - write .env and reuse existing values when present")
-    typer.echo("  - collect required Docker, chat, LLM, ngrok, and Yahoo settings")
+    typer.echo("  - collect required Docker, LLM, ngrok, and Yahoo settings")
     if hosted:
         typer.echo("  - collect hosted billing credentials")
     else:
         typer.echo("  - skip hosted billing unless you pass --hosted")
     typer.echo("  - start Docker Compose for the local stack")
     typer.echo("")
-
-
-def _print_chat_media_options() -> None:
-    typer.echo("Chat media options:")
-    for index, medium in enumerate(ChatMedium, start=1):
-        suffix = " (default for local setup)" if medium is _DEFAULT_CHAT_MEDIUM else ""
-        typer.echo(f"  {index}. {medium.value}{suffix}")
-    typer.echo("Select one or more numbers separated by commas.")
-
-
-def _parse_chat_media_selection(raw_value: str) -> tuple[ChatMedium, ...]:
-    values = [value.strip().lower() for value in raw_value.split(",") if value.strip()]
-    if not values:
-        raise SetupInputError("Choose at least one chat medium.")
-
-    media: list[ChatMedium] = []
-    invalid: list[str] = []
-    by_number = {str(index): medium for index, medium in enumerate(ChatMedium, start=1)}
-    by_name = {medium.value: medium for medium in ChatMedium}
-
-    for value in values:
-        medium = by_number.get(value) or by_name.get(value)
-        if medium is None:
-            invalid.append(value)
-            continue
-        if medium not in media:
-            media.append(medium)
-
-    if invalid:
-        invalid_list = ", ".join(invalid)
-        raise SetupInputError(
-            f"Unknown chat media selection: {invalid_list}. "
-            + f"Choose numbers from: {_chat_media_selection_help()}."
-        )
-
-    return tuple(media)
-
-
-def _chat_media_selection_help() -> str:
-    return ", ".join(f"{index}={medium.value}" for index, medium in enumerate(ChatMedium, start=1))
-
-
-def _chat_medium_number(medium: ChatMedium) -> str:
-    for index, candidate in enumerate(ChatMedium, start=1):
-        if candidate is medium:
-            return str(index)
-    raise SetupInputError(f"Unsupported chat medium: {medium.value}.")
-
-
-def _discord_bot_url(application_id: str) -> str:
-    return f"{_DISCORD_APPLICATIONS_URL}/{application_id}/bot"
-
-
-def _discord_invite_url(application_id: str) -> str:
-    return (
-        "https://discord.com/oauth2/authorize"
-        f"?client_id={application_id}&scope=bot&permissions=68608"
-    )
 
 
 def _start_docker_compose(*, skip_docker_start: bool) -> None:
@@ -1042,26 +802,6 @@ def _print_next_steps(answers: SetupAnswers) -> None:
     typer.echo(f"  Public health: {oauth_base_url}/health")
     typer.echo(f"  Yahoo redirect URI: {oauth_base_url}/callback")
 
-    if ChatMedium.DISCORD not in answers.chat_media:
-        return
-
-    application_id = answers.values.get("DISCORD_APPLICATION_ID", "")
-    discord_mode = answers.values.get("DISCORD_MODE", DiscordMode.GATEWAY.value)
-    if discord_mode == DiscordMode.GATEWAY.value:
-        typer.echo("")
-        typer.echo("Discord Gateway:")
-        typer.echo(f"  1. Enable Message Content Intent: {_discord_bot_url(application_id)}")
-        typer.echo(f"  2. Invite the bot to your server: {_discord_invite_url(application_id)}")
-        typer.echo("  3. DM the bot, or mention it in a server channel:")
-        typer.echo("     @Gordie Who should I start tonight?")
-        return
-
-    typer.echo("")
-    typer.echo("Discord Interactions:")
-    typer.echo("  1. Set this Interactions Endpoint URL in the Discord Developer Portal:")
-    typer.echo(f"     {oauth_base_url}/discord/interactions")
-    typer.echo("  2. Use the /gordie command after Discord verifies the endpoint.")
-
 
 def _existing_value(values: Mapping[str, str], key: str) -> str | None:
     value = values.get(key)
@@ -1070,40 +810,11 @@ def _existing_value(values: Mapping[str, str], key: str) -> str | None:
     return value
 
 
-def _medium_env_values(medium: ChatMedium, values: Mapping[str, str]) -> dict[str, str]:
-    if medium is ChatMedium.TELEGRAM:
-        return {"TELEGRAM_BOT_TOKEN": values["TELEGRAM_BOT_TOKEN"]}
-    if medium is ChatMedium.DISCORD:
-        discord_mode = values.get("DISCORD_MODE", DiscordMode.GATEWAY.value)
-        return {
-            "DISCORD_MODE": discord_mode,
-            "DISCORD_APPLICATION_ID": values["DISCORD_APPLICATION_ID"],
-            "DISCORD_PUBLIC_KEY": values.get("DISCORD_PUBLIC_KEY", ""),
-            "DISCORD_BOT_TOKEN": values.get("DISCORD_BOT_TOKEN", ""),
-            "DISCORD_ALLOWED_USER_IDS": values.get("DISCORD_ALLOWED_USER_IDS", ""),
-            "DISCORD_REQUIRE_MENTION": values.get("DISCORD_REQUIRE_MENTION", "true"),
-        }
-    if medium is ChatMedium.EMAIL:
-        return {
-            "MAILGUN_API_KEY": values["MAILGUN_API_KEY"],
-            "MAILGUN_DOMAIN": values["MAILGUN_DOMAIN"],
-            "MAILGUN_FROM_EMAIL": values["MAILGUN_FROM_EMAIL"],
-            "MAILGUN_WEBHOOK_SIGNING_KEY": values["MAILGUN_WEBHOOK_SIGNING_KEY"],
-        }
-    return {
-        "SINCH_SERVICE_PLAN_ID": values["SINCH_SERVICE_PLAN_ID"],
-        "SINCH_API_TOKEN": values["SINCH_API_TOKEN"],
-        "SINCH_FROM_NUMBER": values["SINCH_FROM_NUMBER"],
-        "SINCH_WEBHOOK_TOKEN": values["SINCH_WEBHOOK_TOKEN"],
-    }
-
-
 def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) -> None:
     required_keys = [
         "NGROK_AUTHTOKEN",
         *required_keys_for_runtime(
             llm_provider=answers.llm_provider,
-            chat_media=answers.chat_media,
             values=values,
             billing_enabled=answers.hosted,
             include_database_url=False,

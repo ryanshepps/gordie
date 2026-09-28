@@ -1,4 +1,4 @@
-"""Start the server to handle OAuth callbacks and email webhooks."""
+"""Start the server to handle Yahoo OAuth and billing."""
 
 import os
 import sys

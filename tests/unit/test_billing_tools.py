@@ -45,7 +45,7 @@ class TestGetSubscriptionStatus:
         assert result["leagues_allowed"] == 1
         assert "plans" in result
         assert result["plans"]["hosted"]["price"] == "$10/mo"
-        assert result["plans"]["free"]["digests"] == "Yes"
+        assert result["plans"]["free"]["digests"] == "Unavailable"
 
     @patch("billing.tools.get_subscription_status.get_billing_status_by_user_id")
     def test_hosted_user_includes_period_end(self, mock_billing) -> None:

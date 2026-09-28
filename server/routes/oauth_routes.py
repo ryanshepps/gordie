@@ -1,7 +1,6 @@
 """OAuth callback route handler."""
 
 import os
-import threading
 from html import escape
 from uuid import UUID
 
@@ -14,20 +13,18 @@ logger = get_logger(__name__)
 
 
 def register_oauth_routes(app):
-    """Register OAuth-related routes on the Flask app.
+    """Register Yahoo OAuth callback routes on the Quart app.
 
     Args:
-        app: Flask application instance
+        app: Quart application instance
     """
 
     @app.route("/callback")
     async def callback():
         """Handle OAuth callback from Yahoo.
 
-        The callback is fully self-contained: it exchanges the auth code for
-        tokens, saves them, cleans up the pending_oauth row, and spawns a
-        background thread to re-invoke the agent so the user's conversation
-        continues automatically.
+        The callback exchanges the authorization code, saves tokens under the
+        account identity, and deletes the pending OAuth record.
         """
         code = request.args.get("code")
         error = request.args.get("error")
@@ -66,8 +63,11 @@ def register_oauth_routes(app):
                     400,
                 )
 
-            # Unpack record columns: (id, nonce, medium, external_id, thread_id, created_at)
-            _, nonce, medium_value, external_id, thread_id, _ = record
+            _, nonce, medium_value, external_id, _, _ = record
+            from data.models import Medium
+
+            if medium_value != Medium.EMAIL.value:
+                return _error_html("Invalid Request", "Unsupported OAuth account identity."), 400
 
             # Exchange code for tokens
             client_id = os.getenv("YAHOO_CLIENT_ID")
@@ -101,25 +101,17 @@ def register_oauth_routes(app):
                     "Authentication Error", "Could not retrieve your Yahoo email."
                 ), 500
 
-            from data.models import Medium
             from data.user_repository import UserRepository
-
-            medium = Medium(str(medium_value))
-            phone_number = external_id if medium is Medium.SMS else None
 
             user_repo = UserRepository()
             try:
                 email_user = user_repo.get_by_identity(Medium.EMAIL, yahoo_email)
-                source_user = user_repo.get_by_identity(medium, str(external_id))
-
+                source_user = user_repo.get_by_identity(Medium.EMAIL, str(external_id))
                 if email_user:
                     user_id = UUID(str(email_user[0]))
                     if not source_user:
                         user_repo.link_identity(
-                            user_id,
-                            medium,
-                            str(external_id),
-                            str(external_id),
+                            user_id, Medium.EMAIL, str(external_id), str(external_id)
                         )
                     elif UUID(str(source_user[0])) != user_id:
                         user_repo.merge_users(UUID(str(source_user[0])), user_id)
@@ -132,23 +124,8 @@ def register_oauth_routes(app):
                         yahoo_email,
                         yahoo_email,
                     )
-                    if medium is not Medium.EMAIL:
-                        user_repo.link_identity(user_id, medium, str(external_id), str(external_id))
             finally:
                 user_repo.close()
-
-            # Account linking for SMS cold-start: remove pending phone signup after link.
-            if phone_number:
-                from data.pending_user_repository import PendingUserRepository
-
-                pending_user_repo = PendingUserRepository()
-                try:
-                    pending = pending_user_repo.get_pending_user_by_phone(phone_number)
-                    if pending:
-                        pending_user_repo.delete_pending_user(str(pending[0]))
-                        logger.info(f"Deleted pending_user for phone {phone_number}")
-                finally:
-                    pending_user_repo.close()
 
             # Save tokens
             from data.yahoo_token_repository import save_tokens_by_user_id
@@ -159,29 +136,6 @@ def register_oauth_routes(app):
             # Delete the pending_oauth record
             repo.delete_by_id(state)
             logger.info(f"Deleted pending_oauth record state={state}")
-
-            # Spawn background thread to re-invoke agent
-            def resume_agent():
-                try:
-                    from scripts.message_agent import run_message_agent
-                    from server.adapters.delivery import deliver_agent_response
-
-                    result = run_message_agent(
-                        message="I've completed the OAuth authentication!",
-                        thread_id=thread_id,
-                        channel=medium,
-                        user_id=str(user_id),
-                        external_id=str(external_id),
-                        original_subject="Yahoo Fantasy Authentication",
-                    )
-                    deliver_agent_response(
-                        medium, str(external_id), result.response_text, result.state
-                    )
-                    logger.info(f"Agent resumed for user_id={user_id} thread={thread_id}")
-                except Exception as e:
-                    logger.error(f"Failed to resume agent after OAuth: {e}", exc_info=True)
-
-            threading.Thread(target=resume_agent, daemon=True).start()
 
             return _success_html()
 
@@ -197,7 +151,7 @@ def _success_html() -> str:
     <html>
         <body>
             <h1>Authentication Successful!</h1>
-            <p>You can close this window and return to your conversation.</p>
+            <p>You can close this window.</p>
         </body>
     </html>
     """

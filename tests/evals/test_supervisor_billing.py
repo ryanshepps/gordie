@@ -46,7 +46,7 @@ class TestInvokeBillingResponse:
         mock_llm.invoke.return_value = AIMessage(content="response")
         mock_llm_cls.return_value = mock_llm
 
-        state = _make_state(channel=Medium.SMS)
+        state = _make_state(channel=Medium.EMAIL)
 
         _invoke_billing_response(state)
 

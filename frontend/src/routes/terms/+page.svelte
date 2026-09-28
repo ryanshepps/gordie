@@ -21,13 +21,13 @@
 
 		<section>
 			<h2>What Gordie Is</h2>
-			<p>Gordie is an AI-powered fantasy sports assistant that provides advice, analysis, and recommendations via email. Gordie is a tool to help inform your decisions — it does not guarantee results and should not be treated as a substitute for your own judgment.</p>
+			<p>Gordie is an AI-powered fantasy sports assistant whose source code supports fantasy sports analysis. Gordie is a tool to help inform your decisions — it does not guarantee results and should not be treated as a substitute for your own judgment.</p>
 		</section>
 
 		<section>
 			<h2>The Service</h2>
 			<ul>
-				<li>Gordie is currently in <strong>beta</strong> and is provided free of charge. We may introduce pricing in the future with advance notice.</li>
+				<li>Gordie is open source. Website signup and hosted access are currently unavailable.</li>
 				<li>We may modify, suspend, or discontinue the Service at any time.</li>
 				<li>Gordie accesses your Yahoo Fantasy data with <strong>read-only permissions</strong>. Gordie will never make roster changes, accept trades, or drop players on your behalf.</li>
 			</ul>
@@ -36,8 +36,8 @@
 		<section>
 			<h2>Your Account</h2>
 			<ul>
-				<li>You must provide a valid email address to use Gordie.</li>
-				<li>You are responsible for maintaining access to your email account.</li>
+				<li>Yahoo and billing accounts use an email address as an identifier.</li>
+				<li>You are responsible for maintaining access to your Yahoo account.</li>
 				<li>You agree not to use the Service for any unlawful purpose or to abuse, harass, or spam the Service.</li>
 			</ul>
 		</section>
@@ -81,7 +81,7 @@
 
 		<section>
 			<h2>Changes to These Terms</h2>
-			<p>We may update these terms from time to time. If we make significant changes, we'll notify you by email. Continued use of the Service after changes constitutes acceptance of the updated terms.</p>
+			<p>We may update these terms from time to time. Changes will be published on this page. Continued use of the Service after changes constitutes acceptance of the updated terms.</p>
 		</section>
 
 		<section>

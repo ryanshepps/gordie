@@ -116,40 +116,6 @@ class UserRepository(Repository):
             return None
         return str(result[0])
 
-    def set_sms_opt_out(self, phone_number: str, opted_out: bool) -> None:
-        """Set SMS opt-out status for the identity with this phone number."""
-        self.session.execute(
-            text(
-                """
-                UPDATE user_identities
-                SET opted_out = :opted_out
-                WHERE medium = :medium AND external_id = :phone_number
-                """
-            ),
-            {
-                "opted_out": opted_out,
-                "medium": Medium.SMS.value,
-                "phone_number": phone_number,
-            },
-        )
-        self.session.commit()
-
-    def is_sms_opted_out(self, phone_number: str) -> bool:
-        """Check whether the SMS identity is opted out."""
-        result = self.session.execute(
-            text(
-                """
-                SELECT opted_out
-                FROM user_identities
-                WHERE medium = :medium AND external_id = :phone_number
-                """
-            ),
-            {"medium": Medium.SMS.value, "phone_number": phone_number},
-        ).fetchone()
-        if result:
-            return bool(result[0])
-        return False
-
     def _insert_identity(
         self,
         user_id: UUID,

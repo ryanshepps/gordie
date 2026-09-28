@@ -114,7 +114,7 @@ class TestCheckQuestionAllowed:
         allowed, reason = check_question_allowed("free@test.com", "Should I start McDavid?")
 
         assert allowed is False
-        assert "digest updates for one team" in reason
+        assert "support one team" in reason
         assert "$10/mo" in reason
         assert "three teams" in reason
 
@@ -147,13 +147,6 @@ class TestBuildUpgradeMessage:
         assert "$10/mo" in result
         assert "https://checkout.creem.io/hosted" in result
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
-
-    @patch("billing.creem_client.create_checkout_session")
-    def test_sms_includes_hosted_link(self, mock_checkout) -> None:
-        mock_checkout.return_value = "https://checkout.creem.io/hosted"
-        result = build_upgrade_message("user@test.com", "Limit reached.", Medium.SMS)
-
-        assert "https://checkout.creem.io/hosted" in result
 
     @patch(
         "billing.creem_client.create_checkout_session",
@@ -252,14 +245,6 @@ class TestBuildBillingContext:
         assert "https://checkout.creem.io/hosted" in result
         assert "Hosted" in result
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
-
-    @patch("billing.creem_client.create_checkout_session")
-    def test_sms_includes_hosted_link(self, mock_checkout) -> None:
-        mock_checkout.return_value = "https://checkout.creem.io/hosted"
-        result = build_billing_context("user@test.com", "Limit reached.", Medium.SMS)
-
-        assert "Upgrade link:" in result
-        assert "https://checkout.creem.io/hosted" in result
 
     @patch(
         "billing.creem_client.create_checkout_session",

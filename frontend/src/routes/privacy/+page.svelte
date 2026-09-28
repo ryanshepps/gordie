@@ -24,9 +24,8 @@
 
 			<h3>Information you provide</h3>
 			<ul>
-				<li><strong>Email address</strong> — required to create your account and communicate with Gordie.</li>
-				<li><strong>Email content</strong> — the messages you send to Gordie, used to provide advice and maintain conversation context.</li>
-			</ul>
+				<li><strong>Email address</strong> — used as an account identifier for Yahoo and billing.</li>
+							</ul>
 
 			<h3>Information from third parties</h3>
 			<ul>
@@ -43,8 +42,7 @@
 			<h2>How We Use Your Information</h2>
 			<ul>
 				<li>To provide personalized fantasy advice based on your roster and league.</li>
-				<li>To send you weekly digests and alerts you've opted into.</li>
-				<li>To maintain conversation history so Gordie can provide contextual advice.</li>
+								<li>To maintain conversation history so Gordie can provide contextual advice.</li>
 				<li>To improve the quality and accuracy of Gordie's recommendations.</li>
 			</ul>
 		</section>
@@ -54,8 +52,7 @@
 			<p>We do not sell your personal information. We share data only in these limited cases:</p>
 			<ul>
 				<li><strong>AI model providers</strong> — your messages are processed by large language model APIs to generate responses. Messages are not used to train third-party models.</li>
-				<li><strong>Email delivery</strong> — we use Mailgun to send and receive emails on Gordie's behalf.</li>
-				<li><strong>Infrastructure</strong> — our website is hosted on Cloudflare and our backend runs on standard cloud infrastructure.</li>
+								<li><strong>Infrastructure</strong> — our website is hosted on Cloudflare and our backend runs on standard cloud infrastructure.</li>
 				<li><strong>Legal requirements</strong> — we may disclose information if required by law.</li>
 			</ul>
 		</section>
@@ -83,7 +80,7 @@
 
 		<section>
 			<h2>Changes to This Policy</h2>
-			<p>We may update this policy from time to time. If we make significant changes, we'll notify you by email.</p>
+			<p>We may update this policy from time to time. Changes will be published on this page.</p>
 		</section>
 
 		<section>

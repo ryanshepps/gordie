@@ -49,10 +49,10 @@ def test_get_by_identity_returns_user_row() -> None:
     session = FakeSession(rows=[(user_id, "created")])
     repo = UserRepository(cast(Session, cast(object, session)))
 
-    result = repo.get_by_identity(Medium.SMS, "+15551234567")
+    result = repo.get_by_identity(Medium.EMAIL, "user@example.com")
 
     assert result == (user_id, "created")
-    assert session.executed[0] == {"medium": "sms", "external_id": "+15551234567"}
+    assert session.executed[0] == {"medium": "email", "external_id": "user@example.com"}
 
 
 def test_create_with_identity_returns_existing_user_after_unique_conflict() -> None:
@@ -62,7 +62,7 @@ def test_create_with_identity_returns_existing_user_after_unique_conflict() -> N
     session = FakeSession(rows=[(attempted_user_id,), conflict, (existing_user_id, "created")])
     repo = UserRepository(cast(Session, cast(object, session)))
 
-    result = repo.create_with_identity(Medium.SMS, "+15551234567", "+15551234567")
+    result = repo.create_with_identity(Medium.EMAIL, "user@example.com", "user@example.com")
 
     assert result == existing_user_id
     assert session.rollbacks == 1
@@ -72,14 +72,14 @@ def test_create_with_identity_returns_existing_user_after_unique_conflict() -> N
 def test_thread_resolve_reuses_existing_user_medium_thread() -> None:
     user_id = UUID("7dc8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
     thread_id = UUID("8ec8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
-    session = FakeSession(rows=[(thread_id, user_id, "sms", "created", "active"), None])
+    session = FakeSession(rows=[(thread_id, user_id, "email", "created", "active"), None])
     repo = ThreadRepository(cast(Session, cast(object, session)))
 
-    result = repo.resolve(user_id, Medium.SMS)
+    result = repo.resolve(user_id, Medium.EMAIL)
 
     assert result.thread_id == str(thread_id)
     assert result.is_new_thread is False
-    assert session.executed[0] == {"user_id": user_id, "medium": "sms"}
+    assert session.executed[0] == {"user_id": user_id, "medium": "email"}
     assert session.executed[1] == {"id": thread_id}
     assert session.commits == 1
 
@@ -89,11 +89,11 @@ def test_thread_resolve_returns_existing_thread_after_unique_conflict() -> None:
     thread_id = UUID("8ec8bd5f-7d86-47c8-9a7a-3ad6c97c4e58")
     conflict = IntegrityError("insert thread", {}, Exception("duplicate"))
     session = FakeSession(
-        rows=[None, conflict, (thread_id, user_id, "sms", "created", "active"), None]
+        rows=[None, conflict, (thread_id, user_id, "email", "created", "active"), None]
     )
     repo = ThreadRepository(cast(Session, cast(object, session)))
 
-    result = repo.resolve(user_id, Medium.SMS)
+    result = repo.resolve(user_id, Medium.EMAIL)
 
     assert result.thread_id == str(thread_id)
     assert result.is_new_thread is False

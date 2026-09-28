@@ -1,8 +1,8 @@
 """
-HTTP Server for handling OAuth callbacks and email webhooks.
+HTTP server for Yahoo OAuth and billing.
 
 This module provides the Quart server that handles incoming HTTP requests
-for OAuth authentication and email processing.
+for Yahoo authentication and billing.
 """
 
 import asyncio
@@ -21,11 +21,7 @@ from agent.checkpointer import (
 )
 from module.logger import get_logger
 from scheduled.jobs import register_scheduled_jobs
-from server.routes.discord_routes import register_discord_routes
-from server.routes.email_routes import register_email_routes
 from server.routes.oauth_routes import register_oauth_routes
-from server.routes.signup_routes import register_signup_routes
-from server.routes.sms_routes import register_sms_routes
 
 # Suppress Hypercorn's default access logging
 logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
@@ -37,13 +33,10 @@ _server_lock = threading.Lock()
 
 class Server:
     """
-    Quart server for handling OAuth callbacks and email webhooks.
+    Quart server for Yahoo OAuth and billing.
 
     The server listens on the configured host/port and handles:
     - /callback - OAuth authorization code redirects from Yahoo
-    - /email/webhook - Incoming email notifications from Mailgun
-    - /sms/webhook - Incoming SMS notifications from Sinch
-    - /discord/interactions - Incoming Discord interactions
     - /health - Health check endpoint
     """
 
@@ -64,7 +57,7 @@ class Server:
         self.scheduler = BackgroundScheduler()
         self.scheduler.start()
 
-        # Register scheduled notification jobs
+        # Register scheduled jobs
         register_scheduled_jobs(self.scheduler)
 
         # Ensure stats DB exists on first deploy
@@ -75,7 +68,6 @@ class Server:
 
         # Set up routes
         self._setup_routes()
-        self._setup_discord_gateway()
 
     @staticmethod
     def _refresh_stats_db_on_startup() -> None:
@@ -108,10 +100,6 @@ class Server:
     def _setup_routes(self) -> None:
         """Configure Quart routes."""
         register_oauth_routes(self.app)
-        register_email_routes(self.app)
-        register_discord_routes(self.app)
-        register_signup_routes(self.app)
-        register_sms_routes(self.app)
         if billing.billing_enabled:
             billing.register_routes(self.app)
 
@@ -119,13 +107,6 @@ class Server:
         async def health():
             """Health check endpoint."""
             return jsonify({"status": "ok"})
-
-    @staticmethod
-    def _setup_discord_gateway() -> None:
-        """Start the outbound Discord Gateway client when local mode is enabled."""
-        from server.discord_gateway import start_discord_gateway_in_background
-
-        _ = start_discord_gateway_in_background()
 
     def run(self) -> None:
         """
