@@ -1,1 +1,1 @@
-"""Scheduled jobs module for automated notifications."""
+"""Scheduled stats and maintenance jobs."""

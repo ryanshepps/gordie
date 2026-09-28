@@ -44,10 +44,6 @@ _tier_cache: dict[str, tuple[str, float]] = {}
 _CACHE_TTL_SECONDS = 60
 
 
-def _coerce_medium(channel: Medium | str) -> Medium:
-    return channel if isinstance(channel, Medium) else Medium(channel)
-
-
 class BillingStatus(TypedDict):
     tier: str
     status: str
@@ -226,7 +222,7 @@ def check_question_allowed(email: str, message: str) -> tuple[bool, str]:
 
     return (
         False,
-        "Free hosted accounts include digest updates for one team. "
+        "Free hosted accounts support one team. "
         f"Upgrade to {HOSTED_PLAN_LABEL} for {HOSTED_PLAN_PRICE} to ask Gordie questions "
         "and connect up to three teams.",
     )
@@ -303,18 +299,14 @@ def build_billing_context(email: str, reason: str, channel: Medium | str) -> str
         f"Reason: {reason}",
         "",
         "Respond to the user in your normal voice. Acknowledge their question,",
-        "explain that free hosted accounts get digest updates for one team,",
+        "explain the account limit,",
         "and offer the hosted upgrade for questions and up to three teams.",
     ]
 
     if hosted_url:
-        medium = _coerce_medium(channel)
-        link_label = (
-            "Upgrade link"
-            if medium is Medium.SMS
-            else (f"{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and questions")
+        lines.append(
+            f"\n{HOSTED_PLAN_LABEL} ({HOSTED_PLAN_PRICE}) — 3 teams and questions: {hosted_url}"
         )
-        lines.append(f"\n{link_label}: {hosted_url}")
 
     return "\n".join(lines)
 
@@ -324,9 +316,6 @@ def build_upgrade_message(email: str, reason: str, channel: Medium | str) -> str
         from billing.creem_client import create_checkout_session
 
         hosted_url = create_checkout_session("hosted_monthly", email)
-
-        if _coerce_medium(channel) is Medium.SMS:
-            return f"{reason}\n\nHere's the link to upgrade: {hosted_url}"
 
         return (
             f"{reason}\n\n"

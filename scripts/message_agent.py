@@ -29,8 +29,6 @@ def message_agent(
     user_id: str,
     external_id: str,
     team_context: str | None = None,
-    original_subject: str | None = None,
-    original_message: str | None = None,
     billing_context: str | None = None,
 ) -> str:
     """Send a message to the agent graph and return the response text."""
@@ -41,8 +39,6 @@ def message_agent(
         user_id=user_id,
         external_id=external_id,
         team_context=team_context,
-        original_subject=original_subject,
-        original_message=original_message,
         billing_context=billing_context,
     ).response_text
 
@@ -54,8 +50,6 @@ def run_message_agent(
     user_id: str,
     external_id: str,
     team_context: str | None = None,
-    original_subject: str | None = None,
-    original_message: str | None = None,
     billing_context: str | None = None,
 ) -> AgentRunResult:
     """
@@ -68,8 +62,6 @@ def run_message_agent(
         user_id: Canonical user UUID
         external_id: Medium-native identifier for this conversation
         team_context: Optional team context in format app:game_key:league_id:team_id
-        original_subject: Original email subject line for reply threading
-        original_message: Original user message for quoting in replies
 
     Returns:
         Agent response text plus final graph state.
@@ -95,8 +87,6 @@ def run_message_agent(
         "current_agent_index": 0,
         "flow_complete": False,
         "flow_reasoning": None,
-        "original_subject": original_subject,
-        "original_message": original_message or message,
         "billing_context": billing_context,
     }
 
@@ -187,8 +177,6 @@ def main() -> None:
         finally:
             thread_repo.close()
 
-        from server.adapters.delivery import deliver_agent_response
-
         result = run_message_agent(
             message=args.message,
             thread_id=thread_info.thread_id,
@@ -197,7 +185,7 @@ def main() -> None:
             external_id=args.email,
             team_context=args.team_context,
         )
-        deliver_agent_response(Medium.EMAIL, args.email, result.response_text, result.state)
+        print(result.response_text)
     except Exception as e:
         logger.error(f"\n✗ Failed to message agent: {e}")
         raise

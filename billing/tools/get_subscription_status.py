@@ -14,15 +14,15 @@ PLAN_DETAILS: dict[str, dict[str, str | int]] = {
         "price": "Free",
         "questions": "Plan and billing questions only",
         "teams": 1,
-        "digests": "Yes",
-        "alerts": "Yes",
+        "digests": "Unavailable",
+        "alerts": "Unavailable",
     },
     "hosted": {
         "price": "$10/mo",
         "questions": "Yes",
         "teams": 3,
-        "digests": "Yes",
-        "alerts": "Yes",
+        "digests": "Unavailable",
+        "alerts": "Unavailable",
     },
 }
 

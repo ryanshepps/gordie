@@ -58,9 +58,6 @@ class AgentState(_AgentStateRequired, total=False):
     current_agent_index: int  # Current position in flow (0-based)
     flow_complete: bool  # Explicit completion flag
     flow_reasoning: str | None  # LLM reasoning for agent flow decision
-    # Email threading fields
-    original_subject: str | None  # Original email subject for reply threading
-    original_message: str | None  # Original user message for quoting in replies
     billing_context: str | None  # Billing limit info injected into system prompt
     data_quality_retries: int  # Number of times data_quality has looped back to supervisor
     sport_inferred_at: str | None

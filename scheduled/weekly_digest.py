@@ -1,16 +1,8 @@
-"""Weekly digest job for sending personalized fantasy sports updates."""
-
 from __future__ import annotations
 
 import json
-import uuid
 
-from agent.digest_writer import DigestType, write_digest_content
-from agent.email_enrichment import enrich_email_with_player_stats
-from agent.prompts.sport_context import get_sport_label
-from client.authenticated_yahoo_client import AuthenticatedYahooClient
 from client.moneypuck_cli import get_player_stats_by_names
-from data.models import Medium
 from data.pydantic_models import (
     DigestData,
     EnrichedFreeAgent,
@@ -18,154 +10,11 @@ from data.pydantic_models import (
     RosterPerformance,
     ScheduleTip,
 )
-from data.user_repository import UserRepository
-from data.yahoo_league_repository import YahooLeagueRepository
-from data.yahoo_user_team_repository import YahooUserTeamRepository
 from module.logger import get_logger
-from scheduled.channel_resolver import SmsDelivery, resolve_delivery_channel
-from scheduled.job_runner import run_per_user_job
-from server.adapters.text_utils import strip_markdown
-from server.email_formatter import FooterType, format_email
-from server.email_service import EmailService
-from server.sms_service import SmsService
-from server.thread_manager import save_message_id_mapping
 from tools.available.search_available_players import search_available_players
 from tools.hockey.player.get_team_schedule import get_team_schedule
-from tools.yahoo.get_team_matchups import get_current_matchup
 
 logger = get_logger(__name__)
-
-
-def run_weekly_digest() -> None:
-    """Send weekly digest emails to all opted-in users."""
-    run_per_user_job(
-        job_name="weekly_digest",
-        notification_type="weekly_digest",
-        handler=_send_digest_handler,
-    )
-
-
-def _send_digest_handler(user_email: str, league_id: str) -> bool:
-    """Handler adapter for run_per_user_job."""
-    send_digest(user_email, league_id)
-    return True
-
-
-def send_digest(user_email: str, league_id: str) -> None:
-    """Generate and send digest for one user+league.
-
-    Args:
-        user_email: User's email address
-        league_id: Yahoo league ID
-    """
-    # Fetch league settings
-    league_repo = YahooLeagueRepository()
-    try:
-        league = league_repo.get_league(league_id)
-        if not league:
-            logger.warning(f"League {league_id} not found, skipping digest for {user_email}")
-            return
-        league_name = league[2]
-        sport = league[3]
-    finally:
-        league_repo.close()
-
-    # Fetch user's team info
-    team_repo = YahooUserTeamRepository()
-    try:
-        teams = team_repo.get_user_teams_for_league(user_email, league_id)
-        if not teams:
-            logger.warning(f"No team found for {user_email} in league {league_id}")
-            return
-        # Column order: league_id, team_id, user_email, team_name, created_at
-        team_id = teams[0][1]
-        team_name = teams[0][3]
-    finally:
-        team_repo.close()
-
-    # Fetch roster data via Yahoo client
-    yahoo_client = AuthenticatedYahooClient(user_email=user_email, league_id=int(league_id))
-
-    # Get current week
-    league_info = yahoo_client.query.get_league_info()
-    current_week = int(getattr(league_info, "current_week", 1))
-    last_week = max(1, current_week - 1)
-
-    # Get roster data: last week for performance, current for injury status
-    last_week_roster = yahoo_client.query.get_team_roster_player_stats_by_week(team_id, last_week)
-    current_roster = yahoo_client.query.get_team_roster_player_stats(team_id)
-
-    # Build typed digest data
-    digest_data = DigestData(
-        league_name=league_name,
-        team_name=team_name,
-        current_week=current_week,
-        roster_performance=_categorize_roster_by_performance(last_week_roster, current_roster),
-        current_matchup=get_current_matchup(user_email, league_id, team_id),
-        hot_free_agents=_fetch_and_enrich_free_agents(user_email, league_id),
-        schedule_tips=_build_schedule_tips(current_roster),
-    )
-
-    channel = resolve_delivery_channel(user_email)
-    channel_key = "sms" if isinstance(channel, SmsDelivery) else "email"
-    content = write_digest_content(digest_data, DigestType.WEEKLY, channel_key)
-
-    sport_label = get_sport_label(sport)
-    if isinstance(channel, SmsDelivery):
-        _send_digest_sms(content, channel.phone_number, user_email, league_name)
-    else:
-        _send_digest_email(content, user_email, league_name, league_id, sport_label)
-
-
-def _send_digest_email(
-    content: str,
-    user_email: str,
-    league_name: str,
-    league_id: str,
-    sport_label: str = "Fantasy Hockey",
-) -> None:
-    _, html_stats = enrich_email_with_player_stats(content, user_email, league_id)
-
-    email_content = format_email(
-        content=content,
-        footer_type=FooterType.UNSUBSCRIBE,
-        stats_html=html_stats if html_stats else None,
-    )
-
-    email_service = EmailService()
-    result = email_service.send_email(
-        to_email=user_email,
-        subject=f"Weekly {sport_label} Digest - {league_name}",
-        text_body=email_content.text_body,
-        html_body=email_content.html_body,
-    )
-
-    if result.success:
-        if result.message_id:
-            thread_id = f"{user_email}:{uuid.uuid4().hex[:12]}"
-            user_id = UserRepository().resolve_user_id(Medium.EMAIL, user_email, user_email)
-            save_message_id_mapping(
-                message_id=result.message_id,
-                thread_id=thread_id,
-                user_id=str(user_id),
-                subject=f"Weekly {sport_label} Digest - {league_name}",
-            )
-        logger.info(f"Sent weekly digest to {user_email} for league {league_name}")
-    else:
-        logger.error(f"Failed to send digest to {user_email}: {result.error}")
-        raise RuntimeError(f"Email send failed: {result.error}")
-
-
-def _send_digest_sms(content: str, phone_number: str, user_email: str, league_name: str) -> None:
-    plain_text = strip_markdown(content)
-    sms_service = SmsService()
-    result = sms_service.send_sms(phone_number, plain_text)
-
-    if result.success:
-        logger.info(f"Sent weekly digest SMS to {user_email} for league {league_name}")
-    else:
-        logger.error(f"Failed to send digest SMS to {user_email}: {result.error}")
-        raise RuntimeError(f"SMS send failed: {result.error}")
 
 
 def _get_player_name(player: object) -> str:
@@ -387,7 +236,7 @@ def _build_schedule_tips(roster: list[object] | object) -> list[ScheduleTip]:
 
 
 def build_digest_content(data: DigestData) -> str:
-    """Build the digest email content in markdown format.
+    """Build digest content in markdown format.
 
     Args:
         data: DigestData containing all information for the digest

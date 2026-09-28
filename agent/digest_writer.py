@@ -5,10 +5,8 @@ from __future__ import annotations
 from enum import Enum
 
 from agent.news.news_digest import NewsDigest
-from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.persona import PERSONA
 from agent.prompts.phrasebook import PHRASEBOOK
-from data.models import Medium
 from data.pydantic_models import DigestData
 from module.llm import make_llm
 from module.logger import get_logger
@@ -21,18 +19,13 @@ class DigestType(Enum):
     NEWS = "news"
 
 
-WRITING_INSTRUCTIONS: dict[tuple[DigestType, Medium], str] = {
-    (DigestType.WEEKLY, Medium.EMAIL): (
+WRITING_INSTRUCTIONS: dict[DigestType, str] = {
+    DigestType.WEEKLY: (
         "Write like you're texting your fantasy sports buddy after watching a week of games. "
         "Cover matchup, top/bottom performers, injuries, free agent tips, schedule advice. "
         "Keep it under 600 words."
     ),
-    (DigestType.WEEKLY, Medium.SMS): (
-        "Write like you're texting your fantasy sports buddy after watching a week of games. "
-        "Cover the most important highlights: matchup, top performers, key injuries. "
-        "No markdown. Keep it under 200 words."
-    ),
-    (DigestType.NEWS, Medium.EMAIL): (
+    DigestType.NEWS: (
         "Write like you're DMing breaking news that affects their team. "
         "Urgent, direct, actionable. Keep it under 400 words.\n\n"
         "RULES:\n"
@@ -45,38 +38,19 @@ WRITING_INSTRUCTIONS: dict[tuple[DigestType, Medium], str] = {
         "- Use the injury alert fields (has_game_today, is_new_injury, already_on_ir_slot) to guide tone\n"
         '- Do NOT end with questions, offers to help, or calls to action (e.g. "Want me to check waivers?"). Just deliver the news and sign off.'
     ),
-    (DigestType.NEWS, Medium.SMS): (
-        "Write like you're DMing breaking news that affects their team. "
-        "Urgent, direct, actionable. No markdown. Keep it under 150 words.\n\n"
-        "RULES:\n"
-        '- Never say "tonight" for a player unless has_game_today is true\n'
-        "- For IR players with already_on_ir_slot=true, do NOT suggest finding a replacement\n"
-        '- For new injuries without a game today, mention when their next game is instead of "tonight"\n'
-        '- Only recommend "start X over Y" when position_conflicts exist in the data\n'
-        "- If bench_reminders exist, casually remind the user to move those players to active slots\n"
-        "- If there are no position_conflicts and no bench_reminders, skip the lineup section entirely\n"
-        '- Do NOT end with questions, offers to help, or calls to action (e.g. "Want me to check waivers?"). Just deliver the news and sign off.'
-    ),
 }
 
 
-def _coerce_medium(channel: Medium | str) -> Medium:
-    return channel if isinstance(channel, Medium) else Medium(channel)
-
-
-def _build_system_prompt(digest_type: DigestType, channel: Medium | str = Medium.EMAIL) -> str:
-    medium = _coerce_medium(channel)
-    channel_guidelines = get_channel_guidelines(medium)
-    instructions = WRITING_INSTRUCTIONS[(digest_type, medium)]
-    return f"{PERSONA}\n{PHRASEBOOK}\n\n{channel_guidelines}\n\n# TASK\n{instructions}"
+def _build_system_prompt(digest_type: DigestType) -> str:
+    instructions = WRITING_INSTRUCTIONS[digest_type]
+    return f"{PERSONA}\n{PHRASEBOOK}\n\n# TASK\n{instructions}"
 
 
 def write_digest_content(
     digest_data: DigestData | NewsDigest,
     digest_type: DigestType,
-    channel: Medium | str = Medium.EMAIL,
 ) -> str:
-    system_prompt = _build_system_prompt(digest_type, channel)
+    system_prompt = _build_system_prompt(digest_type)
     user_message = (
         "Write a digest based on this data. "
         "Return only the markdown content, no preamble.\n\n"

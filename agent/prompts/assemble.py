@@ -2,10 +2,8 @@ from agent.agent_state import AgentState
 from agent.context_resolvers import format_teams_for_display
 from agent.context_types import ContextStatus
 from agent.prompts.analyst_identity import ANALYST_IDENTITY
-from agent.prompts.channel_guidelines import get_channel_guidelines
 from agent.prompts.rules import RULES
 from agent.prompts.sport_context import get_sport_context, get_sport_label
-from data.models import Medium
 
 
 def _build_context_section(state: AgentState) -> str:
@@ -145,12 +143,8 @@ Do NOT proceed with their request.""")
 
 
 def assemble_system_prompt(state: AgentState) -> str:
-    channel = state.get("channel", Medium.EMAIL)
     sport = state.get("sport")
-    channel_guidelines = get_channel_guidelines(channel)
     context_section = _build_context_section(state)
     sport_context = get_sport_context(sport)
 
-    return (
-        f"{ANALYST_IDENTITY}\n{RULES}\n{channel_guidelines}\n\n{context_section}\n\n{sport_context}"
-    )
+    return f"{ANALYST_IDENTITY}\n{RULES}\n\n{context_section}\n\n{sport_context}"

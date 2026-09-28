@@ -5,11 +5,9 @@ from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import (
-    Boolean,
     DateTime,
     ForeignKey,
     Index,
-    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -21,9 +19,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Medium(StrEnum):
     EMAIL = "email"
-    SMS = "sms"
-    TELEGRAM = "telegram"
-    DISCORD = "discord"
 
 
 class Base(DeclarativeBase):
@@ -54,7 +49,6 @@ class UserIdentity(Base):
     medium: Mapped[str] = mapped_column(String, nullable=False)
     external_id: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str | None] = mapped_column(Text)
-    opted_out: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -71,20 +65,6 @@ class ConversationThread(Base):
     medium: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     last_active: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class DiscordInteractionTarget(Base):
-    __tablename__ = "discord_interaction_targets"
-
-    thread_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("conversation_threads.id"), primary_key=True
-    )
-    application_id: Mapped[str] = mapped_column(Text, nullable=False)
-    interaction_token: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), server_onupdate=func.now()
-    )
 
 
 class YahooLeague(Base):
@@ -127,49 +107,6 @@ class YahooToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-class EmailThread(Base):
-    __tablename__ = "email_threads"
-    __table_args__ = (
-        Index("idx_email_threads_thread_id", "thread_id"),
-        Index("idx_email_threads_user_id", "user_id"),
-    )
-
-    message_id: Mapped[str] = mapped_column(String, primary_key=True)
-    thread_id: Mapped[str] = mapped_column(String, nullable=False)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
-    )
-    subject: Mapped[str | None] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class NotificationType(Base):
-    __tablename__ = "notification_types"
-
-    type_key: Mapped[str] = mapped_column(String, primary_key=True)
-    display_name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    default_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class NotificationPreference(Base):
-    __tablename__ = "notification_preferences"
-
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
-    )
-    league_id: Mapped[str] = mapped_column(
-        String, ForeignKey("yahoo_leagues.league_id"), primary_key=True
-    )
-    notification_type: Mapped[str] = mapped_column(
-        String, ForeignKey("notification_types.type_key"), primary_key=True
-    )
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
 class ConversationSummary(Base):
     __tablename__ = "conversation_summaries"
     __table_args__ = (Index("idx_conversation_summaries_user_id", "user_id"),)
@@ -197,34 +134,6 @@ class PendingOAuth(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-class PendingUser(Base):
-    __tablename__ = "pending_users"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    phone_number: Mapped[str | None] = mapped_column(String)
-    email: Mapped[str | None] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class ProcessedInboundMessage(Base):
-    __tablename__ = "processed_inbound_messages"
-    __table_args__ = (
-        UniqueConstraint(
-            "medium",
-            "external_message_id",
-            name="uq_processed_inbound_messages_medium_external_message_id",
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
-    )
-    medium: Mapped[str] = mapped_column(String, nullable=False)
-    external_message_id: Mapped[str] = mapped_column(Text, nullable=False)
-    external_sender_id: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
 
@@ -236,16 +145,4 @@ class UserSubscription(Base):
     tier: Mapped[str] = mapped_column(String, nullable=False, server_default="free")
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="active")
     current_period_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    digest_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class DigestInjuryState(Base):
-    __tablename__ = "digest_injury_states"
-
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
-    )
-    player_name: Mapped[str] = mapped_column(String, primary_key=True)
-    status: Mapped[str] = mapped_column(String, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

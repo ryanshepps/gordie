@@ -39,7 +39,6 @@ class SubscriptionRepository(Repository):
                     us.tier,
                     us.status,
                     us.current_period_ends_at,
-                    us.digest_count,
                     us.created_at
                 FROM user_subscriptions us
                 JOIN user_identities ui
@@ -62,7 +61,6 @@ class SubscriptionRepository(Repository):
                     us.tier,
                     us.status,
                     us.current_period_ends_at,
-                    us.digest_count,
                     us.created_at
                 FROM user_subscriptions us
                 WHERE us.user_id = :user_id
@@ -110,24 +108,6 @@ class SubscriptionRepository(Repository):
     def pause_subscription(self, user_email: str) -> None:
         self.update({"user_id": self._user_id_for_email(user_email)}, status="paused")
 
-    def increment_digest_count(self, user_email: str) -> None:
-        self.session.execute(
-            text(
-                "UPDATE user_subscriptions "
-                "SET digest_count = digest_count + 1 "
-                "WHERE user_id = :user_id"
-            ),
-            {"user_id": self._user_id_for_email(user_email)},
-        )
-        self.session.commit()
-
-    def get_digest_count(self, user_email: str) -> int:
-        result = self.session.execute(
-            text("SELECT digest_count FROM user_subscriptions WHERE user_id = :user_id"),
-            {"user_id": self._user_id_for_email(user_email)},
-        ).fetchone()
-        return int(result[0]) if result else 0
-
     def find_subscription_by_creem_id(self, creem_subscription_id: str) -> DatabaseRow | None:
         return self.session.execute(
             text(
@@ -139,7 +119,6 @@ class SubscriptionRepository(Repository):
                     us.tier,
                     us.status,
                     us.current_period_ends_at,
-                    us.digest_count,
                     us.created_at
                 FROM user_subscriptions us
                 JOIN user_identities ui

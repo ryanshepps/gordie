@@ -54,9 +54,7 @@ def generate_checkout_link(
 
     user_email = _email_for_user_id(get_user_id(state))
     if not user_email:
-        return (
-            "Sorry, I couldn't find an email address for checkout. Please connect your email first."
-        )
+        return "Sorry, I couldn't find an account email address for checkout."
 
     try:
         checkout_url = create_checkout_session(plan, user_email)

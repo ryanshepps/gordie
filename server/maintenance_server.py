@@ -1,18 +1,13 @@
 """Maintenance-mode HTTP server.
 
 Returns canned responses on every route so that no inbound request can reach
-the agent, DB, or LLM keys. Run this in place of `server.server.Server` while
-the project is being migrated to a hardened host.
+the agent, DB, or LLM keys.
 
 Behaviour:
   /health            -> 200 OK (lets the Cloudflare tunnel + any external
                        healthcheck stay green)
-  /api/signup        -> 503 with JSON { status: "open_source", message, ... }
-                       so the public signup form can render a migration banner.
   /callback          -> 503 with a simple HTML page (anyone clicking a stale
                        OAuth link gets a clear explanation).
-  /sms/webhook       -> 200 (silently consumed so Sinch does not retry-storm).
-  /email/webhook     -> 200 (silently consumed so Mailgun does not retry-storm).
   Everything else    -> 503 with the open-source JSON payload.
 
 This file imports nothing from `agent/`, `data/`, `scheduled/`, or `tools/`
@@ -33,9 +28,8 @@ from module.logger import get_logger
 GITHUB_URL = os.getenv("OSS_GITHUB_URL", "https://github.com/ryanshepps/gordie")
 
 OSS_MESSAGE = (
-    "Gordie has been open-sourced! The hosted instance is being migrated to a "
-    "more secure environment. In the meantime, you can self-host from the "
-    "GitHub repository."
+    "Gordie is open source. User messaging is unavailable while its communication "
+    "integration is rebuilt. The source remains available on GitHub."
 )
 
 logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
@@ -98,31 +92,14 @@ def _oss_html() -> str:
 
 def build_app() -> Quart:
     app = Quart(__name__)
-    logger = get_logger(__name__, log_file="server.log")
 
     @app.route("/health", methods=["GET"])
     async def health():
         return jsonify({"status": "ok", "mode": "maintenance"}), 200
 
-    @app.route("/api/signup", methods=["POST", "GET"])
-    async def signup_maintenance():
-        return jsonify(_oss_payload()), 503
-
     @app.route("/callback", methods=["GET"])
     async def callback_maintenance():
         return _oss_html(), 503, {"Content-Type": "text/html; charset=utf-8"}
-
-    # Silently consume inbound webhooks so the vendor doesn't retry-storm.
-    # The body is dropped — the agent and DB are not running.
-    @app.route("/sms/webhook", methods=["POST", "GET"])
-    async def sms_webhook_silent():
-        logger.info("Maintenance: dropped inbound SMS webhook")
-        return jsonify({"status": "accepted"}), 200
-
-    @app.route("/email/webhook", methods=["POST", "GET"])
-    async def email_webhook_silent():
-        logger.info("Maintenance: dropped inbound email webhook")
-        return jsonify({"status": "accepted"}), 200
 
     @app.errorhandler(404)
     async def catch_all(_err):
