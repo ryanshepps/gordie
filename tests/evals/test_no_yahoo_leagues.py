@@ -5,9 +5,9 @@ import uuid
 import pytest
 from langchain_core.messages import HumanMessage
 
-from agent.agent_state import AgentState
-from agent.SupervisorAgent import supervisor_node
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.agent.supervisor import supervisor_node
+from gordie.data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 NO_TEAMS_KEYWORDS = (
@@ -45,12 +45,12 @@ class TestNoYahooLeagues:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
         )
 
@@ -61,13 +61,13 @@ class TestNoYahooLeagues:
             "No data found when attempting extraction from fields: ['users', '0', 'user', 'games']"
         )
         mocker.patch(
-            "tools.yahoo.get_user_leagues.AuthenticatedYahooClient",
+            "gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient",
             return_value=mock_client,
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"content": "past conversation"}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         authenticated_no_leagues_state["messages"] = [
             HumanMessage(content="Hey Gordie, help me with my fantasy team!")

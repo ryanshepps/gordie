@@ -5,7 +5,7 @@ from typing import cast
 
 from pytest import MonkeyPatch
 
-from tools.oauth.generate_oauth_link import generate_oauth_link
+from gordie.tools.oauth.generate_oauth_link import generate_oauth_link
 
 
 def test_generate_oauth_link_requires_public_https_base_url(monkeypatch: MonkeyPatch) -> None:

@@ -4,7 +4,7 @@ from unittest.mock import patch
 import duckdb
 import pytest
 
-from tools.hockey.stats.query_stats_db import MAX_ROWS, query_hockey_stats_db
+from gordie.tools.hockey.stats.query_stats_db import MAX_ROWS, query_hockey_stats_db
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def mock_connection():
         "CREATE TABLE goalies (name VARCHAR, team VARCHAR, wins INTEGER, situation VARCHAR)"
     )
     conn.execute("CREATE TABLE teams (team VARCHAR, wins INTEGER, situation VARCHAR)")
-    with patch("tools.hockey.stats.query_stats_db.get_stats_connection", return_value=conn):
+    with patch("gordie.tools.hockey.stats.query_stats_db.get_stats_connection", return_value=conn):
         yield conn
     conn.close()
 
@@ -74,7 +74,7 @@ class TestQueryHockeyStatsDb:
     def test_db_not_found_raises(self):
         with (
             patch(
-                "tools.hockey.stats.query_stats_db.get_stats_connection",
+                "gordie.tools.hockey.stats.query_stats_db.get_stats_connection",
                 side_effect=FileNotFoundError("Stats database not found"),
             ),
             pytest.raises(FileNotFoundError),
@@ -99,13 +99,13 @@ class TestQueryMlbStatsDb:
         )
         conn.execute("CREATE TABLE mlb_teams (Team VARCHAR, Season INTEGER)")
         with patch(
-            "tools.mlb.stats.query_mlb_stats_db.get_mlb_stats_connection", return_value=conn
+            "gordie.tools.mlb.stats.query_mlb_stats_db.get_mlb_stats_connection", return_value=conn
         ):
             yield conn
         conn.close()
 
     def test_queries_mlb_batters(self, mlb_connection):
-        from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
+        from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 
         result = query_mlb_stats_db.invoke(
             {"sql": "SELECT Name, HR FROM mlb_batters ORDER BY HR DESC"}
@@ -116,7 +116,7 @@ class TestQueryMlbStatsDb:
         assert parsed["results"][0]["Name"] == "Aaron Judge"
 
     def test_no_situation_injection(self, mlb_connection):
-        from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
+        from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 
         result = query_mlb_stats_db.invoke({"sql": "SELECT Name FROM mlb_batters WHERE HR > 40"})
         parsed = json.loads(result)
@@ -125,7 +125,7 @@ class TestQueryMlbStatsDb:
         assert parsed["results"][0]["Name"] == "Aaron Judge"
 
     def test_column_not_found_returns_mlb_columns(self, mlb_connection):
-        from tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
+        from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 
         result = query_mlb_stats_db.invoke({"sql": "SELECT nonexistent FROM mlb_batters"})
         parsed = json.loads(result)

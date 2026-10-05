@@ -2,9 +2,9 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from agent.agent_state import AgentState
-from agent.SupervisorAgent import _invoke_billing_response
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.agent.supervisor import _invoke_billing_response
+from gordie.data.models import Medium
 
 
 def _make_state(
@@ -23,8 +23,8 @@ def _make_state(
 
 
 class TestInvokeBillingResponse:
-    @patch("agent.SupervisorAgent.make_llm")
-    @patch("agent.SupervisorAgent.assemble_system_prompt", return_value="system prompt")
+    @patch("gordie.agent.supervisor.make_llm")
+    @patch("gordie.agent.supervisor.assemble_system_prompt", return_value="system prompt")
     def test_returns_response_command_with_billing_message(self, mock_assemble, mock_llm_cls):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = AIMessage(
@@ -39,8 +39,8 @@ class TestInvokeBillingResponse:
         assert result.update is not None
         assert result.update["response"] == "You've hit your limit! Here are upgrade links."
 
-    @patch("agent.SupervisorAgent.make_llm")
-    @patch("agent.SupervisorAgent.assemble_system_prompt", return_value="system prompt")
+    @patch("gordie.agent.supervisor.make_llm")
+    @patch("gordie.agent.supervisor.assemble_system_prompt", return_value="system prompt")
     def test_passes_state_to_assemble(self, mock_assemble, mock_llm_cls):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = AIMessage(content="response")
@@ -52,8 +52,8 @@ class TestInvokeBillingResponse:
 
         mock_assemble.assert_called_once_with(state)
 
-    @patch("agent.SupervisorAgent.make_llm")
-    @patch("agent.SupervisorAgent.assemble_system_prompt", return_value="system prompt")
+    @patch("gordie.agent.supervisor.make_llm")
+    @patch("gordie.agent.supervisor.assemble_system_prompt", return_value="system prompt")
     def test_skips_tools_for_billing_response(self, mock_assemble, mock_llm_cls):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = AIMessage(content="upgrade please")
@@ -66,8 +66,8 @@ class TestInvokeBillingResponse:
         assert call_args[0]["role"] == "system"
         assert not mock_llm.bind_tools.called
 
-    @patch("agent.SupervisorAgent.make_llm", side_effect=Exception("LLM error"))
-    @patch("agent.SupervisorAgent.assemble_system_prompt", return_value="system prompt")
+    @patch("gordie.agent.supervisor.make_llm", side_effect=Exception("LLM error"))
+    @patch("gordie.agent.supervisor.assemble_system_prompt", return_value="system prompt")
     def test_error_returns_fallback_response(self, mock_assemble, mock_llm_cls):
         state = _make_state()
         result = _invoke_billing_response(state)

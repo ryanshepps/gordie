@@ -2,8 +2,8 @@
 
 import json
 
-from tools.compute.execute_python import execute_python
-from tools.compute.sandbox_runner import build_sandbox_script
+from gordie.tools.compute.execute_python import execute_python
+from gordie.tools.compute.sandbox_runner import build_sandbox_script
 
 
 class TestBuildSandboxScript:

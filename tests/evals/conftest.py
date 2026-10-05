@@ -11,15 +11,15 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from pytest_mock import MockerFixture
 
-from agent.agent_state import AgentState
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.data.models import Medium
 
 EVAL_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 @pytest.fixture(autouse=True)
 def in_memory_supervisor_checkpointer(mocker: MockerFixture) -> None:
-    mocker.patch("agent.SupervisorAgent.checkpointer", InMemorySaver())
+    mocker.patch("gordie.agent.supervisor.checkpointer", InMemorySaver())
 
 
 def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):
@@ -159,13 +159,13 @@ def mock_yahoo_tools(
         }
     ]
     mock_get_user_teams = mocker.patch(
-        "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+        "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
         return_value=mock_teams,
     )
 
     # Mock OAuth tokens to simulate authenticated user
     mocker.patch(
-        "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+        "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
         return_value={"access_token": "test_token", "refresh_token": "test_refresh"},
     )
 
@@ -180,7 +180,7 @@ def mock_yahoo_tools(
         "created_at": "2024-01-01",
     }
     mock_memory_store.search.return_value = [mock_item]
-    mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+    mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
     # Create mock client with all necessary responses configured
     mock_client = mocker.MagicMock()
@@ -199,19 +199,19 @@ def mock_yahoo_tools(
     # This is necessary because Python binds imports at import time
     # Note: Only include modules that actually import AuthenticatedYahooClient directly
     yahoo_tool_modules = [
-        "tools.yahoo.get_team_roster",
-        "tools.yahoo.get_league_teams",
-        "tools.yahoo.find_similar_ranked_players",
-        "tools.yahoo.get_player_season_rank",
-        "tools.yahoo.get_roster",
-        "tools.yahoo.get_player_yahoo_info",
-        "tools.available.search_available_players",
-        "tools.yahoo.onboard_user_team",
-        "tools.yahoo.get_user_leagues",
-        "tools.yahoo_stats.yahoo_scoring",
-        "tools.yahoo_stats.yahoo_roster",
-        "tools.yahoo_stats.yahoo_player",
-        "tools.yahoo_stats.yahoo_league",
+        "gordie.tools.yahoo.get_team_roster",
+        "gordie.tools.yahoo.get_league_teams",
+        "gordie.tools.yahoo.find_similar_ranked_players",
+        "gordie.tools.yahoo.get_player_season_rank",
+        "gordie.tools.yahoo.get_roster",
+        "gordie.tools.yahoo.get_player_yahoo_info",
+        "gordie.tools.available.search_available_players",
+        "gordie.tools.yahoo.onboard_user_team",
+        "gordie.tools.yahoo.get_user_leagues",
+        "gordie.tools.yahoo_stats.yahoo_scoring",
+        "gordie.tools.yahoo_stats.yahoo_roster",
+        "gordie.tools.yahoo_stats.yahoo_player",
+        "gordie.tools.yahoo_stats.yahoo_league",
     ]
 
     for module in yahoo_tool_modules:

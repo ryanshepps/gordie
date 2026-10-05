@@ -22,7 +22,7 @@ The wizard creates `.env`, configures the Yahoo callback URL, and starts the Doc
 ## Run the local agent
 
 ```bash
-uv run python scripts/message_agent.py you@example.com "What can you do?"
+uv run python -m gordie.scripts.message_agent you@example.com "What can you do?"
 ```
 
 The response prints to the terminal. For Yahoo data, follow the authorization URL returned by the agent. The callback saves the Yahoo tokens; run the command again for fantasy analysis. There is no email, SMS, or chat delivery.

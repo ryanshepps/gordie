@@ -1,16 +1,16 @@
-from agent.news.lineup_analyzer import (
+from gordie.agent.news.lineup_analyzer import (
     LineupAnalysis,
     RosterPositionConfig,
     analyze_lineup,
     parse_roster_position_configs,
 )
-from agent.news.news_digest import (
+from gordie.agent.news.news_digest import (
     InjuryAlert,
     MatchupAlert,
     RawNewsCollection,
     RosterPlayer,
 )
-from agent.news.news_processor import process_news_for_user
+from gordie.agent.news.news_processor import process_news_for_user
 
 
 class FakePlayer:

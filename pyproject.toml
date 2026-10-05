@@ -1,7 +1,9 @@
 [project]
-name = "fantasy-agent"
+name = "gordie"
 version = "0.1.0"
-description = "Add your description here"
+description = "Fantasy sports assistant with Yahoo integration and live sports analytics"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -24,7 +26,6 @@ dependencies = [
     "yfpy>=17.0.0",
     "python-json-logger>=2.0.7",
     "apscheduler>=3.10.4",
-    "pytest-cov>=7.0.0",
     "duckdb>=1.0.0",
     "scipy>=1.14.0",
     "numpy>=2.0.0",
@@ -33,7 +34,9 @@ dependencies = [
 ]
 
 [project.scripts]
-gordie = "scripts.setup:app"
+gordie = "gordie.scripts.setup:app"
+gordie-server = "gordie.scripts.start_server:main"
+gordie-message = "gordie.scripts.message_agent:main"
 
 [tool.ruff]
 # Exclude common directories
@@ -97,13 +100,18 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.ruff.lint.isort]
-known-first-party = ["fantasy_hockey_agent", "fantasy_tools", "modules", "tools"]
+known-first-party = ["gordie"]
 
 [tool.setuptools.packages.find]
-include = ["tools*", "module*", "client*", "server*", "scripts*"]
+where = ["src"]
+include = ["gordie*"]
+
+[tool.setuptools.package-data]
+gordie = ["resources/*", "data/alembic/script.py.mako"]
 
 [dependency-groups]
 dev = [
+    "pytest-cov>=7.0.0",
     "basedpyright>=1.36.1",
     "pytest>=8.0.0",
     "pytest-asyncio>=1.3.0",

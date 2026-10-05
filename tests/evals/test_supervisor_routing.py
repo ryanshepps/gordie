@@ -10,8 +10,8 @@ from typing import Any, cast
 import pytest
 from langchain_core.messages import HumanMessage
 
-from agent.agent_state import AgentState
-from agent.SupervisorAgent import supervisor_node
+from gordie.agent.agent_state import AgentState
+from gordie.agent.supervisor import supervisor_node
 from tests.evals.conftest import extract_tool_calls_from_messages, retry_on_rate_limit
 
 

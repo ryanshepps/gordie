@@ -61,7 +61,7 @@ If the public callback fails, run `curl "$OAUTH_BASE_URL/health"` and confirm Ya
 Send a first message to Gordie:
 
 ```bash
-uv run python scripts/message_agent.py you@example.com "hi"
+uv run python -m gordie.scripts.message_agent you@example.com "hi"
 ```
 
 The command prints an OAuth link. Visit the URL, approve, get redirected back to `/callback?code=...`. Tokens are saved in the `yahoo_tokens` table in Postgres. Run the command again after authorization.

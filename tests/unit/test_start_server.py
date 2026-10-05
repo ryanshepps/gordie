@@ -1,13 +1,14 @@
 """Tests for server startup."""
 
 from collections.abc import Mapping
+from importlib.resources import files
 
 import pytest
 from alembic.config import Config
 from pytest import MonkeyPatch
 
-from module.config_validator import ConfigValidationError
-from scripts import start_server
+from gordie.module.config_validator import ConfigValidationError
+from gordie.scripts import start_server
 
 
 def test_run_migrations_upgrades_to_head(monkeypatch: MonkeyPatch) -> None:
@@ -20,7 +21,7 @@ def test_run_migrations_upgrades_to_head(monkeypatch: MonkeyPatch) -> None:
 
     start_server.run_migrations()
 
-    assert calls == [("alembic.ini", "head")]
+    assert calls == [(str(files("gordie").joinpath("resources/alembic.ini")), "head")]
 
 
 def test_should_redirect_stderr_defaults_to_file_logging(monkeypatch: MonkeyPatch) -> None:

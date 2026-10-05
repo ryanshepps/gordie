@@ -2,9 +2,9 @@ from unittest.mock import patch
 
 from langchain_core.messages import HumanMessage
 
-from agent.agent_state import AgentState
-from agent.context_node import context_node
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.agent.context_node import context_node
+from gordie.data.models import Medium
 
 
 def _make_state(**overrides) -> AgentState:
@@ -40,10 +40,10 @@ class TestMissingUserId:
 
 
 class TestNoOAuth:
-    @patch("agent.context_node.generate_oauth_link")
-    @patch("agent.memory_store.get_memory_store")
-    @patch("agent.context_node.is_first_time_user", return_value=True)
-    @patch("agent.context_node.check_oauth_status", return_value=False)
+    @patch("gordie.agent.context_node.generate_oauth_link")
+    @patch("gordie.agent.memory_store.get_memory_store")
+    @patch("gordie.agent.context_node.is_first_time_user", return_value=True)
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=False)
     def test_first_time_user_returns_first_time_status(
         self, _mock_oauth_check, _mock_first_time, _mock_memory_store, mock_gen_link
     ):
@@ -55,10 +55,10 @@ class TestNoOAuth:
         assert result["context_status"] == "first_time_user"
         assert result.get("oauth_url") == "https://yahoo.com/oauth"
 
-    @patch("agent.context_node.generate_oauth_link")
-    @patch("agent.memory_store.get_memory_store")
-    @patch("agent.context_node.is_first_time_user", return_value=False)
-    @patch("agent.context_node.check_oauth_status", return_value=False)
+    @patch("gordie.agent.context_node.generate_oauth_link")
+    @patch("gordie.agent.memory_store.get_memory_store")
+    @patch("gordie.agent.context_node.is_first_time_user", return_value=False)
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=False)
     def test_returning_user_no_oauth_returns_no_oauth_status(
         self, _mock_oauth_check, _mock_first_time, _mock_memory_store, mock_gen_link
     ):
@@ -72,9 +72,9 @@ class TestNoOAuth:
 
 
 class TestNoTeamsInDb:
-    @patch("agent.context_node._handle_no_teams")
-    @patch("agent.context_node._fetch_onboarded_teams", return_value=[])
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node._handle_no_teams")
+    @patch("gordie.agent.context_node._fetch_onboarded_teams", return_value=[])
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_delegates_to_handle_no_teams(self, _mock_oauth, _mock_fetch, mock_handle):
         mock_handle.return_value = {"context_status": "no_teams_available"}
         state = _make_state()
@@ -86,9 +86,9 @@ class TestNoTeamsInDb:
 
 
 class TestTeamAmbiguous:
-    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_multiple_teams_no_resolution_returns_ambiguous(
         self, _mock_oauth, mock_fetch, _mock_resolve
     ):
@@ -106,9 +106,9 @@ class TestTeamAmbiguous:
 
 
 class TestValidated:
-    @patch("agent.context_node.resolve_team_context", return_value=("123", "456"))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=("123", "456"))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_validated_context_returns_league_and_team(
         self, _mock_oauth, mock_fetch, _mock_resolve
     ):
@@ -123,9 +123,9 @@ class TestValidated:
         assert result.get("team_id") == "456"
         assert result.get("sport") == "nhl"
 
-    @patch("agent.context_node.resolve_team_context", return_value=("789", "101"))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=("789", "101"))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_infers_sport_from_team_data(self, _mock_oauth, mock_fetch, _mock_resolve):
         teams = [{"league_id": "789", "team_id": "101", "game_key": "450", "sport": "mlb"}]
         mock_fetch.return_value = teams
@@ -136,9 +136,9 @@ class TestValidated:
         assert result["context_status"] == "validated"
         assert result.get("sport") == "mlb"
 
-    @patch("agent.context_node.resolve_team_context", return_value=("111", "222"))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=("111", "222"))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_unknown_sport_falls_back_to_nhl(self, _mock_oauth, mock_fetch, _mock_resolve):
         teams = [{"league_id": "111", "team_id": "222", "game_key": "999", "sport": "curling"}]
         mock_fetch.return_value = teams
@@ -149,9 +149,9 @@ class TestValidated:
         assert result["context_status"] == "validated"
         assert result.get("sport") == "nhl"
 
-    @patch("agent.context_node.resolve_team_context", return_value=("123", "456"))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=("123", "456"))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_validated_result_includes_sport_inferred_at(
         self, _mock_oauth, mock_fetch, _mock_resolve
     ):
@@ -166,9 +166,9 @@ class TestValidated:
 
 
 class TestSportInference:
-    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_keyword_narrows_to_single_team(self, _mock_oauth, mock_fetch, _mock_resolve):
         teams = [
             {
@@ -196,9 +196,9 @@ class TestSportInference:
         assert result.get("league_id") == "2"
         assert result.get("team_id") == "20"
 
-    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_keyword_narrows_to_sport_but_multiple_teams_returns_ambiguous(
         self, _mock_oauth, mock_fetch, _mock_resolve
     ):
@@ -225,9 +225,9 @@ class TestSportInference:
 
         assert result["context_status"] == "team_ambiguous"
 
-    @patch("agent.context_node.resolve_team_context", return_value=(None, None))
-    @patch("agent.context_node._fetch_onboarded_teams")
-    @patch("agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node.resolve_team_context", return_value=(None, None))
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_no_sport_signal_returns_ambiguous(self, _mock_oauth, mock_fetch, _mock_resolve):
         teams = [
             {

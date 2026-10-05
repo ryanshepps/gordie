@@ -40,12 +40,16 @@ services:
       GORDIE_LOG_FILE: stderr
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
+      GORDIE_DATA_DIR: /app/stats
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
+
+    volumes:
+      - gordie_stats:/app/stats
 
   ngrok:
     image: ngrok/ngrok:latest
@@ -59,3 +63,4 @@ services:
 
 volumes:
   gordie_pgdata:
+  gordie_stats:

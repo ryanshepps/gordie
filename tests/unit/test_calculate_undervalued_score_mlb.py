@@ -1,4 +1,4 @@
-from tools.mlb.player.calculate_undervalued_score_mlb import (
+from gordie.tools.mlb.player.calculate_undervalued_score_mlb import (
     BatterStats,
     PitcherStats,
     _calculate_batter_score,

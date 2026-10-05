@@ -1,0 +1,458 @@
+"""
+Yahoo OAuth token management with better error handling for CI/CD environments.
+
+This module provides robust token management including:
+- JSON-based token storage (cleaner than individual env vars)
+- Automatic token refresh with error handling
+- Clear error messages when re-authentication is needed
+"""
+
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+
+from dotenv import load_dotenv
+from sqlalchemy import text
+from yfpy.query import YahooFantasySportsQuery
+
+from gordie.data.database import get_session
+from gordie.module.logger import get_logger
+
+load_dotenv()
+logger = get_logger(__name__)
+
+
+class AuthenticatedYahooClient:
+    """Yahoo Fantasy Sports authenticated client with robust token handling."""
+
+    def __init__(
+        self,
+        user_email: str | None = None,
+        user_id: str | None = None,
+        league_id: int | None = None,
+        access_token_json: str | None = None,
+        game_code: str = "nhl",
+        game_key: str | None = None,
+    ):
+        if not user_email and not user_id:
+            raise ValueError("Either user_id or user_email is required")
+        self.user_email = user_email
+        self.user_id = user_id
+        self.league_id = league_id
+        self.consumer_key = os.getenv("YAHOO_CLIENT_ID")
+        self.consumer_secret = os.getenv("YAHOO_CLIENT_SECRET")
+
+        missing = [
+            name
+            for name, value in [
+                ("YAHOO_CLIENT_ID", self.consumer_key),
+                ("YAHOO_CLIENT_SECRET", self.consumer_secret),
+            ]
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Missing required credentials: {', '.join(missing)}")
+
+        if league_id and not game_key:
+            resolved = self._resolve_league_metadata(league_id)
+            if resolved:
+                game_key, game_code = resolved
+
+        self.game_code = game_code
+        self.game_key = game_key
+        self.access_token_json = (
+            self._fetch_tokens_from_db_by_user_id(user_id)
+            if user_id
+            else self._fetch_tokens_from_db(str(user_email))
+        )
+        self._query = None
+
+    @staticmethod
+    def _resolve_league_metadata(league_id: int) -> tuple[str, str] | None:
+        session = get_session()
+        try:
+            row = session.execute(
+                text(
+                    "SELECT game_key, league_type FROM yahoo_leagues WHERE league_id = :league_id"
+                ),
+                {"league_id": str(league_id)},
+            ).fetchone()
+            if row:
+                return str(row[0]), str(row[1])
+            return None
+        finally:
+            session.close()
+
+    def _fetch_tokens_from_db(self, user_email: str) -> str:
+        """
+        Fetch Yahoo OAuth tokens from database for the given user email.
+
+        Args:
+            user_email: User's email address
+
+        Returns:
+            JSON string containing token data
+
+        Raises:
+            ValueError: If no auth token found for the user
+        """
+        session = get_session()
+        try:
+            result = session.execute(
+                text(
+                    """
+                    SELECT access_token, refresh_token, token_time, token_type
+                    FROM yahoo_tokens yt
+                    JOIN user_identities ui
+                        ON ui.user_id = yt.user_id
+                        AND ui.medium = 'email'
+                    WHERE ui.external_id = :user_email
+                    """
+                ),
+                {"user_email": user_email},
+            ).fetchone()
+
+            if not result:
+                raise ValueError(
+                    f"No auth token found for user: {user_email}. "
+                    "User must authenticate first using the OAuth flow."
+                )
+
+            access_token, refresh_token, token_time, token_type = result
+
+            # Convert timestamp to Unix epoch float
+            token_time_float = (
+                token_time.timestamp() if hasattr(token_time, "timestamp") else float(token_time)
+            )
+
+            token_data = {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_time": token_time_float,
+                "token_type": token_type,
+            }
+
+            logger.info(f"Loaded OAuth tokens from database for user: {user_email}")
+            return json.dumps(token_data)
+
+        finally:
+            session.close()
+
+    def _fetch_tokens_from_db_by_user_id(self, user_id: str) -> str:
+        """Fetch Yahoo OAuth tokens from database for the canonical user ID."""
+        session = get_session()
+        try:
+            result = session.execute(
+                text(
+                    """
+                    SELECT access_token, refresh_token, token_time, token_type
+                    FROM yahoo_tokens
+                    WHERE user_id = :user_id
+                    """
+                ),
+                {"user_id": user_id},
+            ).fetchone()
+
+            if not result:
+                raise ValueError(
+                    f"No auth token found for user_id: {user_id}. "
+                    "User must authenticate first using the OAuth flow."
+                )
+
+            access_token, refresh_token, token_time, token_type = result
+            token_time_float = (
+                token_time.timestamp() if hasattr(token_time, "timestamp") else float(token_time)
+            )
+            token_data = {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_time": token_time_float,
+                "token_type": token_type,
+            }
+
+            logger.info(f"Loaded OAuth tokens from database for user_id: {user_id}")
+            return json.dumps(token_data)
+        finally:
+            session.close()
+
+    @property
+    def query(self) -> YahooFantasySportsQuery:
+        """
+        Get or create the Yahoo Fantasy Sports Query object.
+
+        Returns:
+            Configured YahooFantasySportsQuery object
+
+        Raises:
+            RuntimeError: If token creation or refresh fails
+        """
+        if self._query is None:
+            self._query = self._create_query()
+        return self._query
+
+    def _create_query(self) -> YahooFantasySportsQuery:
+        """
+        Create Yahoo Fantasy Sports Query with token handling.
+
+        Returns:
+            Configured YahooFantasySportsQuery object
+
+        Raises:
+            RuntimeError: If token creation fails
+        """
+        if self.access_token_json:
+            try:
+                token_data = json.loads(self.access_token_json.strip())
+
+                # Check token age and log if expired
+                if token_data.get("token_time"):
+                    token_age_hours = (datetime.now().timestamp() - token_data["token_time"]) / 3600
+                    if token_age_hours > 1:
+                        logger.warning(
+                            f"Access token expired ({token_age_hours:.1f}h old, will auto-refresh)"
+                        )
+
+                return self._create_query_with_token(token_data)
+            except json.JSONDecodeError as e:
+                raise RuntimeError(
+                    f"Invalid YAHOO_ACCESS_TOKEN_JSON format: {e}. "
+                    "Ensure it's valid single-line JSON with proper escaping."
+                ) from e
+
+        # No token found - requires interactive authentication
+        logger.warning(
+            "No token data found - starting OAuth flow (requires interactive authentication)"
+        )
+
+        # Use a dummy league_id if none provided (needed for user league queries)
+        query_league_id = self.league_id or 0
+
+        query = YahooFantasySportsQuery(
+            league_id=str(query_league_id),
+            game_code=self.game_code,
+            game_id=int(self.game_key) if self.game_key else None,
+            yahoo_consumer_key=self.consumer_key,
+            yahoo_consumer_secret=self.consumer_secret,
+            env_file_location=Path("."),
+            save_token_data_to_env_file=False,
+        )
+
+        if self.game_key and self.league_id:
+            query.league_key = f"{self.game_key}.l.{self.league_id}"
+
+        # Hook into the OAuth token refresh to save updated tokens to database
+        if query.oauth:
+            original_refresh = query.oauth.refresh_access_token
+
+            def refresh_with_db_save(*args, **kwargs):
+                # Call original refresh
+                result = original_refresh(*args, **kwargs)
+                # Save refreshed tokens to database
+                logger.info("Token refreshed - saving to database")
+                self._save_tokens_to_db(query)
+                return result
+
+            query.oauth.refresh_access_token = refresh_with_db_save
+
+        return query
+
+    def _save_tokens_to_db(self, query: YahooFantasySportsQuery) -> None:
+        """
+        Save current tokens from the query object to the database.
+
+        Args:
+            query: YahooFantasySportsQuery instance with current tokens
+        """
+        try:
+            # Extract token data from the query's oauth session
+            oauth = query.oauth
+            if oauth and hasattr(oauth, "access_token"):
+                token_time = datetime.now()
+
+                session = get_session()
+                try:
+                    if self.user_id:
+                        session.execute(
+                            text(
+                                """
+                                UPDATE yahoo_tokens
+                                SET access_token = :access_token,
+                                    refresh_token = :refresh_token,
+                                    token_time = :token_time,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE user_id = :user_id
+                                """
+                            ),
+                            {
+                                "access_token": oauth.access_token,
+                                "refresh_token": oauth.refresh_token,
+                                "token_time": token_time,
+                                "user_id": self.user_id,
+                            },
+                        )
+                    elif self.user_email:
+                        session.execute(
+                            text(
+                                """
+                                UPDATE yahoo_tokens
+                                SET access_token = :access_token,
+                                    refresh_token = :refresh_token,
+                                    token_time = :token_time,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE user_id = (
+                                    SELECT user_id
+                                    FROM user_identities
+                                    WHERE medium = 'email' AND external_id = :user_email
+                                )
+                                """
+                            ),
+                            {
+                                "access_token": oauth.access_token,
+                                "refresh_token": oauth.refresh_token,
+                                "token_time": token_time,
+                                "user_email": self.user_email,
+                            },
+                        )
+                    session.commit()
+                    logger.info("Updated refreshed tokens in database")
+                finally:
+                    session.close()
+        except Exception as e:
+            logger.error(f"Failed to save refreshed tokens to database: {e}")
+            # Don't raise - token refresh succeeded, DB update is secondary
+
+    def _create_query_with_token(self, token_data: dict[str, str]) -> YahooFantasySportsQuery:
+        """
+        Create YahooFantasySportsQuery with existing token data.
+
+        Args:
+            token_data: Dictionary containing token information
+
+        Returns:
+            Configured YahooFantasySportsQuery object with token refresh hook
+
+        Raises:
+            RuntimeError: If query creation fails
+        """
+        try:
+            full_token_data = {
+                **token_data,
+                "consumer_key": self.consumer_key,
+                "consumer_secret": self.consumer_secret,
+                "guid": None,
+            }
+
+            # Use a dummy league_id if none provided (needed for user league queries)
+            query_league_id = self.league_id or 0
+
+            query = YahooFantasySportsQuery(
+                league_id=str(query_league_id),
+                game_code=self.game_code,
+                game_id=int(self.game_key) if self.game_key else None,
+                yahoo_consumer_key=self.consumer_key,
+                yahoo_consumer_secret=self.consumer_secret,
+                yahoo_access_token_json=full_token_data,
+                env_file_location=Path("."),
+                save_token_data_to_env_file=False,
+            )
+
+            if self.game_key and self.league_id:
+                query.league_key = f"{self.game_key}.l.{self.league_id}"
+
+            # Hook into the OAuth token refresh to save updated tokens to database
+            if query.oauth:
+                original_refresh = query.oauth.refresh_access_token
+
+                def refresh_with_db_save(*args, **kwargs):
+                    # Call original refresh
+                    result = original_refresh(*args, **kwargs)
+                    # Save refreshed tokens to database
+                    logger.info("Token refreshed - saving to database")
+                    self._save_tokens_to_db(query)
+                    return result
+
+                query.oauth.refresh_access_token = refresh_with_db_save
+
+            return query
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to create Yahoo query: {e}. "
+                "Token may be expired or invalid. Re-authenticate and update secrets."
+            ) from e
+
+    @staticmethod
+    def export_tokens_to_json() -> str | None:
+        """
+        Export current token data from .env to JSON format for GitHub secrets.
+
+        Returns:
+            JSON string containing all token data, or None if tokens not found
+        """
+        load_dotenv()
+
+        access_token = os.getenv("YAHOO_ACCESS_TOKEN")
+        refresh_token = os.getenv("YAHOO_REFRESH_TOKEN")
+        token_time = os.getenv("YAHOO_TOKEN_TIME")
+        token_type = os.getenv("YAHOO_TOKEN_TYPE", "bearer")
+
+        if not access_token or not refresh_token:
+            logger.error("Token data not found in .env file. Run authentication flow first.")
+            return None
+
+        token_data = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_time": float(token_time) if token_time else None,
+            "token_type": token_type,
+        }
+
+        json_str = json.dumps(token_data)
+
+        logger.info("GitHub Secret: YAHOO_ACCESS_TOKEN_JSON")
+        logger.info(json_str)
+        logger.info("\nAdd to GitHub → Settings → Secrets → New repository secret")
+
+        return json_str
+
+    @staticmethod
+    def check_token_health() -> dict[str, str | bool | float]:
+        """
+        Check the health of current OAuth tokens.
+
+        Returns:
+            Dictionary with token status information
+        """
+        load_dotenv()
+
+        access_token = os.getenv("YAHOO_ACCESS_TOKEN")
+        refresh_token = os.getenv("YAHOO_REFRESH_TOKEN")
+        token_time_str = os.getenv("YAHOO_TOKEN_TIME")
+
+        if not access_token or not refresh_token:
+            return {
+                "status": "missing",
+                "message": "No token data found",
+                "needs_reauth": True,
+            }
+
+        token_time = float(token_time_str) if token_time_str else 0
+        token_age_hours = (datetime.now().timestamp() - token_time) / 3600
+
+        if token_age_hours > 1:
+            return {
+                "status": "expired",
+                "message": f"Token expired {token_age_hours:.1f}h ago (will auto-refresh)",
+                "needs_reauth": False,
+                "token_age_hours": token_age_hours,
+                "has_refresh_token": True,
+            }
+
+        return {
+            "status": "valid",
+            "message": f"Token valid (expires in {1 - token_age_hours:.1f}h)",
+            "needs_reauth": False,
+            "token_age_hours": token_age_hours,
+            "has_refresh_token": True,
+        }

@@ -3,7 +3,7 @@ import importlib
 
 from langgraph.store.memory import InMemoryStore
 
-from tools.memory.search_past_conversations import create_search_past_conversations_tool
+from gordie.tools.memory.search_past_conversations import create_search_past_conversations_tool
 
 
 def test_anthropic_provider_without_openai_key_creates_plain_memory_store(monkeypatch):
@@ -25,7 +25,7 @@ def test_anthropic_provider_without_openai_key_creates_plain_memory_store(monkey
 
     monkeypatch.setattr(builtins, "__import__", fail_on_openai_import)
 
-    import agent.memory_store as memory_store
+    import gordie.agent.memory_store as memory_store
 
     memory_store = importlib.reload(memory_store)
 

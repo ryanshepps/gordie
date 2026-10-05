@@ -6,9 +6,9 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from data.models import Medium
-from data.thread_repository import ThreadRepository
-from data.user_repository import UserRepository
+from gordie.data.models import Medium
+from gordie.data.thread_repository import ThreadRepository
+from gordie.data.user_repository import UserRepository
 
 
 class FakeResult:

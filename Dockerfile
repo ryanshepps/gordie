@@ -40,6 +40,8 @@ WORKDIR /app
 
 COPY --from=builder --chown=app:app /app /app
 
+RUN mkdir -p /app/stats && chown app:app /app/stats
+
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -53,4 +55,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -fsS http://127.0.0.1:${SERVER_PORT}/health || exit 1
 
-CMD ["python", "-m", "scripts.start_server"]
+CMD ["python", "-m", "gordie.scripts.start_server"]

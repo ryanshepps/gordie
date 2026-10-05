@@ -12,14 +12,14 @@ from datetime import datetime
 
 import pytest
 
-from agent.digest_writer import DigestType, write_digest_content
-from agent.news.news_digest import (
+from gordie.agent.digest_writer import DigestType, write_digest_content
+from gordie.agent.news.news_digest import (
     NewsDigest,
     UserInjuryAlert,
     UserMatchupAlert,
     UserTradeAlert,
 )
-from data.pydantic_models import (
+from gordie.data.pydantic_models import (
     CurrentMatchup,
     DigestData,
     EnrichedFreeAgent,

@@ -487,85 +487,6 @@ wheels = [
 ]
 
 [[package]]
-name = "fantasy-agent"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "agentevals" },
-    { name = "alembic" },
-    { name = "apscheduler" },
-    { name = "dotenv" },
-    { name = "duckdb" },
-    { name = "hypercorn" },
-    { name = "langchain" },
-    { name = "langchain-anthropic" },
-    { name = "langchain-openai" },
-    { name = "langgraph-checkpoint-postgres" },
-    { name = "markdown2" },
-    { name = "nhl-api-py" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pybaseball" },
-    { name = "pydantic" },
-    { name = "pytest-cov" },
-    { name = "python-json-logger" },
-    { name = "quart" },
-    { name = "requests" },
-    { name = "scipy" },
-    { name = "sqlalchemy" },
-    { name = "typer" },
-    { name = "yfpy" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "basedpyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agentevals", specifier = ">=0.0.9" },
-    { name = "alembic", specifier = ">=1.14.0" },
-    { name = "apscheduler", specifier = ">=3.10.4" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "duckdb", specifier = ">=1.0.0" },
-    { name = "hypercorn", specifier = ">=0.17.0" },
-    { name = "langchain", specifier = ">=1.1.2" },
-    { name = "langchain-anthropic", specifier = ">=0.3.0" },
-    { name = "langchain-openai", specifier = ">=1.1.0" },
-    { name = "langgraph-checkpoint-postgres", specifier = ">=2.0.0" },
-    { name = "markdown2", specifier = ">=2.5.4" },
-    { name = "nhl-api-py", specifier = ">=3.1.1" },
-    { name = "numpy", specifier = ">=2.0.0" },
-    { name = "pandas", specifier = ">=2.3.3" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
-    { name = "pybaseball", specifier = ">=2.2.7" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "python-json-logger", specifier = ">=2.0.7" },
-    { name = "quart", specifier = ">=0.20.0" },
-    { name = "requests", specifier = ">=2.32.0" },
-    { name = "scipy", specifier = ">=1.14.0" },
-    { name = "sqlalchemy", specifier = ">=2.0.0" },
-    { name = "typer", specifier = ">=0.25.1" },
-    { name = "yfpy", specifier = ">=17.0.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "basedpyright", specifier = ">=1.36.1" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=1.3.0" },
-    { name = "pytest-mock", specifier = ">=3.14.0" },
-    { name = "ruff", specifier = ">=0.14.9" },
-]
-
-[[package]]
 name = "flask"
 version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -613,6 +534,85 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/90/aa/dfbbe24c6a6afc5c203d90cc0343e24bcbb09e76d67c4d6eef8c2558d7ba/fonttools-4.62.1-cp314-cp314t-win32.whl", hash = "sha256:b820fcb92d4655513d8402d5b219f94481c4443d825b4372c75a2072aa4b357a", size = 2348021, upload-time = "2026-03-13T13:54:16.98Z" },
     { url = "https://files.pythonhosted.org/packages/13/6f/ae9c4e4dd417948407b680855c2c7790efb52add6009aaecff1e3bc50e8e/fonttools-4.62.1-cp314-cp314t-win_amd64.whl", hash = "sha256:59b372b4f0e113d3746b88985f1c796e7bf830dd54b28374cd85c2b8acd7583e", size = 2414147, upload-time = "2026-03-13T13:54:19.416Z" },
     { url = "https://files.pythonhosted.org/packages/fd/ba/56147c165442cc5ba7e82ecf301c9a68353cede498185869e6e02b4c264f/fonttools-4.62.1-py3-none-any.whl", hash = "sha256:7487782e2113861f4ddcc07c3436450659e3caa5e470b27dc2177cade2d8e7fd", size = 1152647, upload-time = "2026-03-13T13:54:22.735Z" },
+]
+
+[[package]]
+name = "gordie"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "agentevals" },
+    { name = "alembic" },
+    { name = "apscheduler" },
+    { name = "dotenv" },
+    { name = "duckdb" },
+    { name = "hypercorn" },
+    { name = "langchain" },
+    { name = "langchain-anthropic" },
+    { name = "langchain-openai" },
+    { name = "langgraph-checkpoint-postgres" },
+    { name = "markdown2" },
+    { name = "nhl-api-py" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pybaseball" },
+    { name = "pydantic" },
+    { name = "python-json-logger" },
+    { name = "quart" },
+    { name = "requests" },
+    { name = "scipy" },
+    { name = "sqlalchemy" },
+    { name = "typer" },
+    { name = "yfpy" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "basedpyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agentevals", specifier = ">=0.0.9" },
+    { name = "alembic", specifier = ">=1.14.0" },
+    { name = "apscheduler", specifier = ">=3.10.4" },
+    { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "duckdb", specifier = ">=1.0.0" },
+    { name = "hypercorn", specifier = ">=0.17.0" },
+    { name = "langchain", specifier = ">=1.1.2" },
+    { name = "langchain-anthropic", specifier = ">=0.3.0" },
+    { name = "langchain-openai", specifier = ">=1.1.0" },
+    { name = "langgraph-checkpoint-postgres", specifier = ">=2.0.0" },
+    { name = "markdown2", specifier = ">=2.5.4" },
+    { name = "nhl-api-py", specifier = ">=3.1.1" },
+    { name = "numpy", specifier = ">=2.0.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
+    { name = "pybaseball", specifier = ">=2.2.7" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "python-json-logger", specifier = ">=2.0.7" },
+    { name = "quart", specifier = ">=0.20.0" },
+    { name = "requests", specifier = ">=2.32.0" },
+    { name = "scipy", specifier = ">=1.14.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.0" },
+    { name = "typer", specifier = ">=0.25.1" },
+    { name = "yfpy", specifier = ">=17.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "basedpyright", specifier = ">=1.36.1" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-mock", specifier = ">=3.14.0" },
+    { name = "ruff", specifier = ">=0.14.9" },
 ]
 
 [[package]]

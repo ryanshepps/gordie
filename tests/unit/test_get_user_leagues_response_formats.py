@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from yfpy.exceptions import YahooFantasySportsDataNotFound
 
-from tools.yahoo.get_user_leagues import get_user_leagues
+from gordie.tools.yahoo.get_user_leagues import get_user_leagues
 
 USER_STATE = {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}}
 
@@ -42,7 +42,7 @@ def _create_mock_client(mock_query):
 class TestUserWithSingleTeam:
     """Test user with exactly one team."""
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_single_team_user(self, mock_client_class):
         """User with one team in one game should have team extracted correctly.
 
@@ -70,7 +70,7 @@ class TestUserWithSingleTeam:
 class TestUserWithMultipleTeams:
     """Test user with multiple teams across different formats."""
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_multiple_teams_same_game(self, mock_client_class):
         """User with multiple teams in the same game."""
         team1 = MockTeam("465.l.26455.t.9", "Team A")
@@ -88,7 +88,7 @@ class TestUserWithMultipleTeams:
         assert teams_list[0]["team_name"] == "Team A"
         assert teams_list[1]["team_name"] == "Team B"
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_multiple_games_multiple_teams(self, mock_client_class):
         """User with teams across multiple games/seasons."""
         team1 = MockTeam("465.l.26455.t.9", "2025 Team")
@@ -113,7 +113,7 @@ class TestUserWithMultipleTeams:
 class TestUserWithNoTeams:
     """Test users who have no teams available."""
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_no_games_found(self, mock_client_class):
         """User authenticated but has no Yahoo Fantasy games at all."""
         mock_query = MagicMock()
@@ -124,7 +124,7 @@ class TestUserWithNoTeams:
 
         assert result == "[]"
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_empty_games_list(self, mock_client_class):
         """User has games list but it's empty."""
         mock_query = MagicMock()
@@ -140,7 +140,7 @@ class TestUserWithNoTeams:
 class TestErrorHandling:
     """Test how the tool handles various error conditions."""
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_permission_error_in_teams(self, mock_client_class):
         """Yahoo returns error message in teams field due to permissions."""
         game = MockGame(465, "nhl", 2025, "Error: Permission denied", is_offseason=False)
@@ -155,7 +155,7 @@ class TestErrorHandling:
         # Should gracefully skip the error and return empty list
         assert teams_list == []
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_malformed_team_key(self, mock_client_class):
         """Team has malformed team_key that doesn't match expected format."""
         team = MockTeam("invalid-key-format", "Bad Team")
@@ -171,7 +171,7 @@ class TestErrorHandling:
         # Should skip malformed team but not crash
         assert teams_list == []
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_team_missing_team_key(self, mock_client_class):
         """Team object is missing team_key attribute entirely."""
         team = MagicMock()
@@ -193,7 +193,7 @@ class TestErrorHandling:
 class TestEdgeCases:
     """Test edge cases and unusual response formats."""
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_game_without_teams_attribute(self, mock_client_class):
         """Game object is missing teams attribute."""
         game = MagicMock()
@@ -211,7 +211,7 @@ class TestEdgeCases:
 
         assert teams_list == []
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_offseason_team(self, mock_client_class):
         """Team in offseason should be marked as inactive."""
         team = MockTeam("465.l.26455.t.9", "Offseason Team")
@@ -227,7 +227,7 @@ class TestEdgeCases:
         assert len(teams_list) == 1
         assert teams_list[0]["is_active"] is False
 
-    @patch("tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_different_sport_code(self, mock_client_class):
         """Non-NHL sport should still work and report correct sport."""
         team = MockTeam("331.l.12345.t.1", "Football Team")
