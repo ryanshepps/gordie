@@ -11,7 +11,7 @@
 | `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET` | Yahoo Fantasy OAuth |
 | `LLM_PROVIDER`, `LLM_MODEL` | Agent model selection |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | Key for the selected model provider |
-| `ENABLED_SPORTS` | Stats refresh selection: `nhl,mlb` by default |
+| `ENABLED_SPORTS` | Stats refresh selection: `nhl` by default |
 | `CREEM_API_KEY`, `CREEM_WEBHOOK_SECRET`, `CREEM_PRODUCT_HOSTED_MONTHLY` | Optional billing |
 | `OSS_GITHUB_URL` | Repository link in the maintenance server |
 

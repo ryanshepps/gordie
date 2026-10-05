@@ -12,13 +12,13 @@ ACTIVE_TEAM = {
     "is_active": True,
 }
 
-ACTIVE_MLB_TEAM = {
-    "sport": "mlb",
+ACTIVE_NFL_TEAM = {
+    "sport": "nfl",
     "season": "2025",
     "game_key": "449",
     "league_id": "77777",
     "team_id": "3",
-    "team_name": "Dingerz",
+    "team_name": "Touchdowns",
     "is_active": True,
 }
 
@@ -61,17 +61,17 @@ class TestSingleActiveTeamAutoOnboards:
 
     @patch("gordie.agent.context_node.auto_onboard_team")
     @patch("gordie.agent.context_node.fetch_supported_teams")
-    def test_single_active_mlb_team_auto_onboards_with_correct_sport(
+    def test_single_active_nfl_team_auto_onboards_with_correct_sport(
         self, mock_fetch, mock_onboard
     ):
-        mock_fetch.return_value = [ACTIVE_MLB_TEAM]
-        mock_onboard.return_value = ACTIVE_MLB_TEAM
+        mock_fetch.return_value = [ACTIVE_NFL_TEAM]
+        mock_onboard.return_value = ACTIVE_NFL_TEAM
 
         result = _handle_no_teams("user@example.com")
 
-        mock_onboard.assert_called_once_with("user@example.com", ACTIVE_MLB_TEAM)
+        mock_onboard.assert_called_once_with("user@example.com", ACTIVE_NFL_TEAM)
         assert result.get("league_id") == "77777"
-        assert result.get("sport") == "mlb"
+        assert result.get("sport") == "nfl"
         assert result["context_status"] == "auto_onboarded"
 
 
@@ -88,7 +88,7 @@ class TestMultipleActiveTeamsStillAsks:
 
     @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_cross_sport_active_teams_prompts_selection(self, mock_fetch):
-        mock_fetch.return_value = [ACTIVE_TEAM, ACTIVE_MLB_TEAM]
+        mock_fetch.return_value = [ACTIVE_TEAM, ACTIVE_NFL_TEAM]
 
         result = _handle_no_teams("user@example.com")
 

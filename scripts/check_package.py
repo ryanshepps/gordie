@@ -61,11 +61,9 @@ from gordie.module.paths import data_path
 runtime = Runtime(default_plugins())
 with runtime.activate():
     DB_PATH = data_path("moneypuck_stats.duckdb")
-    MLB_DB_PATH = data_path("mlb_stats.duckdb")
 
 assert "DATABASE_URL=" in _DEFAULT_TEMPLATE_FILE.read_text()
 assert DB_PATH.parent == Path(os.environ["GORDIE_DATA_DIR"])
-assert MLB_DB_PATH.parent == DB_PATH.parent
 assert not DB_PATH.parent.exists()
 
 def verify_migrations(config, revision):

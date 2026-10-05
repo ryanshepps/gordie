@@ -4,6 +4,7 @@ These tests verify the tool correctly handles different Yahoo API response forma
 Each test represents a distinct user scenario - only one should fail per regression.
 """
 
+from ast import literal_eval
 from unittest.mock import MagicMock, patch
 
 from yfpy.exceptions import YahooFantasySportsDataNotFound
@@ -69,6 +70,19 @@ class TestUserWithSingleTeam:
 
 class TestUserWithMultipleTeams:
     """Test user with multiple teams across different formats."""
+
+    @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
+    def test_discovery_excludes_unsupported_sports(self, mock_client_class) -> None:
+        mock_query = MagicMock()
+        mock_query.get_user_teams.return_value = [
+            MockGame(465, "nhl", 2025, [MockTeam("465.l.1.t.9", "Hockey Team")]),
+            MockGame(999, "mlb", 2025, [MockTeam("999.l.2.t.3", "Other Team")]),
+        ]
+        mock_client_class.return_value = _create_mock_client(mock_query)
+
+        teams = literal_eval(get_user_leagues.invoke(USER_STATE))
+
+        assert [(team["sport"], team["team_name"]) for team in teams] == [("nhl", "Hockey Team")]
 
     @patch("gordie.tools.yahoo.get_user_leagues.AuthenticatedYahooClient")
     def test_multiple_teams_same_game(self, mock_client_class):

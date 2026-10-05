@@ -43,8 +43,8 @@ def _stale_timestamp() -> str:
 
 class TestSingleTeamShortcut:
     def test_returns_sport_of_single_team(self):
-        result = infer_sport("anything", _teams("mlb"), None, None)
-        assert result == "mlb"
+        result = infer_sport("anything", _teams("nfl"), None, None)
+        assert result == "nfl"
 
     def test_returns_none_for_invalid_sport(self):
         teams = [
@@ -64,7 +64,7 @@ class TestStickyContext:
     def test_returns_current_sport_within_timeout(self):
         result = infer_sport(
             "some random message",
-            _teams("nhl", "mlb"),
+            _teams("nhl", "nfl"),
             "nhl",
             _recent_timestamp(),
         )
@@ -72,30 +72,26 @@ class TestStickyContext:
 
     def test_reevaluates_after_timeout(self):
         result = infer_sport(
-            "how's my baseball team doing",
-            _teams("nhl", "mlb"),
+            "how's my football team doing",
+            _teams("nhl", "nfl"),
             "nhl",
             _stale_timestamp(),
         )
-        assert result == "mlb"
+        assert result == "nfl"
 
     def test_no_timestamp_triggers_evaluation(self):
         result = infer_sport(
-            "how's my baseball team doing",
-            _teams("nhl", "mlb"),
+            "how's my football team doing",
+            _teams("nhl", "nfl"),
             "nhl",
             None,
         )
-        assert result == "mlb"
+        assert result == "nfl"
 
 
 class TestKeywordMatching:
-    def test_baseball_keyword(self):
-        result = infer_sport("who should I pick up in baseball", _teams("nhl", "mlb"), None, None)
-        assert result == "mlb"
-
     def test_hockey_keyword(self):
-        result = infer_sport("my hockey lineup needs help", _teams("nhl", "mlb"), None, None)
+        result = infer_sport("my hockey lineup needs help", _teams("nhl", "nfl"), None, None)
         assert result == "nhl"
 
     def test_football_keyword(self):
@@ -107,24 +103,24 @@ class TestKeywordMatching:
         assert result == "nba"
 
     def test_case_insensitive(self):
-        result = infer_sport("HOCKEY is great", _teams("nhl", "mlb"), None, None)
+        result = infer_sport("HOCKEY is great", _teams("nhl", "nfl"), None, None)
         assert result == "nhl"
 
     def test_keyword_for_sport_user_doesnt_have_is_ignored(self):
-        result = infer_sport("talk about baseball", _teams("nhl", "nfl"), None, None)
+        result = infer_sport("talk about basketball", _teams("nhl", "nfl"), None, None)
         assert result is None
 
     def test_multiple_sport_keywords_returns_none(self):
         result = infer_sport(
-            "should I trade my hockey player for a baseball player",
-            _teams("nhl", "mlb"),
+            "should I trade my hockey player for a football player",
+            _teams("nhl", "nfl"),
             None,
             None,
         )
         assert result is None
 
     def test_word_boundary_prevents_false_positive(self):
-        result = infer_sport("that was a nice play", _teams("nhl", "mlb"), None, None)
+        result = infer_sport("that was a nice play", _teams("nhl", "nfl"), None, None)
         assert result is None
 
 
@@ -133,27 +129,27 @@ class TestTeamNameMatching:
         teams = _teams_with_names(
             [
                 ("nhl", "Kraken Crushers", "NHL Dynasty"),
-                ("mlb", "Diamond Dogs", "Fantasy Baseball League"),
+                ("nfl", "Gridiron Giants", "Fantasy Football League"),
             ]
         )
-        result = infer_sport("how are my Diamond Dogs doing", teams, None, None)
-        assert result == "mlb"
+        result = infer_sport("how are my Gridiron Giants doing", teams, None, None)
+        assert result == "nfl"
 
     def test_league_name_in_message(self):
         teams = _teams_with_names(
             [
                 ("nhl", "Team A", "Frozen Four League"),
-                ("mlb", "Team B", "Sluggers League"),
+                ("nfl", "Team B", "Touchdown League"),
             ]
         )
-        result = infer_sport("what's happening in Sluggers League", teams, None, None)
-        assert result == "mlb"
+        result = infer_sport("what's happening in Touchdown League", teams, None, None)
+        assert result == "nfl"
 
     def test_ambiguous_name_match_returns_none(self):
         teams = _teams_with_names(
             [
                 ("nhl", "Winners", "League One"),
-                ("mlb", "Winners", "League Two"),
+                ("nfl", "Winners", "League Two"),
             ]
         )
         result = infer_sport("how are the Winners doing", teams, None, None)
@@ -164,17 +160,17 @@ class TestCarryForward:
     def test_stale_sport_used_when_no_signal(self):
         result = infer_sport(
             "should I make any moves",
-            _teams("nhl", "mlb"),
-            "mlb",
+            _teams("nhl", "nfl"),
+            "nfl",
             _stale_timestamp(),
         )
-        assert result == "mlb"
+        assert result == "nfl"
 
     def test_carry_forward_ignored_if_user_lost_that_sport(self):
         result = infer_sport(
             "should I make any moves",
-            _teams("nhl", "nfl"),
-            "mlb",
+            _teams("nhl", "nba"),
+            "nfl",
             _stale_timestamp(),
         )
         assert result is None
@@ -182,16 +178,16 @@ class TestCarryForward:
 
 class TestFallback:
     def test_no_signal_no_current_sport_returns_none(self):
-        result = infer_sport("hello", _teams("nhl", "mlb"), None, None)
+        result = infer_sport("hello", _teams("nhl", "nfl"), None, None)
         assert result is None
 
     def test_empty_message(self):
-        result = infer_sport("", _teams("nhl", "mlb"), None, None)
+        result = infer_sport("", _teams("nhl", "nfl"), None, None)
         assert result is None
 
     @pytest.mark.parametrize("teams", [[], None])
     def test_no_teams(self, teams):
         if teams is None:
             teams = []
-        result = infer_sport("baseball", teams, None, None)
+        result = infer_sport("football", teams, None, None)
         assert result is None

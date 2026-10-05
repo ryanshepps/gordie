@@ -1,6 +1,10 @@
 from unittest.mock import patch
 
+import pytest
+from pydantic import ValidationError
+
 from gordie.agent.context_resolvers import auto_onboard_team, format_teams_for_display
+from gordie.tools.yahoo.onboard_user_team import onboard_user_team
 
 NHL_TEAM: dict[str, str] = {
     "sport": "nhl",
@@ -11,17 +15,30 @@ NHL_TEAM: dict[str, str] = {
     "team_name": "Steamys Dumps",
 }
 
-MLB_TEAM: dict[str, str] = {
-    "sport": "mlb",
+NFL_TEAM: dict[str, str] = {
+    "sport": "nfl",
     "season": "2025",
     "game_key": "449",
     "league_id": "77777",
     "team_id": "3",
-    "team_name": "Dingerz",
+    "team_name": "Touchdowns",
 }
 
 
 class TestAutoOnboardTeamPassesGameCode:
+    def test_unsupported_sport_is_rejected_before_onboarding(self) -> None:
+        with pytest.raises(ValidationError, match="game_code"):
+            onboard_user_team.invoke(
+                {
+                    "game_key": "999",
+                    "game_code": "mlb",
+                    "league_id": 1,
+                    "team_name": "Other Team",
+                    "team_id": 1,
+                    "state": {"user_id": "00000000-0000-0000-0000-000000000001"},
+                }
+            )
+
     @patch("gordie.agent.context_resolvers.onboard_user_team")
     def test_nhl_team_passes_nhl_game_code(self, mock_onboard):
         mock_onboard.invoke.return_value = "Success"
@@ -34,13 +51,13 @@ class TestAutoOnboardTeamPassesGameCode:
         assert call_args["state"]["user_id"] == "user@example.com"
 
     @patch("gordie.agent.context_resolvers.onboard_user_team")
-    def test_mlb_team_passes_mlb_game_code(self, mock_onboard):
+    def test_nfl_team_passes_nfl_game_code(self, mock_onboard):
         mock_onboard.invoke.return_value = "Success"
 
-        auto_onboard_team("user@example.com", MLB_TEAM)
+        auto_onboard_team("user@example.com", NFL_TEAM)
 
         call_args = mock_onboard.invoke.call_args[0][0]
-        assert call_args["game_code"] == "mlb"
+        assert call_args["game_code"] == "nfl"
         assert "user_id" not in call_args
         assert call_args["state"]["user_id"] == "user@example.com"
 
@@ -90,8 +107,8 @@ class TestFormatTeamsForDisplay:
                 "team_id": "1",
             },
             {
-                "sport": "mlb",
-                "team_name": "Dingerz",
+                "sport": "nfl",
+                "team_name": "Touchdowns",
                 "season": "2025",
                 "game_key": "449",
                 "league_id": "2",
@@ -102,4 +119,4 @@ class TestFormatTeamsForDisplay:
         result = format_teams_for_display(teams)
 
         assert "[NHL]" in result
-        assert "[MLB]" in result
+        assert "[NFL]" in result

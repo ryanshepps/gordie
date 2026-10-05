@@ -81,6 +81,5 @@ def test_scheduler_keeps_stats_and_oauth_cleanup_without_delivery() -> None:
 
     assert {job.id for job in scheduler.get_jobs()} == {
         "refresh_stats_db",
-        "refresh_mlb_stats_db",
         "cleanup_pending_oauth",
     }

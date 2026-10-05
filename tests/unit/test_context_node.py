@@ -132,26 +132,48 @@ class TestValidated:
     @patch("gordie.agent.context_node._fetch_onboarded_teams")
     @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
     def test_infers_sport_from_team_data(self, _mock_oauth, mock_fetch, _mock_resolve):
-        teams = [{"league_id": "789", "team_id": "101", "game_key": "450", "sport": "mlb"}]
+        teams = [{"league_id": "789", "team_id": "101", "game_key": "450", "sport": "nfl"}]
         mock_fetch.return_value = teams
         state = _make_state()
 
         result = context_node(state)
 
         assert result["context_status"] == "validated"
-        assert result.get("sport") == "mlb"
+        assert result.get("sport") == "nfl"
 
     @patch("gordie.agent.context_node.resolve_team_context", return_value=("111", "222"))
+    @patch("gordie.agent.context_node.fetch_supported_teams", return_value=[])
     @patch("gordie.agent.context_node._fetch_onboarded_teams")
     @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
-    def test_unknown_sport_falls_back_to_nhl(self, _mock_oauth, mock_fetch, _mock_resolve):
-        teams = [{"league_id": "111", "team_id": "222", "game_key": "999", "sport": "curling"}]
+    def test_unsupported_saved_team_requires_onboarding(
+        self, _mock_oauth, mock_fetch, _mock_available, _mock_resolve
+    ):
+        teams = [{"league_id": "111", "team_id": "222", "game_key": "999", "sport": "mlb"}]
         mock_fetch.return_value = teams
         state = _make_state()
 
         result = context_node(state)
 
+        assert result["context_status"] == "no_teams_available"
+        assert result.get("league_id") is None
+        assert result.get("sport") is None
+
+    @patch("gordie.agent.context_node._fetch_onboarded_teams")
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
+    def test_stale_team_selection_cannot_validate_an_unsupported_saved_team(
+        self, _mock_oauth, mock_fetch
+    ):
+        mock_fetch.return_value = [
+            {"league_id": "111", "team_id": "222", "sport": "mlb"},
+            {"league_id": "123", "team_id": "456", "sport": "nhl"},
+        ]
+        state = _make_state(league_id="111", team_id="222")
+
+        result = context_node(state)
+
         assert result["context_status"] == "validated"
+        assert result.get("league_id") == "123"
+        assert result.get("team_id") == "456"
         assert result.get("sport") == "nhl"
 
     @patch("gordie.agent.context_node.resolve_team_context", return_value=("123", "456"))
@@ -188,16 +210,16 @@ class TestSportInference:
                 "team_id": "20",
                 "team_name": "B",
                 "league_name": "L2",
-                "sport": "mlb",
+                "sport": "nfl",
             },
         ]
         mock_fetch.return_value = teams
-        state = _make_state(messages=[HumanMessage(content="how's my baseball team")])
+        state = _make_state(messages=[HumanMessage(content="how's my football team")])
 
         result = context_node(state)
 
         assert result["context_status"] == "validated"
-        assert result.get("sport") == "mlb"
+        assert result.get("sport") == "nfl"
         assert result.get("league_id") == "2"
         assert result.get("team_id") == "20"
 
@@ -213,18 +235,18 @@ class TestSportInference:
                 "team_id": "10",
                 "team_name": "A",
                 "league_name": "L1",
-                "sport": "mlb",
+                "sport": "nfl",
             },
             {
                 "league_id": "2",
                 "team_id": "20",
                 "team_name": "B",
                 "league_name": "L2",
-                "sport": "mlb",
+                "sport": "nfl",
             },
         ]
         mock_fetch.return_value = teams
-        state = _make_state(messages=[HumanMessage(content="how's my baseball team")])
+        state = _make_state(messages=[HumanMessage(content="how's my football team")])
 
         result = context_node(state)
 
@@ -247,7 +269,7 @@ class TestSportInference:
                 "team_id": "20",
                 "team_name": "B",
                 "league_name": "L2",
-                "sport": "mlb",
+                "sport": "nfl",
             },
         ]
         mock_fetch.return_value = teams

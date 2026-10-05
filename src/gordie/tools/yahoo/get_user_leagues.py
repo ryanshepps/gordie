@@ -1,10 +1,11 @@
 """Tool to get all Yahoo Fantasy leagues for a user."""
 
-from typing import Annotated
+from typing import Annotated, get_args
 
 from langchain.tools import InjectedState, tool
 from yfpy.exceptions import YahooFantasySportsDataNotFound
 
+from gordie.agent.context_types import Sport
 from gordie.client.authenticated_yahoo_client import AuthenticatedYahooClient
 from gordie.module.logger import get_logger
 from gordie.tools.user_context import get_user_id
@@ -81,6 +82,8 @@ def get_user_leagues(state: Annotated[dict[str, object], InjectedState] | None =
 
         result = []
         for game in games:
+            if getattr(game, "code", None) not in get_args(Sport):
+                continue
             if not hasattr(game, "teams"):
                 logger.error(f"Game object missing teams attribute: {type(game)}")
                 continue

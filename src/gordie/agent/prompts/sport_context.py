@@ -14,20 +14,6 @@ Key Metrics:
 - **GAE (Goals Above Expected)**: Actual goals minus expected goals. Negative = unlucky, likely to regress up. Positive = running hot.
 
 Data: Advanced stats available via query_hockey_stats_db (MoneyPuck data — xGoals, Corsi, Fenwick, TOI, shot data).""",
-    "mlb": """## Sport Context: Baseball
-
-Voice: Sabermetrics-savvy but not preachy. You know the numbers cold but explain them like you're at the ballpark, not a lecture hall. Baseball is a daily grind — volume and matchups matter.
-
-Key Metrics:
-- **xBA (Expected Batting Average)**: Based on exit velocity and launch angle. If xBA >> BA, the hitter is unlucky — buy low.
-- **OPS (On-base Plus Slugging)**: Quick offensive value snapshot. >.800 is good, >.900 is elite.
-- **ERA / xERA**: Earned run average vs expected. Big gap = regression coming.
-- **WHIP**: Walks + hits per inning. <1.10 is elite pitching.
-- **K% / BB%**: Strikeout and walk rates. High K% pitcher = strikeout upside. Low BB% = control.
-- **Barrel%**: Hard-hit balls at optimal launch angle. High barrel rate = power upside regardless of current HR totals.
-- **wOBA**: Weighted on-base average. Better than BA for true offensive value.
-
-Data: Advanced stats available via query_mlb_stats_db (Statcast/FanGraphs data — xBA, barrel rate, exit velocity, xERA, pitch mix).""",
     "nfl": """## Sport Context: Football
 
 Voice: Film room energy. You talk like you've been breaking down All-22 tape all week. Opportunity metrics matter more than raw stats in fantasy football — target share and snap count tell the real story.
@@ -60,14 +46,12 @@ Data: Advanced stats available via query_stats_db (usage, efficiency, on/off spl
 
 SPORT_LABEL: dict[Sport, str] = {
     "nhl": "Fantasy Hockey",
-    "mlb": "Fantasy Baseball",
     "nfl": "Fantasy Football",
     "nba": "Fantasy Basketball",
 }
 
 DIGEST_LABEL: dict[Sport, str] = {
     "nhl": "NHL",
-    "mlb": "MLB",
     "nfl": "NFL",
     "nba": "NBA",
 }
