@@ -13,10 +13,6 @@ __pycache__
 .env
 .env.*
 !.env.example
-node_modules
-frontend/node_modules
-frontend/.svelte-kit
-frontend/.wrangler
 docs/plans/
 tests/
 htmlcov/
