@@ -45,7 +45,7 @@ def create_supervisor_agent(system_prompt: str):
         search_past_conversations,
     ]
 
-    tools.extend(current_runtime().plugins.tools)
+    tools.extend(current_runtime().plugins.extra_tools)
 
     return create_agent(
         model=make_llm(temperature=0),

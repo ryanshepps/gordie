@@ -22,11 +22,11 @@ logger = get_logger(__name__)
 
 
 def is_memory_search_enabled() -> bool:
-    return current_runtime().plugins.storage.memory().search_enabled
+    return current_runtime().memory.search_enabled
 
 
 def get_memory_store() -> BaseStore:
-    return current_runtime().plugins.storage.memory().store
+    return current_runtime().memory.store
 
 
 def _sanitize_namespace_label(label: str) -> str:

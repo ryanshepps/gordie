@@ -1,8 +1,14 @@
 import os
+from dataclasses import dataclass
 
+from langgraph.store.base import BaseStore
 from langgraph.store.memory import InMemoryStore
 
-from gordie.plugins import ConversationMemory
+
+@dataclass(frozen=True, slots=True)
+class ConversationMemory:
+    store: BaseStore
+    search_enabled: bool = False
 
 
 def environment_memory() -> ConversationMemory:

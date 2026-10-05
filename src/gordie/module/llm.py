@@ -7,5 +7,5 @@ def make_llm(temperature: float = 0, model: str | None = None) -> BaseChatModel:
     runtime = current_runtime()
     return runtime.resource(
         f"model:{temperature}:{model}",
-        lambda: runtime.plugins.models.chat(temperature=temperature, model=model),
+        lambda: runtime.model_provider.chat(temperature=temperature, model=model),
     )

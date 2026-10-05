@@ -7,7 +7,6 @@ from gordie.integrations.creem.tier import (
     check_league_limit_by_user_id,
     check_question_allowed,
 )
-from gordie.integrations.creem.webhook import register_routes
 from gordie.plugins import AccessDecision, AccessRequest, Action, Plugins
 
 
@@ -36,11 +35,10 @@ def with_creem(plugins: Plugins) -> Plugins:
     return replace(
         plugins,
         access=CreemAccessPolicy(),
-        tools=(
-            *plugins.tools,
+        extra_tools=(
+            *plugins.extra_tools,
             get_subscription_status,
             generate_checkout_link,
             generate_portal_link,
         ),
-        routes=(*plugins.routes, register_routes),
     )

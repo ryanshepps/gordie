@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections.abc import AsyncGenerator, Callable
 from functools import partial
 
@@ -8,6 +9,7 @@ from quart import Quart
 
 from gordie.plugins import Plugins
 from gordie.runtime import Runtime
+from gordie.scheduled.jobs import register_application_jobs
 from gordie.server.routes.oauth_routes import register_oauth_routes
 
 
@@ -27,9 +29,10 @@ def create_app(plugins: Plugins) -> Application:
     runtime = Runtime(plugins)
     app = Application(runtime)
     register_oauth_routes(app)
-    with runtime.activate():
-        for register in plugins.routes:
-            register(app)
+    if os.getenv("CREEM_API_KEY"):
+        from gordie.integrations.creem.webhook import register_routes
+
+        register_routes(app)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -41,12 +44,11 @@ def create_app(plugins: Plugins) -> Application:
         try:
             await asyncio.to_thread(runtime.run, plugins.storage.prepare)
             with runtime.activate():
-                for register in plugins.jobs:
-                    register(scheduler)
+                register_application_jobs(scheduler)
             for job in scheduler.get_jobs():
                 function: Callable[..., object] = job.func
                 job.modify(func=partial(runtime.run, function))
-            if plugins.jobs:
+            if scheduler.get_jobs():
                 scheduler.start()
             yield
         finally:
