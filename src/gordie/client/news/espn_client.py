@@ -15,7 +15,6 @@ ESPN_API_BASE = "https://site.api.espn.com/apis/site/v2/sports"
 
 ESPN_SPORT_PATHS: dict[Sport, str] = {
     "nhl": "hockey/nhl",
-    "mlb": "baseball/mlb",
     "nfl": "football/nfl",
     "nba": "basketball/nba",
 }

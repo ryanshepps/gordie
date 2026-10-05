@@ -13,7 +13,7 @@ LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai").lower()
 LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
 # Sports the agent should service. Comma-separated env, lowercased set.
-_RAW_SPORTS = os.getenv("ENABLED_SPORTS", "nhl,mlb")
+_RAW_SPORTS = os.getenv("ENABLED_SPORTS", "nhl")
 ENABLED_SPORTS: frozenset[str] = frozenset(
     s.strip().lower() for s in _RAW_SPORTS.split(",") if s.strip()
 )

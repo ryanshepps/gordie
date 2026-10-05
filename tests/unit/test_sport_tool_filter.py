@@ -13,9 +13,6 @@ ALL_TOOLS = [
     _tool("get_player_schedule"),
     _tool("get_player_line_info"),
     _tool("compare_players_comprehensive"),
-    _tool("query_mlb_stats_db"),
-    _tool("calculate_mlb_undervalued_score"),
-    _tool("get_mlb_team_schedule"),
     _tool("onboard_user_team"),
     _tool("yahoo_roster"),
 ]
@@ -26,7 +23,7 @@ def _names(tools: list[SimpleNamespace]) -> list[str]:
 
 
 class TestFilterToolsBySport:
-    def test_hockey_excludes_mlb_tools(self):
+    def test_hockey_includes_hockey_tools(self):
         result = _names(filter_tools_by_sport(ALL_TOOLS, "nhl"))
 
         assert "query_hockey_stats_db" in result
@@ -34,21 +31,6 @@ class TestFilterToolsBySport:
         assert "get_player_schedule" in result
         assert "get_player_line_info" in result
         assert "compare_players_comprehensive" in result
-        assert "query_mlb_stats_db" not in result
-        assert "calculate_mlb_undervalued_score" not in result
-        assert "get_mlb_team_schedule" not in result
-
-    def test_baseball_excludes_hockey_tools(self):
-        result = _names(filter_tools_by_sport(ALL_TOOLS, "mlb"))
-
-        assert "query_mlb_stats_db" in result
-        assert "calculate_mlb_undervalued_score" in result
-        assert "get_mlb_team_schedule" in result
-        assert "query_hockey_stats_db" not in result
-        assert "calculate_undervalued_score" not in result
-        assert "get_player_schedule" not in result
-        assert "get_player_line_info" not in result
-        assert "compare_players_comprehensive" not in result
 
     def test_non_sport_tools_always_included(self):
         result = _names(filter_tools_by_sport(ALL_TOOLS, "nhl"))

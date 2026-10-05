@@ -41,4 +41,4 @@ See [test guidance](../../tests/README.md) for the slow eval suite.
 
 - If startup validation fails, fill in the missing variables named in the server log.
 - If Yahoo rejects the redirect, confirm the public `OAUTH_BASE_URL/callback` matches the developer app exactly.
-- If the first stats refresh takes time, it downloads the enabled sports datasets. Set `ENABLED_SPORTS=nhl` or `mlb` to select one.
+- If the first stats refresh takes time, it downloads the NHL dataset. `ENABLED_SPORTS=nhl` enables the startup refresh.

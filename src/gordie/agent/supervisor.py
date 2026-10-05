@@ -19,7 +19,6 @@ from gordie.module.logger import get_logger
 from gordie.runtime import current_runtime
 from gordie.tools.hockey.stats.query_stats_db import query_hockey_stats_db
 from gordie.tools.memory.search_past_conversations import create_search_past_conversations_tool
-from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from gordie.tools.yahoo.onboard_user_team import onboard_user_team
 
 END_NODE: Literal["__end__"] = "__end__"
@@ -40,7 +39,6 @@ def create_supervisor_agent(system_prompt: str):
         available_players,
         statistician,
         query_hockey_stats_db,
-        query_mlb_stats_db,
         onboard_user_team,
         search_past_conversations,
     ]
