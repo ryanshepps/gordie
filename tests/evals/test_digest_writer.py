@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.digest_writer import DigestType, _build_system_prompt, write_digest_content
-from agent.prompts.persona import PERSONA
-from data.pydantic_models import DigestData, RosterPerformance
+from gordie.agent.digest_writer import DigestType, _build_system_prompt, write_digest_content
+from gordie.agent.prompts.persona import PERSONA
+from gordie.data.pydantic_models import DigestData, RosterPerformance
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ class TestBuildSystemPrompt:
 
 
 class TestWriteDigestContent:
-    @patch("agent.digest_writer.make_llm")
+    @patch("gordie.agent.digest_writer.make_llm")
     def test_returns_llm_response(self, mock_chat_class, weekly_digest_data):
         mock_response = MagicMock()
         mock_response.content = "Hey buddy, here's your weekly update..."
@@ -48,7 +48,7 @@ class TestWriteDigestContent:
         mock_chat_class.assert_called_once_with(temperature=0.7)
         mock_llm.invoke.assert_called_once()
 
-    @patch("agent.digest_writer.make_llm")
+    @patch("gordie.agent.digest_writer.make_llm")
     def test_passes_serialized_data_to_llm(self, mock_chat_class, weekly_digest_data):
         mock_response = MagicMock()
         mock_response.content = "digest content"
@@ -64,7 +64,7 @@ class TestWriteDigestContent:
         assert call_args[1]["role"] == "user"
         assert "Test League" in call_args[1]["content"]
 
-    @patch("agent.digest_writer.make_llm")
+    @patch("gordie.agent.digest_writer.make_llm")
     def test_failure_propagates(self, mock_chat_class, weekly_digest_data):
         mock_llm = MagicMock()
         mock_llm.invoke.side_effect = RuntimeError("API error")

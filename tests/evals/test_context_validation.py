@@ -4,10 +4,10 @@ from typing import ClassVar
 import pytest
 from langchain_core.messages import HumanMessage
 
-from agent.agent_state import AgentState
-from agent.context_node import context_node
-from agent.SupervisorAgent import supervisor_node
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.agent.context_node import context_node
+from gordie.agent.supervisor import supervisor_node
+from gordie.data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 CONNECT_KEYWORDS = ("connect", "link", "authorize", "sign in", "log in", "login")
@@ -53,22 +53,22 @@ class TestFirstTimeUser:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = []
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         mock_oauth_url = "https://api.login.yahoo.com/oauth2/request_auth?client_id=test123"
         mock_oauth_tool = mocker.MagicMock()
         mock_oauth_tool.invoke.return_value = mock_oauth_url
         mocker.patch(
-            "agent.context_node.generate_oauth_link",
+            "gordie.agent.context_node.generate_oauth_link",
             mock_oauth_tool,
         )
 
@@ -115,10 +115,10 @@ class TestReturningUserNoTeams:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
@@ -131,13 +131,13 @@ class TestReturningUserNoTeams:
                 }
             }
         ]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         mock_oauth_url = "https://api.login.yahoo.com/oauth2/request_auth?client_id=test123"
         mock_oauth_tool = mocker.MagicMock()
         mock_oauth_tool.invoke.return_value = mock_oauth_url
         mocker.patch(
-            "agent.context_node.generate_oauth_link",
+            "gordie.agent.context_node.generate_oauth_link",
             mock_oauth_tool,
         )
 
@@ -194,18 +194,18 @@ class TestMultipleTeamsClarification:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=multi_team_user_state.get("user_teams", []),
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         multi_team_user_state["messages"] = [HumanMessage(content="Should I trade my center?")]
         result = _run_through_context_and_supervisor(multi_team_user_state)
@@ -256,18 +256,18 @@ class TestSingleTeamProceeds:
         mock_yahoo_tools,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
 
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=single_team_user_state.get("user_teams", []),
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         mock_roster_result = [
             "Leon Draisaitl (C - EDM): 45 points",
@@ -315,21 +315,21 @@ class TestNoTeamsAvailable:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
-            "agent.context_node.fetch_supported_teams",
+            "gordie.agent.context_node.fetch_supported_teams",
             return_value=[],
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         no_teams_state["messages"] = [HumanMessage(content="Can you help me with my lineup?")]
         result = _run_through_context_and_supervisor(no_teams_state)
@@ -389,21 +389,21 @@ class TestTeamSelectionNeeded:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
-            "agent.context_node.fetch_supported_teams",
+            "gordie.agent.context_node.fetch_supported_teams",
             return_value=self.YAHOO_TEAMS,
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         team_selection_state["messages"] = [HumanMessage(content="Help me with my fantasy team")]
         result = _run_through_context_and_supervisor(team_selection_state)
@@ -452,25 +452,25 @@ class TestAutoOnboarded:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
-            "agent.context_node.fetch_supported_teams",
+            "gordie.agent.context_node.fetch_supported_teams",
             return_value=[self.SINGLE_ACTIVE_TEAM],
         )
         mocker.patch(
-            "agent.context_node.auto_onboard_team",
+            "gordie.agent.context_node.auto_onboard_team",
             return_value=self.SINGLE_ACTIVE_TEAM,
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         auto_onboard_state["messages"] = [
             HumanMessage(content="Hey, I need help with my fantasy team")
@@ -495,21 +495,21 @@ class TestContextError:
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_api_failure_returns_error_response(self, mocker):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id",
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id",
             return_value={"access_token": "mock_token", "refresh_token": "mock_refresh"},
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
-            "agent.context_node.fetch_supported_teams",
+            "gordie.agent.context_node.fetch_supported_teams",
             side_effect=RuntimeError("Yahoo API timeout"),
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = [{"value": {"summary": "Past convo"}}]
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         state = AgentState(
             messages=[HumanMessage(content="Help me with my roster")],
@@ -541,22 +541,22 @@ class TestOAuthURLPresence:
     @retry_on_rate_limit(max_retries=3, base_delay=2.0)
     def test_oauth_url_never_paraphrased(self, mocker):
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
         )
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = []
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         mock_oauth_url = "https://api.login.yahoo.com/oauth2/request_auth?client_id=dj0test&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback"
         mock_oauth_tool = mocker.MagicMock()
         mock_oauth_tool.invoke.return_value = mock_oauth_url
         mocker.patch(
-            "agent.context_node.generate_oauth_link",
+            "gordie.agent.context_node.generate_oauth_link",
             mock_oauth_tool,
         )
 

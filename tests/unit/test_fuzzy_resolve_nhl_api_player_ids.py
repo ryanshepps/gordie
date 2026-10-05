@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from tools.hockey.player.fuzzy_resolve_nhl_api_player_ids import (
+from gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids import (
     fuzzy_resolve_nhl_api_player_ids,
 )
 
@@ -44,7 +44,7 @@ def _mock_search(query: str) -> list[dict[str, str | int]]:
 @pytest.fixture
 def mock_moneypuck_search():
     with patch(
-        "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.moneypuck_search_cli",
+        "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.moneypuck_search_cli",
         side_effect=_mock_search,
     ):
         yield
@@ -97,7 +97,7 @@ class TestNHLAPIFallback:
     @pytest.fixture
     def mock_empty_moneypuck(self):
         with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.moneypuck_search_cli",
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.moneypuck_search_cli",
             return_value=[],
         ):
             yield
@@ -116,7 +116,7 @@ class TestNHLAPIFallback:
         mock_response.raise_for_status = Mock()
 
         with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
             return_value=mock_response,
         ) as mock_get:
             result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"]))
@@ -136,7 +136,7 @@ class TestNHLAPIFallback:
         mock_response.raise_for_status = Mock()
 
         with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
             return_value=mock_response,
         ):
             result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["Crosby"]))
@@ -145,7 +145,9 @@ class TestNHLAPIFallback:
         assert "NHL API" in result["Crosby"]["message"]
 
     def test_does_not_call_api_when_found_in_moneypuck(self, mock_moneypuck_search):
-        with patch("tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get") as mock_get:
+        with patch(
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get"
+        ) as mock_get:
             fuzzy_resolve_nhl_api_player_ids(player_names=["McDavid"])
             mock_get.assert_not_called()
 
@@ -155,7 +157,7 @@ class TestNHLAPIFallback:
         mock_response.raise_for_status = Mock()
 
         with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
             return_value=mock_response,
         ):
             result = json.loads(
@@ -168,7 +170,7 @@ class TestNHLAPIFallback:
         import requests
 
         with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.requests.get",
             side_effect=requests.RequestException("API Error"),
         ):
             result = json.loads(fuzzy_resolve_nhl_api_player_ids(player_names=["UnknownPlayer"]))
@@ -200,7 +202,7 @@ class TestMultipleMatches:
             return [p for p in similar_players if query.lower() in str(p["name"]).lower()]
 
         with patch(
-            "tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.moneypuck_search_cli",
+            "gordie.tools.hockey.player.fuzzy_resolve_nhl_api_player_ids.moneypuck_search_cli",
             side_effect=search_func,
         ):
             yield

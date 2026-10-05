@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from client.authenticated_yahoo_client import AuthenticatedYahooClient
+from gordie.client.authenticated_yahoo_client import AuthenticatedYahooClient
 
 
 @pytest.fixture
@@ -37,8 +37,10 @@ def test_token_refresh_persists_to_database(mock_db_session, mock_user_tokens, m
     monkeypatch.setenv("YAHOO_CLIENT_SECRET", "test_client_secret")
 
     with (
-        patch("client.authenticated_yahoo_client.get_session") as mock_get_session,
-        patch("client.authenticated_yahoo_client.YahooFantasySportsQuery") as mock_query_class,
+        patch("gordie.client.authenticated_yahoo_client.get_session") as mock_get_session,
+        patch(
+            "gordie.client.authenticated_yahoo_client.YahooFantasySportsQuery"
+        ) as mock_query_class,
     ):
         mock_get_session.return_value = mock_db_session
 

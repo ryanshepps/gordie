@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from agent.sport_inference import infer_sport
+from gordie.agent.sport_inference import infer_sport
 
 
 def _teams(*sports: str) -> list[dict[str, str]]:

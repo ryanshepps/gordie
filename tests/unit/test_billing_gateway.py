@@ -1,6 +1,6 @@
 """Tests for BillingGateway protocol and NullBillingGateway implementation."""
 
-from billing.gateway import BillingGateway, NullBillingGateway
+from gordie.billing.gateway import BillingGateway, NullBillingGateway
 
 
 class TestNullBillingGateway:

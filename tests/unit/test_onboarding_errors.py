@@ -7,7 +7,7 @@ preventing crashes from invalid data (empty strings, non-numeric values, etc.).
 import pytest
 from pydantic import ValidationError
 
-from tools.yahoo.get_roster import GetRosterInput
+from gordie.tools.yahoo.get_roster import GetRosterInput
 
 
 class TestToolInputValidation:

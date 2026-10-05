@@ -1,0 +1,63 @@
+"""Shared agent state and utility functions."""
+
+from typing import Annotated, Any, Literal
+
+from langgraph.graph.message import add_messages
+from typing_extensions import TypedDict
+
+from gordie.agent.context_types import ContextStatus, Sport
+from gordie.agent.response_models import TradeResponse
+from gordie.data.models import Medium
+from gordie.module.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+# Type alias for team_context format: app:game_key:league_id:team_id
+# Example: "Yahoo:123:456:789" or "ESPN:nfl.l.123456:456:789"
+TeamContext = Annotated[
+    str,
+    "Format: app:game_key:league_id:team_id where app is 'Yahoo' or 'ESPN', "
+    "game_key is string/int, league_id and team_id are integers",
+]
+
+
+# JumpTo type matches langchain's middleware types
+JumpTo = Literal["tools", "model", "end"]
+
+
+class _AgentStateRequired(TypedDict):
+    """Required fields for AgentState."""
+
+    messages: Annotated[list[Any], add_messages]  # List of message objects or dicts
+
+
+class AgentState(_AgentStateRequired, total=False):
+    """Agent state with required messages and optional custom fields."""
+
+    # Optional fields from langchain's AgentState
+    jump_to: JumpTo | None  # Used by middleware for flow control
+    structured_response: TradeResponse
+    # Custom fields
+    user_id: str
+    external_id: str
+    league_id: str | None
+    team_id: str | None
+    thread_id: str
+    user_teams: list[dict[str, str]]
+    channel: Medium
+    context_status: ContextStatus
+    sport: Sport
+    oauth_url: str | None
+    available_teams: list[dict[str, str]]
+    context_error: str | None
+    response: str | None
+    route_to: str | None  # Target agent for routing (e.g., "onboarding")
+    # Flow tracking fields
+    agent_flow: list[str]  # Ordered sequence of agents to execute
+    current_agent_index: int  # Current position in flow (0-based)
+    flow_complete: bool  # Explicit completion flag
+    flow_reasoning: str | None  # LLM reasoning for agent flow decision
+    billing_context: str | None  # Billing limit info injected into system prompt
+    data_quality_retries: int  # Number of times data_quality has looped back to supervisor
+    sport_inferred_at: str | None

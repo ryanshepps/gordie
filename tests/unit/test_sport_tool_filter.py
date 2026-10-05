@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from middleware.sport_tool_filter import ALL_SPORT_TOOLS, filter_tools_by_sport
+from gordie.middleware.sport_tool_filter import ALL_SPORT_TOOLS, filter_tools_by_sport
 
 
 def _tool(name: str) -> SimpleNamespace:

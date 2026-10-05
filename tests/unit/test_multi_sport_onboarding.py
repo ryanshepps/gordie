@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from agent.context_resolvers import auto_onboard_team, format_teams_for_display
+from gordie.agent.context_resolvers import auto_onboard_team, format_teams_for_display
 
 NHL_TEAM: dict[str, str] = {
     "sport": "nhl",
@@ -22,7 +22,7 @@ MLB_TEAM: dict[str, str] = {
 
 
 class TestAutoOnboardTeamPassesGameCode:
-    @patch("agent.context_resolvers.onboard_user_team")
+    @patch("gordie.agent.context_resolvers.onboard_user_team")
     def test_nhl_team_passes_nhl_game_code(self, mock_onboard):
         mock_onboard.invoke.return_value = "Success"
 
@@ -33,7 +33,7 @@ class TestAutoOnboardTeamPassesGameCode:
         assert "user_id" not in call_args
         assert call_args["state"]["user_id"] == "user@example.com"
 
-    @patch("agent.context_resolvers.onboard_user_team")
+    @patch("gordie.agent.context_resolvers.onboard_user_team")
     def test_mlb_team_passes_mlb_game_code(self, mock_onboard):
         mock_onboard.invoke.return_value = "Success"
 
@@ -44,7 +44,7 @@ class TestAutoOnboardTeamPassesGameCode:
         assert "user_id" not in call_args
         assert call_args["state"]["user_id"] == "user@example.com"
 
-    @patch("agent.context_resolvers.onboard_user_team")
+    @patch("gordie.agent.context_resolvers.onboard_user_team")
     def test_missing_sport_defaults_to_nhl(self, mock_onboard):
         mock_onboard.invoke.return_value = "Success"
         team_no_sport: dict[str, str] = {

@@ -4,7 +4,7 @@ import duckdb
 import pandas as pd
 import pytest
 
-from scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
+from gordie.scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
 
 
 def _fake_batting(season: int, **_kwargs: object) -> pd.DataFrame:
@@ -26,19 +26,26 @@ def _fake_team_pitching(season: int, **_kwargs: object) -> pd.DataFrame:
 @pytest.fixture(autouse=True)
 def isolate_db(tmp_path, monkeypatch):
     test_db_path = tmp_path / "mlb_stats.duckdb"
-    monkeypatch.setattr("scheduled.refresh_mlb_stats_db.MLB_DB_PATH", test_db_path)
-    monkeypatch.setattr("tools.mlb.stats.mlb_connection.MLB_DB_PATH", test_db_path)
+    monkeypatch.setattr("gordie.scheduled.refresh_mlb_stats_db.MLB_DB_PATH", test_db_path)
+    monkeypatch.setattr("gordie.tools.mlb.stats.mlb_connection.MLB_DB_PATH", test_db_path)
     return test_db_path
 
 
 class TestRefreshMlbStatsDb:
     def test_successful_refresh_creates_db_with_three_tables(self, isolate_db):
         with (
-            patch("scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
-            patch("scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching),
-            patch("scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting),
-            patch("scheduled.refresh_mlb_stats_db.team_pitching", side_effect=_fake_team_pitching),
-            patch("scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection") as mock_reset,
+            patch("gordie.scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching
+            ),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting
+            ),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.team_pitching",
+                side_effect=_fake_team_pitching,
+            ),
+            patch("gordie.scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection") as mock_reset,
         ):
             refresh_mlb_stats_db()
 
@@ -55,11 +62,18 @@ class TestRefreshMlbStatsDb:
 
     def test_batters_table_has_season_column(self, isolate_db):
         with (
-            patch("scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
-            patch("scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching),
-            patch("scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting),
-            patch("scheduled.refresh_mlb_stats_db.team_pitching", side_effect=_fake_team_pitching),
-            patch("scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection"),
+            patch("gordie.scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching
+            ),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting
+            ),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.team_pitching",
+                side_effect=_fake_team_pitching,
+            ),
+            patch("gordie.scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection"),
         ):
             refresh_mlb_stats_db()
 
@@ -73,7 +87,7 @@ class TestRefreshMlbStatsDb:
 
         with (
             patch(
-                "scheduled.refresh_mlb_stats_db.batting_stats",
+                "gordie.scheduled.refresh_mlb_stats_db.batting_stats",
                 side_effect=Exception("fetch failed"),
             ),
             pytest.raises(RuntimeError, match="No MLB data fetched for any season"),
@@ -84,11 +98,18 @@ class TestRefreshMlbStatsDb:
 
     def test_team_table_merges_batting_and_pitching(self, isolate_db):
         with (
-            patch("scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
-            patch("scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching),
-            patch("scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting),
-            patch("scheduled.refresh_mlb_stats_db.team_pitching", side_effect=_fake_team_pitching),
-            patch("scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection"),
+            patch("gordie.scheduled.refresh_mlb_stats_db.batting_stats", side_effect=_fake_batting),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.pitching_stats", side_effect=_fake_pitching
+            ),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.team_batting", side_effect=_fake_team_batting
+            ),
+            patch(
+                "gordie.scheduled.refresh_mlb_stats_db.team_pitching",
+                side_effect=_fake_team_pitching,
+            ),
+            patch("gordie.scheduled.refresh_mlb_stats_db.reset_mlb_stats_connection"),
         ):
             refresh_mlb_stats_db()
 

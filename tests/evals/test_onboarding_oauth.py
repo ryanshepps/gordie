@@ -3,10 +3,10 @@ import uuid
 import pytest
 from langchain_core.messages import HumanMessage
 
-from agent.agent_state import AgentState
-from agent.context_node import context_node
-from agent.SupervisorAgent import supervisor_node
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.agent.context_node import context_node
+from gordie.agent.supervisor import supervisor_node
+from gordie.data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 CONNECT_KEYWORDS = ("connect", "link", "authorize", "sign in", "log in", "login")
@@ -41,22 +41,22 @@ class TestOnboardingOAuth:
         mocker,
     ):
         mocker.patch(
-            "data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
+            "gordie.data.yahoo_user_team_repository.YahooUserTeamRepository.get_user_teams_with_league_info_by_user_id",
             return_value=[],
         )
         mocker.patch(
-            "data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
+            "gordie.data.yahoo_token_repository.load_tokens_from_db_by_user_id", return_value=None
         )
 
         mock_memory_store = mocker.MagicMock()
         mock_memory_store.search.return_value = []
-        mocker.patch("agent.memory_store.get_memory_store", return_value=mock_memory_store)
+        mocker.patch("gordie.agent.memory_store.get_memory_store", return_value=mock_memory_store)
 
         mock_oauth_url = "https://api.login.yahoo.com/oauth2/request_auth?client_id=test123"
         mock_oauth_tool = mocker.MagicMock()
         mock_oauth_tool.invoke.return_value = mock_oauth_url
         mocker.patch(
-            "agent.context_node.generate_oauth_link",
+            "gordie.agent.context_node.generate_oauth_link",
             mock_oauth_tool,
         )
 

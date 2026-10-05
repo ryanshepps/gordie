@@ -5,9 +5,9 @@ import uuid
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from agent.agent_state import AgentState
-from agent.data_quality_node import data_quality_node
-from data.models import Medium
+from gordie.agent.agent_state import AgentState
+from gordie.agent.data_quality_node import data_quality_node
+from gordie.data.models import Medium
 from tests.evals.conftest import retry_on_rate_limit
 
 RESPONSE_MISSING_GP_CONTEXT = (

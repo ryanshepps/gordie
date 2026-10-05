@@ -19,7 +19,7 @@ from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from agent.custom_checkpointer import (
+from gordie.agent.custom_checkpointer import (
     CustomCheckpointer,
 )
 

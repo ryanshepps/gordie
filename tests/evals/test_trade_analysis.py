@@ -3,7 +3,7 @@
 import pytest
 from langchain_core.messages import HumanMessage
 
-from agent.SupervisorAgent import supervisor_node
+from gordie.agent.supervisor import supervisor_node
 from tests.evals.conftest import retry_on_rate_limit
 
 KNOWN_PLAYERS = (

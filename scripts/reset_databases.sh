@@ -34,7 +34,7 @@ uv run alembic upgrade head || {
 }
 
 echo "Creating LangGraph checkpoint tables..."
-uv run python -c "from agent.checkpointer import checkpointer" || {
+uv run python -c "from gordie.agent.checkpointer import checkpointer" || {
     echo "Failed to create checkpoint tables."
     exit 1
 }

@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from agent.context_node import _handle_no_teams
+from gordie.agent.context_node import _handle_no_teams
 
 ACTIVE_TEAM = {
     "sport": "nhl",
@@ -34,8 +34,8 @@ OFFSEASON_TEAM = {
 
 
 class TestSingleActiveTeamAutoOnboards:
-    @patch("agent.context_node.auto_onboard_team")
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.auto_onboard_team")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_one_active_one_offseason_auto_onboards_active(self, mock_fetch, mock_onboard):
         mock_fetch.return_value = [OFFSEASON_TEAM, ACTIVE_TEAM]
         mock_onboard.return_value = ACTIVE_TEAM
@@ -47,8 +47,8 @@ class TestSingleActiveTeamAutoOnboards:
         assert result.get("team_id") == "9"
         assert result["context_status"] == "auto_onboarded"
 
-    @patch("agent.context_node.auto_onboard_team")
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.auto_onboard_team")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_single_active_team_only(self, mock_fetch, mock_onboard):
         mock_fetch.return_value = [ACTIVE_TEAM]
         mock_onboard.return_value = ACTIVE_TEAM
@@ -59,8 +59,8 @@ class TestSingleActiveTeamAutoOnboards:
         assert result.get("league_id") == "26455"
         assert result.get("team_id") == "9"
 
-    @patch("agent.context_node.auto_onboard_team")
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.auto_onboard_team")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_single_active_mlb_team_auto_onboards_with_correct_sport(
         self, mock_fetch, mock_onboard
     ):
@@ -76,7 +76,7 @@ class TestSingleActiveTeamAutoOnboards:
 
 
 class TestMultipleActiveTeamsStillAsks:
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_two_active_teams_prompts_selection(self, mock_fetch):
         second_active = {**ACTIVE_TEAM, "league_id": "99999", "team_name": "Other Team"}
         mock_fetch.return_value = [ACTIVE_TEAM, second_active]
@@ -86,7 +86,7 @@ class TestMultipleActiveTeamsStillAsks:
         assert result["context_status"] == "team_selection_needed"
         assert result.get("league_id") is None
 
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_cross_sport_active_teams_prompts_selection(self, mock_fetch):
         mock_fetch.return_value = [ACTIVE_TEAM, ACTIVE_MLB_TEAM]
 
@@ -97,7 +97,7 @@ class TestMultipleActiveTeamsStillAsks:
 
 
 class TestNoActiveTeamsStillAsks:
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_only_offseason_teams_prompts_selection(self, mock_fetch):
         mock_fetch.return_value = [OFFSEASON_TEAM]
 
@@ -106,7 +106,7 @@ class TestNoActiveTeamsStillAsks:
         assert result["context_status"] == "team_selection_needed"
         assert result.get("league_id") is None
 
-    @patch("agent.context_node.fetch_supported_teams")
+    @patch("gordie.agent.context_node.fetch_supported_teams")
     def test_no_teams_at_all(self, mock_fetch):
         mock_fetch.return_value = []
 

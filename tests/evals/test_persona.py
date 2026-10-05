@@ -7,7 +7,7 @@ from agentevals.trajectory.llm import create_trajectory_llm_as_judge
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from agent.graph_builder import agent
+from gordie.agent.graph_builder import get_agent
 from tests.evals.conftest import retry_on_rate_limit
 
 
@@ -16,7 +16,7 @@ def _invoke_graph(state: dict[str, Any]) -> str:
         RunnableConfig,
         cast(object, {"configurable": {"thread_id": state.get("thread_id", "test")}}),
     )
-    result = agent.invoke(cast(Any, state), config)
+    result = get_agent().invoke(cast(Any, state), config)
     return str(result.get("response", ""))
 
 

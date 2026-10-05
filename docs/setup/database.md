@@ -19,7 +19,7 @@ Override with `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` env vars in 
 
 ## Migrations
 
-Migrations live in `data/alembic/versions/`.
+Migrations live in `src/gordie/data/alembic/versions/`.
 
 ```bash
 uv run alembic upgrade head                      # apply
@@ -29,7 +29,8 @@ uv run alembic downgrade -1                      # revert one
 
 ## LangGraph checkpoint tables
 
-LangGraph's PostgresSaver auto-creates its own tables on first import of `agent.checkpointer`. There's no Alembic migration for them — they live alongside the app schema. If you wipe + restart, the server recreates them.
+Gordie's custom checkpointer uses the conversation tables managed by Alembic.
+Importing the package does not create tables. The server applies migrations before startup.
 
 ## Reset everything
 
@@ -42,4 +43,6 @@ There's a helper script: `scripts/reset_databases.sh` (assumes `gordie-postgres`
 
 ## Production
 
-For production, point `DATABASE_URL` at a managed Postgres (Neon, Supabase, RDS, etc.). The schema works on Postgres 14+. Backups are *your responsibility* — `data/platform.db` (Yahoo tokens) and conversation checkpoints are the highest-value tables; lose them and users have to re-auth and lose their thread history.
+For production, point `DATABASE_URL` at a managed Postgres (Neon, Supabase, RDS, etc.).
+Back up the Yahoo token and conversation tables, and persist the statistics directory
+configured by `GORDIE_DATA_DIR` separately.

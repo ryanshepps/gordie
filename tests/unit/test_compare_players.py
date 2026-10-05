@@ -9,7 +9,7 @@ decisions. Tests focus on outcomes users care about:
 
 import json
 
-from tools.hockey.player.compare_players_comprehensive import (
+from gordie.tools.hockey.player.compare_players_comprehensive import (
     compare_players_comprehensive,
 )
 

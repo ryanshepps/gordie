@@ -130,3 +130,9 @@ jobs:
 
       - name: Pytest
         run: uv run pytest tests/ --ignore=tests/evals
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify installed wheel
+        run: uv run python scripts/check_package.py dist/*.whl

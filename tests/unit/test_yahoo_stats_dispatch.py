@@ -12,9 +12,9 @@ def _make_mock_client() -> MagicMock:
 
 
 class TestYahooScoringDispatch:
-    @patch("tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
     def test_invalid_method_returns_error(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
+        from gordie.tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         result = yahoo_scoring.invoke(
             {
@@ -28,9 +28,9 @@ class TestYahooScoringDispatch:
         assert "bad_method" in parsed["error"]
         mock_cls.assert_not_called()
 
-    @patch("tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
     def test_get_league_standings(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
+        from gordie.tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -60,9 +60,9 @@ class TestYahooScoringDispatch:
         assert len(parsed["standings"]) == 1
         assert parsed["standings"][0]["team_id"] == "1"
 
-    @patch("tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
     def test_get_league_scoreboard_by_week(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
+        from gordie.tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -113,9 +113,9 @@ class TestYahooScoringDispatch:
 
 
 class TestYahooRosterDispatch:
-    @patch("tools.yahoo_stats.yahoo_roster.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_roster.AuthenticatedYahooClient")
     def test_invalid_method_returns_error(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_roster import yahoo_roster
+        from gordie.tools.yahoo_stats.yahoo_roster import yahoo_roster
 
         result = yahoo_roster.invoke(
             {
@@ -127,9 +127,9 @@ class TestYahooRosterDispatch:
         parsed = json.loads(result)
         assert "error" in parsed
 
-    @patch("tools.yahoo_stats.yahoo_roster.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_roster.AuthenticatedYahooClient")
     def test_get_team_roster_player_stats(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_roster import yahoo_roster
+        from gordie.tools.yahoo_stats.yahoo_roster import yahoo_roster
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -170,9 +170,9 @@ class TestYahooRosterDispatch:
 
 
 class TestYahooPlayerDispatch:
-    @patch("tools.yahoo_stats.yahoo_player.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_player.AuthenticatedYahooClient")
     def test_invalid_method_returns_error(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_player import yahoo_player
+        from gordie.tools.yahoo_stats.yahoo_player import yahoo_player
 
         result = yahoo_player.invoke(
             {
@@ -184,9 +184,9 @@ class TestYahooPlayerDispatch:
         parsed = json.loads(result)
         assert "error" in parsed
 
-    @patch("tools.yahoo_stats.yahoo_player.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_player.AuthenticatedYahooClient")
     def test_get_player_stats_for_season(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_player import yahoo_player
+        from gordie.tools.yahoo_stats.yahoo_player import yahoo_player
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -222,9 +222,9 @@ class TestYahooPlayerDispatch:
 
 
 class TestYahooLeagueDispatch:
-    @patch("tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
     def test_invalid_method_returns_error(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_league import yahoo_league
+        from gordie.tools.yahoo_stats.yahoo_league import yahoo_league
 
         result = yahoo_league.invoke(
             {
@@ -236,9 +236,9 @@ class TestYahooLeagueDispatch:
         parsed = json.loads(result)
         assert "error" in parsed
 
-    @patch("tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
     def test_get_league_teams(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_league import yahoo_league
+        from gordie.tools.yahoo_stats.yahoo_league import yahoo_league
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -267,9 +267,9 @@ class TestYahooLeagueDispatch:
         assert "teams" in parsed
         assert len(parsed["teams"]) == 1
 
-    @patch("tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
     def test_get_league_info(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_league import yahoo_league
+        from gordie.tools.yahoo_stats.yahoo_league import yahoo_league
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -291,9 +291,9 @@ class TestYahooLeagueDispatch:
 
         assert "league_info" in parsed
 
-    @patch("tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_league.AuthenticatedYahooClient")
     def test_get_league_draft_results(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_league import yahoo_league
+        from gordie.tools.yahoo_stats.yahoo_league import yahoo_league
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -319,9 +319,9 @@ class TestYahooLeagueDispatch:
 
 
 class TestParamsJsonParsing:
-    @patch("tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
     def test_default_empty_params(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
+        from gordie.tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
@@ -338,9 +338,9 @@ class TestParamsJsonParsing:
 
         assert "standings" in parsed
 
-    @patch("tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
+    @patch("gordie.tools.yahoo_stats.yahoo_scoring.AuthenticatedYahooClient")
     def test_api_error_returns_json(self, mock_cls: MagicMock) -> None:
-        from tools.yahoo_stats.yahoo_scoring import yahoo_scoring
+        from gordie.tools.yahoo_stats.yahoo_scoring import yahoo_scoring
 
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance

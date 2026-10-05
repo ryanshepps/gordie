@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from tools.yahoo_stats.serializer import (
+from gordie.tools.yahoo_stats.serializer import (
     serialize_draft_pick,
     serialize_generic,
     serialize_league_info,

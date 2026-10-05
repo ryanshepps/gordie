@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch
 
-from tools.hockey.player.calculate_undervalued_score import (
+from gordie.tools.hockey.player.calculate_undervalued_score import (
     MoneyPuckStats,
     _calculate_score,
     calculate_undervalued_score,
@@ -193,11 +193,11 @@ class TestCalculateUndervaluedScoreTool:
 
         with (
             patch(
-                "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
+                "gordie.tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
                 return_value=mock_yahoo,
             ),
             patch(
-                "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
+                "gordie.tools.hockey.player.calculate_undervalued_score.get_team_schedule",
                 return_value=mock_schedule,
             ),
         ):
@@ -235,11 +235,11 @@ class TestCalculateUndervaluedScoreTool:
 
         with (
             patch(
-                "tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
+                "gordie.tools.hockey.player.calculate_undervalued_score.get_player_season_rank",
                 side_effect=Exception("Yahoo API down"),
             ),
             patch(
-                "tools.hockey.player.calculate_undervalued_score.get_team_schedule",
+                "gordie.tools.hockey.player.calculate_undervalued_score.get_team_schedule",
                 return_value=mock_schedule,
             ),
         ):

@@ -7,9 +7,9 @@ from uuid import UUID
 from apscheduler.schedulers.background import BackgroundScheduler
 from quart import Quart
 
-from data.models import Medium
-from scheduled.jobs import register_scheduled_jobs
-from server.routes.oauth_routes import register_oauth_routes
+from gordie.data.models import Medium
+from gordie.scheduled.jobs import register_scheduled_jobs
+from gordie.server.routes.oauth_routes import register_oauth_routes
 
 
 async def test_yahoo_callback_saves_tokens_for_existing_email_identity(monkeypatch) -> None:
@@ -33,14 +33,16 @@ async def test_yahoo_callback_saves_tokens_for_existing_email_identity(monkeypat
     user_repo.get_by_identity.side_effect = [None, (user_id,)]
 
     with (
-        patch("data.pending_oauth_repository.PendingOAuthRepository", return_value=pending_repo),
-        patch("data.user_repository.UserRepository", return_value=user_repo),
         patch(
-            "server.oauth.exchange_code",
+            "gordie.data.pending_oauth_repository.PendingOAuthRepository", return_value=pending_repo
+        ),
+        patch("gordie.data.user_repository.UserRepository", return_value=user_repo),
+        patch(
+            "gordie.server.oauth.exchange_code",
             return_value={"access_token": "test-access", "refresh_token": "test-refresh"},
         ),
-        patch("server.oauth.get_yahoo_email", return_value="yahoo@example.com"),
-        patch("data.yahoo_token_repository.save_tokens_by_user_id") as save_tokens,
+        patch("gordie.server.oauth.get_yahoo_email", return_value="yahoo@example.com"),
+        patch("gordie.data.yahoo_token_repository.save_tokens_by_user_id") as save_tokens,
     ):
         response = await app.test_client().get("/callback?code=test-code&state=pending-id")
 
@@ -58,7 +60,7 @@ async def test_yahoo_callback_saves_tokens_for_existing_email_identity(monkeypat
 
 
 async def test_retired_channel_routes_are_absent() -> None:
-    from server.server import Server
+    from gordie.server.server import Server
 
     server = Server.__new__(Server)
     server.app = Quart(__name__)

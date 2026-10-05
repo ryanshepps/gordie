@@ -4,9 +4,15 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from module.config_requirements import LLMProvider
-from module.config_validator import validate_startup_config
-from scripts.setup import DeploymentTarget, SetupAnswers, app, build_env_values, render_env_file
+from gordie.module.config_requirements import LLMProvider
+from gordie.module.config_validator import validate_startup_config
+from gordie.scripts.setup import (
+    DeploymentTarget,
+    SetupAnswers,
+    app,
+    build_env_values,
+    render_env_file,
+)
 
 
 def test_build_env_values_keeps_yahoo_and_billing_without_channel_keys() -> None:
@@ -84,7 +90,7 @@ def test_init_removes_retired_channel_config(tmp_path: Path, monkeypatch) -> Non
         },
         hosted=False,
     )
-    monkeypatch.setattr("scripts.setup._prompt_for_answers", lambda **_kwargs: answers)
+    monkeypatch.setattr("gordie.scripts.setup._prompt_for_answers", lambda **_kwargs: answers)
 
     result = CliRunner().invoke(
         app,
