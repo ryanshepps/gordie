@@ -12,6 +12,10 @@ Tests should not test implementation details and should not overlap one another.
 
 The entire eval test suite takes a long time to run. Only run the evals that are relevant to your changes.
 
+## Pull requests
+
+Use the repository's [PR skill](.agents/skills/pr/SKILL.md) when creating or updating a pull request.
+
 ## Types
 
 Never use `Any` from `typing`. Use specific types, `Mapping`, `Sequence`, type aliases, or union types instead.
