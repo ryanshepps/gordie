@@ -50,8 +50,9 @@ Verify an installed wheel outside the checkout with
 ## Integration interface
 
 Use `from gordie import Plugins, create_app, create_agent` to assemble Gordie with
-your own storage, access policy, and extra tools. Models, memory, statistics, HTTP
-routes, and background jobs remain built into Gordie. The existing PostgreSQL and
+your own storage, access policy, extra tools, and communication adapter for incoming
+messages and outgoing replies. Models, memory, statistics, application routes, and
+background jobs remain built into Gordie. The existing PostgreSQL and
 Creem implementations remain in this repository under `gordie.integrations`.
 
 See [the plugin interface and lifecycle guide](docs/plugins.md) for contracts,

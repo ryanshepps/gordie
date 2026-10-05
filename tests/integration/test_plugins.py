@@ -10,11 +10,11 @@ import pytest
 from apscheduler.schedulers.background import BackgroundScheduler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 from pytest import MonkeyPatch
-from quart import Quart
+from quart import Quart, request
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -22,6 +22,10 @@ from gordie import (
     AccessDecision,
     AccessRequest,
     Action,
+    IncomingMessage,
+    MessageContext,
+    MessageHandler,
+    OutgoingMessage,
     Plugins,
     create_agent,
     create_app,
@@ -37,7 +41,9 @@ from gordie.runtime import current_runtime
 class FixtureStorage:
     def __init__(self, owner: str) -> None:
         self.events: list[str] = []
-        self._engine = create_engine("sqlite+pysqlite:///:memory:")
+        self._engine = create_engine(
+            "sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}
+        )
         self._sessions = sessionmaker(bind=self._engine)
         self._checkpoint = InMemorySaver()
         with self._engine.begin() as connection:
@@ -276,3 +282,141 @@ async def test_creem_extension_supplies_access_and_tools_with_embedded_webhook(
     response = await app.test_client().post("/webhooks/creem", data=b"{}")
     assert response.status_code == 403
     app.runtime.close()
+
+
+class RecordingCommunication:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.sent: list[OutgoingMessage] = []
+        self.handler: MessageHandler | None = None
+        self.storage_owners: list[object] = []
+
+    def register(self, app: Quart, handle_message: MessageHandler) -> None:
+        self.events.append("communication.register")
+        self.handler = handle_message
+
+        @app.post("/messages")
+        async def inbound() -> dict[str, str | None]:
+            payload = await request.get_json()
+            message = IncomingMessage(
+                context=MessageContext(
+                    user_id="user-1",
+                    thread_id="communication-thread",
+                    external_id="user@example.com",
+                    recipient="+15555550100",
+                ),
+                text=str(payload["text"]),
+            )
+            reply = await handle_message(message)
+            return {"response": reply.text if reply else None}
+
+    def start(self) -> None:
+        self.events.append("communication.start")
+
+    def send(self, message: OutgoingMessage) -> None:
+        self.storage_owners.append(current_runtime().plugins.storage)
+        self.sent.append(message)
+        self.events.append("communication.send")
+
+    def close(self) -> None:
+        self.events.append("communication.close")
+
+
+async def test_communication_routes_inbound_messages_delivers_denials_and_owns_lifecycle() -> None:
+    storage = FixtureStorage("communication")
+    communication = RecordingCommunication(storage.events)
+    policy = DeniedAccess()
+    app = create_app(Plugins(storage, access=policy, communication=communication))
+    assert storage.events == ["communication.register"]
+
+    async with app.test_app():
+        response = await app.test_client().post("/messages", json={"text": "Who should I trade?"})
+        assert response.status_code == 200
+        assert await response.get_json() == {"response": policy.response}
+
+    assert communication.sent == [
+        OutgoingMessage(
+            MessageContext("user-1", "communication-thread", "user@example.com", "+15555550100"),
+            policy.response,
+        )
+    ]
+    assert communication.storage_owners == [storage]
+    assert storage.events == [
+        "communication.register",
+        "prepare",
+        "communication.start",
+        "communication.send",
+        "communication.close",
+        "close",
+    ]
+
+
+async def test_communication_listener_callback_uses_its_owner_outside_an_http_request() -> None:
+    storage = FixtureStorage("listener")
+    communication = RecordingCommunication(storage.events)
+    app = create_app(Plugins(storage, access=DeniedAccess(), communication=communication))
+    message = IncomingMessage(
+        MessageContext("listener-user", "listener-thread", "user@example.com", "chat-42"),
+        "Hello",
+    )
+    async with app.test_app():
+        assert communication.handler is not None
+        reply = await communication.handler(message)
+    assert reply == OutgoingMessage(message.context, DeniedAccess().response)
+    assert communication.sent == [reply]
+    assert communication.storage_owners == [storage]
+
+
+async def test_agent_receives_and_delivers_the_final_rewritten_response(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    storage = FixtureStorage("agent-communication")
+    communication = RecordingCommunication(storage.events)
+    monkeypatch.setattr("gordie.agent.context_node.check_oauth_status", lambda user_id: True)
+    monkeypatch.setattr(
+        "gordie.agent.context_node._fetch_onboarded_teams",
+        lambda user_id: [{"league_id": "1", "team_id": "2", "sport": "nhl"}],
+    )
+
+    def chat(
+        provider: EnvironmentModels, *, temperature: float = 0, model: str | None = None
+    ) -> BaseChatModel:
+        responses: list[BaseMessage] = (
+            [AIMessage(content="Final rewritten advice")]
+            if temperature == 0.5
+            else [AIMessage(content="Draft advice"), AIMessage(content='{"passed": true}')]
+        )
+        return ToolModel(responses=responses)
+
+    monkeypatch.setattr(EnvironmentModels, "chat", chat)
+    agent = create_agent(Plugins(storage, communication=communication))
+    message = IncomingMessage(
+        MessageContext("user-1", "final-response-thread", "user@example.com", "chat-42"),
+        "Help with my team",
+    )
+    try:
+        reply = await agent.areceive(message)
+    finally:
+        agent.close()
+    assert reply == OutgoingMessage(message.context, "Final rewritten advice")
+    assert communication.sent == [reply]
+
+
+def test_communication_delivery_failure_reaches_the_caller(monkeypatch: MonkeyPatch) -> None:
+    storage = FixtureStorage("failed-delivery")
+    communication = RecordingCommunication(storage.events)
+
+    def fail_send(message: OutgoingMessage) -> None:
+        raise RuntimeError("Provider unavailable")
+
+    monkeypatch.setattr(communication, "send", fail_send)
+    agent = create_agent(Plugins(storage, access=DeniedAccess(), communication=communication))
+    message = IncomingMessage(
+        MessageContext("user-1", "failed-delivery-thread", "user@example.com", "chat-42"),
+        "Hello",
+    )
+    try:
+        with pytest.raises(RuntimeError, match="Provider unavailable"):
+            agent.receive(message)
+    finally:
+        agent.close()

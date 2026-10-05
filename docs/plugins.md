@@ -2,7 +2,7 @@
 
 `create_app(plugins)` builds a Quart application. `create_agent(plugins)` builds
 an agent for callers that manage their own messaging service. Both accept the
-same immutable configuration with three extension points.
+same immutable configuration with four extension points.
 
 ```python
 from gordie import Plugins, create_app
@@ -21,6 +21,7 @@ app = create_app(plugins)
 | `storage` | `Storage`: database sessions, checkpoints, preparation, shutdown | Required |
 | `access` | `AccessPolicy.evaluate(AccessRequest)` returns `AccessDecision` | Allow all actions |
 | `extra_tools` | Tuple of LangChain tools added to the supervisor | No extra tools |
+| `communication` | `Communication`: inbound registration, startup, reply delivery, shutdown | Caller owns delivery |
 
 ### Storage
 
@@ -54,11 +55,60 @@ Pass a tuple of LangChain tools as `extra_tools`. Gordie adds them to the
 supervisor alongside its built-in tools. Tool execution uses the owning runtime
 and can access the same storage as the agent.
 
+### Communication
+
+`Communication` owns inbound transport handling and outgoing delivery:
+
+| Method | Responsibility |
+| --- | --- |
+| `register(app, handle_message)` | Register communication endpoints or retain the callback for a listener |
+| `start()` | Start provider clients or listeners after storage is prepared |
+| `send(OutgoingMessage)` | Deliver a final reply to its transport recipient |
+| `close()` | Stop listeners and finish outstanding delivery before storage closes |
+
+Pass an implementation as `Plugins(storage=storage, communication=communication)`.
+Provider SDKs, webhook authentication, and transport configuration belong in that
+implementation. The callback accepts `IncomingMessage(context, text)`, runs Gordie
+in its owning runtime, sends the final reply once, and returns an `OutgoingMessage`
+or `None` when there is no response. A returned message is the delivery result.
+Delivery errors propagate to the caller so the adapter controls acknowledgements
+and retries.
+
+`MessageContext` carries the routing and identity information:
+
+| Attribute | Meaning |
+| --- | --- |
+| `user_id` | Canonical Gordie user identifier resolved by the adapter |
+| `thread_id` | Stable conversation/checkpoint identifier |
+| `external_id` | Account identity used by Gordie's OAuth flow |
+| `recipient` | Transport-native reply address, such as a phone number or chat ID |
+| `channel` | Core identity medium; currently `Medium.EMAIL` |
+
+Adapters authenticate inbound events and resolve their canonical account and
+conversation before invoking the callback. A transport's reply address is separate
+from the account identity; adding communication does not expand the existing
+email-based identity/OAuth model. Both message types expose their content as `text`.
+
+Registration happens during application construction. The synchronous `start`,
+`send`, and `close` methods run in worker threads, so adapters can use synchronous
+provider clients. Callbacks also work outside HTTP requests, for polling listeners.
+Create a fresh communication implementation for each application.
+
+For a standalone agent, use `agent.receive(message)` or
+`await agent.areceive(message)` to generate and deliver a reply. The caller prepares
+storage and starts the communication implementation before receiving messages;
+`agent.close()` closes communication and storage. `agent.invoke` and `agent.ainvoke`
+remain the lower-level graph API that returns state for caller-owned delivery.
+With `communication=None`, receive methods return a reply for the caller to deliver;
+the existing CLI continues printing its response.
+
 ## Embedded behavior
 
 Model selection, conversation memory and embeddings, statistics files and DuckDB
-connections, HTTP routes, and scheduled jobs are built into Gordie. They are not
-plugin extension points. Existing environment configuration still applies:
+connections, application HTTP routes, and scheduled jobs are built into Gordie.
+Communication adapters can register their own transport endpoints through the
+communication contract. There is no general route or job plugin interface.
+Existing environment configuration still applies:
 `LLM_PROVIDER`, `LLM_MODEL`, model API credentials, `GORDIE_DATA_DIR`, and
 `ENABLED_SPORTS`.
 
@@ -85,12 +135,13 @@ The current implementation stays in this repository for later extraction.
 
 Application and agent construction do not open connections or start jobs. Each
 owns its runtime and caches; Gordie owns models, memory, and statistics resources,
-while the selected storage implementation owns database sessions and checkpoints.
-Create fresh storage implementations for each app.
+while storage owns database sessions and checkpoints and communication owns its
+transport clients/listeners. Create fresh implementations for each app.
 
 HTTP requests, agent invocations, and embedded scheduled jobs run within their
-owner's runtime. Startup calls `storage.prepare()` before starting jobs; shutdown
-waits for jobs before closing Gordie's resources and calling `storage.close()`.
+owner's runtime. Startup prepares storage, starts communication, then starts jobs.
+Shutdown waits for jobs, closes communication, then closes Gordie's resources and
+storage. Communication shutdown must finish outstanding callbacks before returning.
 
 A standalone agent assumes storage has already been prepared. Invoke it with
 `agent.invoke(state, config)` or `await agent.ainvoke(state, config)`, then call

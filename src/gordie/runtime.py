@@ -57,6 +57,9 @@ class Runtime:
             return function(*args, **kwargs)
 
     def close(self) -> None:
+        with self.activate():
+            if self.plugins.communication is not None:
+                self.plugins.communication.close()
         if "statistics" in self.__dict__:
             self.statistics.close()
         with self.activate():
