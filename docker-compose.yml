@@ -6,9 +6,6 @@
 #   docker compose up -d           # start in background
 #   docker compose logs -f server  # tail server logs
 #   docker compose down            # stop
-#
-# Frontend (SvelteKit) is run separately — see `frontend/README.md` or
-# `docs/setup/quickstart.md`.
 
 services:
   postgres:
