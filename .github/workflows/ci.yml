@@ -4,11 +4,31 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
 
 jobs:
+  commit-message:
+    name: PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - run: uv sync --frozen
+
+      - name: Check Conventional Commit title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: uv run cz check --message "$PR_TITLE"
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

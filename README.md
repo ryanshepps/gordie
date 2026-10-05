@@ -62,12 +62,44 @@ Only `ryanshepps` can publish through the **Publish Python package** workflow in
 GitHub Actions. Select **Run workflow** with the `main` branch. Dispatches from
 other accounts or branches, including reruns by other accounts, skip publishing.
 
-Before each new release, update `project.version` in `pyproject.toml` and refresh
-`uv.lock` with `uv lock`, then merge those changes to `main`. The workflow builds
-and verifies the wheel, creates a `v<version>` tag at the selected commit, and
-uploads the wheel and source archive to a GitHub Release. An existing release
-or tag with the same version causes publishing to fail; published files are not replaced.
-The first release becomes available after this workflow is merged and run.
+For the first release, run the workflow after it is merged to publish the current
+`0.1.0` version and establish the baseline tag.
+
+For subsequent releases, prepare a local release PR with Commitizen:
+
+```bash
+git switch main
+git pull --ff-only
+git fetch --tags
+uv sync --frozen
+git switch -c release/next
+uv run cz bump --yes --version-files-only
+git add pyproject.toml uv.lock CHANGELOG.md
+git commit -m "chore(release): bump version"
+git push -u origin release/next
+gh pr create --base main --title "chore(release): bump version" \
+  --body "Prepare the next Gordie release with Commitizen."
+```
+
+Commitizen calculates the next version from commits since the current version's
+tag, updates `pyproject.toml` and `uv.lock`, and generates `CHANGELOG.md`.
+`--version-files-only` leaves committing and tagging to the PR and publishing
+workflow, so the release tag points to the merged commit. Use a fresh branch name
+for each release PR. Merge the release PR after CI passes, then run the publishing
+workflow on `main`.
+
+Use Conventional Commit PR titles and squash merges so Commitizen can classify
+changes. CI checks PR titles. `fix:`, `perf:`, and `refactor:` bump the patch
+version; `feat:` bumps the minor version. While Gordie is below `1.0`, breaking
+changes (`feat!:` or a `BREAKING CHANGE:` footer) also bump the minor version.
+Remove `major_version_zero` from the Commitizen configuration when adopting
+stable `1.x` versioning. Documentation and chore commits do not trigger a bump;
+Commitizen stops if there are no release-worthy commits.
+
+The workflow reads the version through Commitizen, builds and verifies the wheel,
+creates a `v<version>` tag at the selected commit, and uploads the wheel and source
+archive to a GitHub Release. An existing tag or release causes publishing to fail;
+published files are not replaced.
 
 ## Integration interface
 

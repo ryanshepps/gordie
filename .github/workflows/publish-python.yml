@@ -33,18 +33,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Read package version
+      - name: Read Commitizen version
         id: package
         run: |
-          uv run python - <<'PY'
-          import os
-          import tomllib
-
-          with open("pyproject.toml", "rb") as manifest:
-              version = tomllib.load(manifest)["project"]["version"]
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write(f"tag=v{version}\n")
-          PY
+          version="$(uv run cz version --project)"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: Build package
         run: uv build
