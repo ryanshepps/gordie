@@ -7,17 +7,19 @@ from uuid import UUID
 from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
-from gordie.billing.tier import build_upgrade_message_by_user_id, check_league_limit_by_user_id
 from gordie.client.authenticated_yahoo_client import AuthenticatedYahooClient
 from gordie.data.yahoo_league_repository import YahooLeagueRepository
 from gordie.data.yahoo_user_team_repository import YahooUserTeamRepository
 from gordie.module.logger import get_logger
+from gordie.plugins import AccessRequest, Action
+from gordie.runtime import current_runtime
 from gordie.tools.user_context import get_user_id
 
 logger = get_logger(__name__)
 
 
 class OnboardUserTeamInput(BaseModel):
+    state: Annotated[dict[str, object] | None, InjectedState] = None
     game_key: str = Field(
         description="Numeric Yahoo Fantasy game key from get_user_leagues (e.g., '423', '465')"
     )
@@ -56,9 +58,11 @@ def onboard_user_team(
         Confirmation message about the saved team.
     """
     user_id = get_user_id(state)
-    allowed, reason = check_league_limit_by_user_id(user_id)
-    if not allowed:
-        return build_upgrade_message_by_user_id(user_id, reason, "email")
+    decision = current_runtime().plugins.access.evaluate(
+        AccessRequest(user_id, Action.CONNECT_TEAM)
+    )
+    if not decision.allowed:
+        return decision.response
 
     try:
         yahoo_client = AuthenticatedYahooClient(

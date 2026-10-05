@@ -8,8 +8,9 @@ import duckdb
 import requests
 
 from gordie.module.logger import get_logger
+from gordie.module.paths import data_path
 from gordie.tools.hockey.stats.duckdb_connection import reset_stats_connection
-from gordie.tools.hockey.stats.duckdb_schema import DB_PATH, MONEYPUCK_BASE_URL, SEASONS
+from gordie.tools.hockey.stats.duckdb_schema import MONEYPUCK_BASE_URL, SEASONS
 
 logger = get_logger(__name__)
 
@@ -39,7 +40,8 @@ def _load_table(conn: duckdb.DuckDBPyConnection, table_type: str, csv_dir: Path)
 
 
 def refresh_stats_db() -> None:
-    tmp_dir = DB_PATH.parent
+    db_path = data_path("moneypuck_stats.duckdb")
+    tmp_dir = db_path.parent
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     fd, tmp_path_str = tempfile.mkstemp(suffix=".duckdb", dir=tmp_dir)
@@ -74,8 +76,8 @@ def refresh_stats_db() -> None:
             finally:
                 conn.close()
 
-        tmp_path.replace(DB_PATH)
-        logger.info(f"Stats database refreshed at {DB_PATH}")
+        tmp_path.replace(db_path)
+        logger.info(f"Stats database refreshed at {db_path}")
 
         reset_stats_connection()
 

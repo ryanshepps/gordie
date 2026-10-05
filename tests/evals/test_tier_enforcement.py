@@ -7,7 +7,8 @@ from unittest.mock import patch
 import pytest
 from requests.exceptions import RequestException
 
-from gordie.billing.tier import (
+from gordie.data.models import Medium
+from gordie.integrations.creem.tier import (
     _tier_cache,
     build_billing_context,
     build_upgrade_message,
@@ -18,14 +19,13 @@ from gordie.billing.tier import (
     get_billing_status,
     get_user_tier,
 )
-from gordie.data.models import Medium
 
 
 @pytest.fixture(autouse=True)
 def clear_tier_cache() -> Iterator[None]:
-    _tier_cache.clear()
+    _tier_cache().clear()
     yield
-    _tier_cache.clear()
+    _tier_cache().clear()
 
 
 def _mock_subscription(
@@ -46,26 +46,26 @@ def _mock_subscription(
 
 
 class TestGetUserTier:
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_no_subscription_returns_free(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = None
         assert get_user_tier("nobody@test.com") == "free"
 
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_active_hosted_returns_hosted(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted", status="active"
         )
         assert get_user_tier("user@test.com") == "hosted"
 
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_unsupported_tier_returns_free(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="allstar", status="active"
         )
         assert get_user_tier("user@test.com") == "free"
 
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_canceled_with_future_period_keeps_hosted(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted",
@@ -74,7 +74,7 @@ class TestGetUserTier:
         )
         assert get_user_tier("user@test.com") == "hosted"
 
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_canceled_with_past_period_returns_free(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted",
@@ -85,8 +85,8 @@ class TestGetUserTier:
 
 
 class TestCheckQuestionAllowed:
-    @patch("gordie.billing.tier.classify_message_intent")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.classify_message_intent")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_hosted_user_skips_classification(self, mock_sub_cls, mock_classify) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted", status="active"
@@ -97,8 +97,8 @@ class TestCheckQuestionAllowed:
         assert reason == ""
         mock_classify.assert_not_called()
 
-    @patch("gordie.billing.tier.classify_message_intent", return_value="general")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.classify_message_intent", return_value="general")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_free_user_general_message_allowed(self, mock_sub_cls, _mock_classify) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
         allowed, reason = check_question_allowed("free@test.com", "How do I upgrade?")
@@ -106,8 +106,8 @@ class TestCheckQuestionAllowed:
         assert allowed is True
         assert reason == ""
 
-    @patch("gordie.billing.tier.classify_message_intent", return_value="analysis")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.classify_message_intent", return_value="analysis")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_free_user_analysis_message_blocked(self, mock_sub_cls, _mock_classify) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
 
@@ -118,7 +118,7 @@ class TestCheckQuestionAllowed:
         assert "$10/mo" in reason
         assert "three teams" in reason
 
-    @patch("gordie.billing.tier.make_llm")
+    @patch("gordie.integrations.creem.tier.make_llm")
     def test_classification_failure_defaults_to_analysis(self, mock_make_llm) -> None:
         mock_make_llm.return_value.invoke.side_effect = RuntimeError("API down")
 
@@ -126,7 +126,7 @@ class TestCheckQuestionAllowed:
 
 
 class TestCheckUsageAllowed:
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     @pytest.mark.parametrize("tier", ["free", "hosted"])
     def test_digest_allowed_for_current_tiers(self, mock_repo_cls, tier: str) -> None:
         mock_repo_cls.return_value.get_subscription.return_value = _mock_subscription(
@@ -138,7 +138,7 @@ class TestCheckUsageAllowed:
 
 
 class TestBuildUpgradeMessage:
-    @patch("gordie.billing.creem_client.create_checkout_session")
+    @patch("gordie.integrations.creem.creem_client.create_checkout_session")
     def test_email_includes_hosted_link(self, mock_checkout) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/hosted"
         result = build_upgrade_message("user@test.com", "Limit reached.", Medium.EMAIL)
@@ -149,7 +149,7 @@ class TestBuildUpgradeMessage:
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
     @patch(
-        "gordie.billing.creem_client.create_checkout_session",
+        "gordie.integrations.creem.creem_client.create_checkout_session",
         side_effect=RequestException("API error"),
     )
     def test_fallback_to_reason_on_api_failure(self, _mock_checkout) -> None:
@@ -158,8 +158,8 @@ class TestBuildUpgradeMessage:
 
 
 class TestGetBillingStatus:
-    @patch("gordie.billing.tier.YahooUserTeamRepository")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.YahooUserTeamRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_free_user_status(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",)]
@@ -173,8 +173,8 @@ class TestGetBillingStatus:
         assert result["leagues_allowed"] == 1
         assert result["current_period_ends"] is None
 
-    @patch("gordie.billing.tier.YahooUserTeamRepository")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.YahooUserTeamRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_hosted_user_status(self, mock_sub_cls, mock_team_cls) -> None:
         period_end = datetime(2026, 4, 15, tzinfo=UTC)
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
@@ -195,8 +195,8 @@ class TestGetBillingStatus:
 
 
 class TestCheckLeagueLimit:
-    @patch("gordie.billing.tier.YahooUserTeamRepository")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.YahooUserTeamRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_free_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription()
         mock_team_cls.return_value.get_user_teams.return_value = [("l1",)]
@@ -207,8 +207,8 @@ class TestCheckLeagueLimit:
         assert "maxed out at 1 team" in reason
         assert "$10/mo" in reason
 
-    @patch("gordie.billing.tier.YahooUserTeamRepository")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.YahooUserTeamRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_hosted_user_under_limit_allowed(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted", status="active"
@@ -220,8 +220,8 @@ class TestCheckLeagueLimit:
         assert allowed is True
         assert reason == ""
 
-    @patch("gordie.billing.tier.YahooUserTeamRepository")
-    @patch("gordie.billing.tier.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tier.YahooUserTeamRepository")
+    @patch("gordie.integrations.creem.tier.SubscriptionRepository")
     def test_hosted_user_at_limit_blocked(self, mock_sub_cls, mock_team_cls) -> None:
         mock_sub_cls.return_value.get_subscription.return_value = _mock_subscription(
             tier="hosted", status="active"
@@ -235,7 +235,7 @@ class TestCheckLeagueLimit:
 
 
 class TestBuildBillingContext:
-    @patch("gordie.billing.creem_client.create_checkout_session")
+    @patch("gordie.integrations.creem.creem_client.create_checkout_session")
     def test_email_includes_hosted_link(self, mock_checkout) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/hosted"
         result = build_billing_context("user@test.com", "Limit reached.", Medium.EMAIL)
@@ -247,7 +247,7 @@ class TestBuildBillingContext:
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
     @patch(
-        "gordie.billing.creem_client.create_checkout_session",
+        "gordie.integrations.creem.creem_client.create_checkout_session",
         side_effect=RequestException("API error"),
     )
     def test_fallback_on_api_failure_still_has_context(self, _mock_checkout) -> None:

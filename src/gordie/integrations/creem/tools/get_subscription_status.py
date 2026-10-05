@@ -6,7 +6,7 @@ from typing import Annotated
 from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
-from gordie.billing.tier import get_billing_status_by_user_id
+from gordie.integrations.creem.tier import get_billing_status_by_user_id
 from gordie.tools.user_context import get_user_id
 
 PLAN_DETAILS: dict[str, dict[str, str | int]] = {
@@ -28,6 +28,7 @@ PLAN_DETAILS: dict[str, dict[str, str | int]] = {
 
 
 class GetSubscriptionStatusInput(BaseModel):
+    state: Annotated[dict[str, object] | None, InjectedState] = None
     include_plan_details: bool = Field(default=True, description="Whether to include plan details")
 
 

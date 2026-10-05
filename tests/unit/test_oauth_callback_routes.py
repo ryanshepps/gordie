@@ -60,12 +60,11 @@ async def test_yahoo_callback_saves_tokens_for_existing_email_identity(monkeypat
 
 
 async def test_retired_channel_routes_are_absent() -> None:
-    from gordie.server.server import Server
+    from gordie import create_app
+    from gordie.integrations.defaults import default_plugins
 
-    server = Server.__new__(Server)
-    server.app = Quart(__name__)
-    server._setup_routes()
-    client = server.app.test_client()
+    app = create_app(default_plugins())
+    client = app.test_client()
 
     for path in ("/api/signup", "/email/webhook", "/sms/webhook", "/discord/interactions"):
         response = await client.post(path)

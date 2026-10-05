@@ -29,7 +29,7 @@ def message_agent(
     user_id: str,
     external_id: str,
     team_context: str | None = None,
-    billing_context: str | None = None,
+    access_context: str | None = None,
 ) -> str:
     """Send a message to the agent graph and return the response text."""
     return run_message_agent(
@@ -39,7 +39,7 @@ def message_agent(
         user_id=user_id,
         external_id=external_id,
         team_context=team_context,
-        billing_context=billing_context,
+        access_context=access_context,
     ).response_text
 
 
@@ -50,7 +50,7 @@ def run_message_agent(
     user_id: str,
     external_id: str,
     team_context: str | None = None,
-    billing_context: str | None = None,
+    access_context: str | None = None,
 ) -> AgentRunResult:
     """
     Send a message to the agent graph and continue the conversation.
@@ -87,7 +87,7 @@ def run_message_agent(
         "current_agent_index": 0,
         "flow_complete": False,
         "flow_reasoning": None,
-        "billing_context": billing_context,
+        "access_context": access_context,
     }
 
     try:
@@ -144,7 +144,7 @@ def run_message_agent(
         return AgentRunResult(response_text="", state=initial_state)
 
 
-def main() -> None:
+def _main() -> None:
     parser = argparse.ArgumentParser(description="Send a message to the onboarding agent")
     parser.add_argument("email", type=str, help="User's email address (thread ID)")
     parser.add_argument("message", type=str, help="Message to send to the agent")
@@ -189,6 +189,21 @@ def main() -> None:
     except Exception as e:
         logger.error(f"\n✗ Failed to message agent: {e}")
         raise
+
+
+def main() -> None:
+    from dotenv import load_dotenv
+
+    from gordie.integrations.defaults import default_plugins
+    from gordie.runtime import Runtime
+
+    load_dotenv()
+    runtime = Runtime(default_plugins())
+    try:
+        with runtime.activate():
+            _main()
+    finally:
+        runtime.close()
 
 
 if __name__ == "__main__":

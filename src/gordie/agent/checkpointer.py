@@ -1,3 +1,7 @@
-from gordie.agent.custom_checkpointer import CustomCheckpointer
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
-checkpointer = CustomCheckpointer()
+from gordie.runtime import current_runtime
+
+
+def get_checkpointer() -> BaseCheckpointSaver[str]:
+    return current_runtime().plugins.storage.checkpoint()

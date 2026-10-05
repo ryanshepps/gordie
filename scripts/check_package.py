@@ -52,10 +52,16 @@ assert Path(gordie.__file__).resolve().is_relative_to((Path.cwd() / "venv").reso
 for module in pkgutil.walk_packages(gordie.__path__, "gordie."):
     importlib.import_module(module.name)
 
-from gordie.scripts import start_server
+from gordie.integrations import migrations
+from gordie.integrations.defaults import default_plugins
+from gordie.runtime import Runtime
 from gordie.scripts.setup import _DEFAULT_TEMPLATE_FILE
-from gordie.tools.hockey.stats.duckdb_schema import DB_PATH
-from gordie.tools.mlb.stats.mlb_schema import MLB_DB_PATH
+from gordie.module.paths import data_path
+
+runtime = Runtime(default_plugins())
+with runtime.activate():
+    DB_PATH = data_path("moneypuck_stats.duckdb")
+    MLB_DB_PATH = data_path("mlb_stats.duckdb")
 
 assert "DATABASE_URL=" in _DEFAULT_TEMPLATE_FILE.read_text()
 assert DB_PATH.parent == Path(os.environ["GORDIE_DATA_DIR"])
@@ -69,8 +75,9 @@ def verify_migrations(config, revision):
     assert list(path.joinpath("versions").glob("*.py"))
     assert revision == "head"
 
-start_server.upgrade_database = verify_migrations
-start_server.run_migrations()
+migrations.upgrade_database = verify_migrations
+migrations.run_migrations()
+runtime.close()
 """
 
 

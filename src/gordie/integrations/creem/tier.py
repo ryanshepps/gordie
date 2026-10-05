@@ -7,13 +7,14 @@ from uuid import UUID
 
 from requests.exceptions import RequestException
 
-from gordie.billing.repository import SubscriptionRepository
 from gordie.data.models import Medium
 from gordie.data.repository import DatabaseRow
 from gordie.data.user_repository import UserRepository
 from gordie.data.yahoo_user_team_repository import YahooUserTeamRepository
+from gordie.integrations.creem.repository import SubscriptionRepository
 from gordie.module.llm import make_llm
 from gordie.module.logger import get_logger
+from gordie.runtime import current_runtime
 
 logger = get_logger(__name__)
 
@@ -40,7 +41,11 @@ LEAGUE_LIMITS: dict[str, int | None] = {
 
 DIGEST_ALLOWED_TIERS = frozenset({"free", HOSTED_TIER})
 
-_tier_cache: dict[str, tuple[str, float]] = {}
+
+def _tier_cache() -> dict[str, tuple[str, float]]:
+    return current_runtime().resource("creem:tier_cache", dict)
+
+
 _CACHE_TTL_SECONDS = 60
 
 
@@ -167,28 +172,28 @@ def get_billing_status_by_user_id(user_id: str) -> BillingStatus:
 
 def get_user_tier(email: str) -> str:
     now = time.time()
-    cached = _tier_cache.get(email)
+    cached = _tier_cache().get(email)
     if cached:
         tier, cached_at = cached
         if now - cached_at < _CACHE_TTL_SECONDS:
             return tier
 
     tier = _fetch_tier_from_db(email)
-    _tier_cache[email] = (tier, now)
+    _tier_cache()[email] = (tier, now)
     return tier
 
 
 def get_user_tier_by_user_id(user_id: str) -> str:
     now = time.time()
     cache_key = f"user_id:{user_id}"
-    cached = _tier_cache.get(cache_key)
+    cached = _tier_cache().get(cache_key)
     if cached:
         tier, cached_at = cached
         if now - cached_at < _CACHE_TTL_SECONDS:
             return tier
 
     tier = _fetch_tier_from_db_by_user_id(user_id)
-    _tier_cache[cache_key] = (tier, now)
+    _tier_cache()[cache_key] = (tier, now)
     return tier
 
 
@@ -287,7 +292,7 @@ def check_league_limit_by_user_id(user_id: str) -> tuple[bool, str]:
 
 def build_billing_context(email: str, reason: str, channel: Medium | str) -> str:
     try:
-        from gordie.billing.creem_client import create_checkout_session
+        from gordie.integrations.creem.creem_client import create_checkout_session
 
         hosted_url = create_checkout_session("hosted_monthly", email)
     except (RequestException, ValueError) as e:
@@ -313,7 +318,7 @@ def build_billing_context(email: str, reason: str, channel: Medium | str) -> str
 
 def build_upgrade_message(email: str, reason: str, channel: Medium | str) -> str:
     try:
-        from gordie.billing.creem_client import create_checkout_session
+        from gordie.integrations.creem.creem_client import create_checkout_session
 
         hosted_url = create_checkout_session("hosted_monthly", email)
 

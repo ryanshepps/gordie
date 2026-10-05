@@ -2,18 +2,15 @@
 
 import os
 import sys
-from importlib.resources import files
 from typing import TYPE_CHECKING
 
-from alembic import command
-from alembic.config import Config
 from alembic.util import CommandError
 from dotenv import load_dotenv
 from sqlalchemy.exc import SQLAlchemyError
 
 _ = load_dotenv()
 
-from gordie.module.config_validator import (  # noqa: E402
+from gordie.integrations.config_validator import (  # noqa: E402
     ConfigValidationError,
     validate_startup_config,
 )
@@ -23,20 +20,6 @@ if TYPE_CHECKING:
     from gordie.server.server import Server
 
 logger = get_logger(__name__)
-
-
-def run_migrations() -> None:
-    """Apply database migrations before accepting traffic."""
-    logger.info("Running database migrations...")
-    config = Config(str(files("gordie").joinpath("resources/alembic.ini")))
-    config.set_main_option("script_location", str(files("gordie").joinpath("data/alembic")))
-    upgrade_database(config, "head")
-    logger.info("Database migrations complete.")
-
-
-def upgrade_database(config: Config, revision: str) -> None:
-    """Run Alembic upgrade for the configured database."""
-    command.upgrade(config, revision)
 
 
 def should_redirect_stderr() -> bool:
@@ -61,7 +44,6 @@ def main() -> None:
         validate_startup_config(os.environ)
         host = os.getenv("SERVER_HOST", "localhost")
         port = int(os.getenv("SERVER_PORT", "8000"))
-        run_migrations()
         if should_redirect_stderr():
             redirect_stderr_to_logger(logger)
         logger.info(f"Starting server on {host}:{port}...")

@@ -9,7 +9,7 @@ from typing import cast
 
 from quart import Quart, jsonify, request
 
-from gordie.billing.repository import SubscriptionRepository
+from gordie.integrations.creem.repository import SubscriptionRepository
 from gordie.module.logger import get_logger
 
 WebhookValue = str | dict[str, str] | None
@@ -129,7 +129,7 @@ def register_routes(app: Quart) -> None:
 def _handle_checkout_completed(
     repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    from gordie.billing.creem_client import tier_from_product_id
+    from gordie.integrations.creem.creem_client import tier_from_product_id
 
     email = _extract_customer_email(obj)
     customer_id = _extract_customer_id(obj)
@@ -155,7 +155,7 @@ def _handle_checkout_completed(
 def _handle_subscription_active(
     repo: SubscriptionRepository, obj: WebhookObject, logger: logging.Logger
 ) -> None:
-    from gordie.billing.creem_client import tier_from_product_id
+    from gordie.integrations.creem.creem_client import tier_from_product_id
 
     email = _extract_customer_email(obj)
     customer_id = _extract_customer_id(obj)
@@ -192,7 +192,7 @@ def _handle_subscription_paid(
     if not existing:
         email = _extract_customer_email(obj)
         if email:
-            from gordie.billing.creem_client import tier_from_product_id
+            from gordie.integrations.creem.creem_client import tier_from_product_id
 
             customer_id = _extract_customer_id(obj)
             product_id = _extract_product_id(obj)

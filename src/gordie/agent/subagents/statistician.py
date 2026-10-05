@@ -1,6 +1,5 @@
 """Statistician sub-agent for rigorous statistical analysis of fantasy sports data."""
 
-from functools import cache
 from typing import Annotated, cast
 
 from langchain.tools import InjectedState, tool
@@ -11,6 +10,7 @@ from gordie.agent.context_types import Sport
 from gordie.agent.prompts.sport_context import get_sport_context
 from gordie.agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from gordie.module.logger import get_logger
+from gordie.runtime import current_runtime
 from gordie.tools.compute.execute_python import execute_python
 from gordie.tools.hockey.stats.query_stats_db import query_hockey_stats_db
 from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
@@ -86,8 +86,7 @@ League: {league_id} | Team: {team_id}
 """
 
 
-@cache
-def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
+def _build_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
     return create_subagent(
         name="statistician",
         system_prompt=_statistician_task,
@@ -102,6 +101,10 @@ def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
         ],
         response_format=None,
     )
+
+
+def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
+    return current_runtime().resource("subagent:statistician", _build_agent)
 
 
 @tool

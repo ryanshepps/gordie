@@ -47,6 +47,16 @@ those resources initialize when used.
 Verify an installed wheel outside the checkout with
 `uv run python scripts/check_package.py dist/gordie-0.1.0-py3-none-any.whl`.
 
+## Integration interface
+
+Use `from gordie import Plugins, create_app, create_agent` to assemble Gordie with
+your own storage, models, access policy, tools, HTTP routes, and background jobs.
+The existing PostgreSQL, model-provider, and Creem implementations remain in this
+repository under `gordie.integrations`.
+
+See [the plugin interface and lifecycle guide](docs/plugins.md) for contracts,
+assembly examples, and the future private-package boundary.
+
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE).

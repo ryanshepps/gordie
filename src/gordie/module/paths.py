@@ -1,7 +1,7 @@
-import os
 from pathlib import Path
+
+from gordie.runtime import current_runtime
 
 
 def data_path(filename: str) -> Path:
-    directory = Path(os.environ.get("GORDIE_DATA_DIR", Path.home() / ".local/share/gordie"))
-    return directory / filename
+    return current_runtime().plugins.storage.data_path(filename)

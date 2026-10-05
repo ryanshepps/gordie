@@ -19,7 +19,7 @@ EVAL_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 @pytest.fixture(autouse=True)
 def in_memory_supervisor_checkpointer(mocker: MockerFixture) -> None:
-    mocker.patch("gordie.agent.supervisor.checkpointer", InMemorySaver())
+    mocker.patch("gordie.agent.supervisor.get_checkpointer", return_value=InMemorySaver())
 
 
 def retry_on_rate_limit(max_retries: int = 3, base_delay: float = 1.0):

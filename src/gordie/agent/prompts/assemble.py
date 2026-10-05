@@ -120,12 +120,8 @@ Proceed with their original request if they had one.""")
         if team_id:
             parts.append(f"Team ID: {team_id}")
 
-    elif context_status == "billing_blocked":
-        from gordie.billing import billing_enabled
-
-        if billing_enabled:
-            billing_context = state.get("billing_context", "")
-            parts.append(str(billing_context))
+    elif context_status == "access_blocked":
+        parts.append(str(state.get("access_context", "")))
 
     elif context_status == "error":
         context_error = state.get("context_error", "Unknown error")

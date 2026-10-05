@@ -12,9 +12,18 @@ from gordie.scheduled.refresh_stats_db import refresh_stats_db
 @pytest.fixture(autouse=True)
 def isolate_db(tmp_path, monkeypatch):
     test_db_path = tmp_path / "moneypuck_stats.duckdb"
-    monkeypatch.setattr("gordie.scheduled.refresh_stats_db.DB_PATH", test_db_path)
-    monkeypatch.setattr("gordie.tools.hockey.stats.duckdb_connection.DB_PATH", test_db_path)
-    return test_db_path
+    from dataclasses import replace
+
+    from gordie.integrations.defaults import default_plugins
+    from gordie.integrations.postgres import PostgresStorage
+    from gordie.runtime import Runtime
+
+    runtime = Runtime(
+        replace(default_plugins(), storage=PostgresStorage("postgresql://unused", tmp_path))
+    )
+    with runtime.activate():
+        yield test_db_path
+    runtime.close()
 
 
 def _fake_download_csv(url: str, dest: Path) -> None:

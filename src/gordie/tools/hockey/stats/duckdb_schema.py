@@ -2,11 +2,8 @@
 
 from datetime import UTC, datetime
 
-from gordie.module.paths import data_path
-
 MONEYPUCK_BASE_URL = "https://moneypuck.com/moneypuck/playerData/seasonSummary"
 SEASONS = list(range(2020, datetime.now(UTC).year + 1))
-DB_PATH = data_path("moneypuck_stats.duckdb")
 TABLES = ["skaters", "goalies", "teams"]
 
 TOOL_DESCRIPTION = f"""\

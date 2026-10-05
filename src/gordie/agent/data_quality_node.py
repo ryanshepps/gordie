@@ -19,14 +19,9 @@ logger = get_logger(__name__)
 
 _MAX_RETRIES = 1
 
-_llm_instance: BaseChatModel | None = None
-
 
 def _get_llm() -> BaseChatModel:
-    global _llm_instance
-    if _llm_instance is None:
-        _llm_instance = make_llm(temperature=0)
-    return _llm_instance
+    return make_llm(temperature=0)
 
 
 _SYSTEM_PROMPT = """\

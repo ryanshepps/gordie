@@ -22,9 +22,6 @@ from gordie.module.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Thread-local storage for repository instances
-_thread_local = threading.local()
-
 
 def _serialize_for_storage(data: Any, serde: SerializerProtocol) -> Any:
     """
@@ -69,13 +66,25 @@ class CustomCheckpointer(BaseCheckpointSaver[str]):
     ):
         """Initialize the custom checkpointer."""
         super().__init__(serde=serde or JsonPlusSerializer())
+        self._thread_local = threading.local()
+        self._repositories: list[ConversationRepository] = []
+        self._repository_lock = threading.Lock()
 
     def _get_repo(self) -> ConversationRepository:
         """Get or create the conversation repository for the current thread."""
-        # Use thread-local storage to ensure each thread has its own session
-        if not hasattr(_thread_local, "repo") or _thread_local.repo is None:
-            _thread_local.repo = ConversationRepository()
-        return _thread_local.repo
+        if not hasattr(self._thread_local, "repo") or self._thread_local.repo is None:
+            repository = ConversationRepository()
+            self._thread_local.repo = repository
+            with self._repository_lock:
+                self._repositories.append(repository)
+        return self._thread_local.repo
+
+    def close(self) -> None:
+        with self._repository_lock:
+            for repository in self._repositories:
+                repository.close()
+            self._repositories.clear()
+        self._thread_local = threading.local()
 
     def setup(self) -> None:
         """
