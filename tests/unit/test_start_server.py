@@ -7,7 +7,8 @@ import pytest
 from alembic.config import Config
 from pytest import MonkeyPatch
 
-from gordie.module.config_validator import ConfigValidationError
+from gordie.integrations import migrations
+from gordie.integrations.config_validator import ConfigValidationError
 from gordie.scripts import start_server
 
 
@@ -17,9 +18,9 @@ def test_run_migrations_upgrades_to_head(monkeypatch: MonkeyPatch) -> None:
     def upgrade_database(config: Config, revision: str) -> None:
         calls.append((config.config_file_name, revision))
 
-    monkeypatch.setattr(start_server, "upgrade_database", upgrade_database)
+    monkeypatch.setattr(migrations, "upgrade_database", upgrade_database)
 
-    start_server.run_migrations()
+    migrations.run_migrations()
 
     assert calls == [(str(files("gordie").joinpath("resources/alembic.ini")), "head")]
 
@@ -36,18 +37,14 @@ def test_should_redirect_stderr_skips_console_logging(monkeypatch: MonkeyPatch) 
     assert not start_server.should_redirect_stderr()
 
 
-def test_main_validates_config_before_migrations(monkeypatch: MonkeyPatch) -> None:
+def test_main_validates_config_before_server_creation(monkeypatch: MonkeyPatch) -> None:
     calls: list[str] = []
 
     def validate_startup_config(_env: Mapping[str, str]) -> None:
         calls.append("validate")
         raise ConfigValidationError(missing=(), invalid=("bad config",))
 
-    def run_migrations() -> None:
-        calls.append("migrate")
-
     monkeypatch.setattr(start_server, "validate_startup_config", validate_startup_config)
-    monkeypatch.setattr(start_server, "run_migrations", run_migrations)
 
     with pytest.raises(SystemExit) as exc_info:
         start_server.main()
@@ -66,9 +63,6 @@ def test_main_runs_server_after_valid_config(monkeypatch: MonkeyPatch) -> None:
     def validate_startup_config(_env: Mapping[str, str]) -> None:
         calls.append("validate")
 
-    def run_migrations() -> None:
-        calls.append("migrate")
-
     def create_server(host: str, port: int) -> FakeServer:
         calls.append(f"create:{host}:{port}")
         return FakeServer()
@@ -77,9 +71,8 @@ def test_main_runs_server_after_valid_config(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SERVER_PORT", "9000")
     monkeypatch.setenv("GORDIE_LOG_FILE", "stderr")
     monkeypatch.setattr(start_server, "validate_startup_config", validate_startup_config)
-    monkeypatch.setattr(start_server, "run_migrations", run_migrations)
     monkeypatch.setattr(start_server, "create_server", create_server)
 
     start_server.main()
 
-    assert calls == ["validate", "migrate", "create:127.0.0.1:9000", "run"]
+    assert calls == ["validate", "create:127.0.0.1:9000", "run"]

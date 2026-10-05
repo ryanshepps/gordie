@@ -4,8 +4,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from gordie.module.config_requirements import LLMProvider
-from gordie.module.config_validator import validate_startup_config
+from gordie.integrations.config_requirements import LLMProvider
+from gordie.integrations.config_validator import validate_startup_config
 from gordie.scripts.setup import (
     DeploymentTarget,
     SetupAnswers,

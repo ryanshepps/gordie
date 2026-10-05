@@ -7,8 +7,9 @@ import pandas as pd
 from pybaseball import batting_stats, pitching_stats, team_batting, team_pitching
 
 from gordie.module.logger import get_logger
+from gordie.module.paths import data_path
 from gordie.tools.mlb.stats.mlb_connection import reset_mlb_stats_connection
-from gordie.tools.mlb.stats.mlb_schema import MLB_DB_PATH, MLB_SEASONS
+from gordie.tools.mlb.stats.mlb_schema import MLB_SEASONS
 
 logger = get_logger(__name__)
 
@@ -44,7 +45,8 @@ def _load_dataframe(conn: duckdb.DuckDBPyConnection, table_name: str, df: pd.Dat
 
 
 def refresh_mlb_stats_db() -> None:
-    tmp_dir = MLB_DB_PATH.parent
+    db_path = data_path("mlb_stats.duckdb")
+    tmp_dir = db_path.parent
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     fd, tmp_path_str = tempfile.mkstemp(suffix=".duckdb", dir=tmp_dir)
@@ -92,8 +94,8 @@ def refresh_mlb_stats_db() -> None:
         finally:
             conn.close()
 
-        tmp_path.replace(MLB_DB_PATH)
-        logger.info(f"MLB stats database refreshed at {MLB_DB_PATH}")
+        tmp_path.replace(db_path)
+        logger.info(f"MLB stats database refreshed at {db_path}")
 
         reset_mlb_stats_connection()
 

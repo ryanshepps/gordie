@@ -11,7 +11,7 @@ ContextStatus = Literal[
     "team_selection_needed",
     "team_ambiguous",
     "auto_onboarded",
-    "billing_blocked",
+    "access_blocked",
     "error",
 ]
 
@@ -27,3 +27,4 @@ class ContextResult(TypedDict, total=False):
     oauth_url: str
     available_teams: list[dict[str, str]]
     context_error: str
+    access_context: str | None

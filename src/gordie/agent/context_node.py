@@ -14,6 +14,8 @@ from gordie.agent.sport_inference import infer_sport
 from gordie.data.models import Medium
 from gordie.data.yahoo_user_team_repository import YahooUserTeamRepository
 from gordie.module.logger import get_logger
+from gordie.plugins import AccessRequest, Action
+from gordie.runtime import current_runtime
 from gordie.tools.oauth.generate_oauth_link import generate_oauth_link
 
 logger = get_logger(__name__)
@@ -35,7 +37,7 @@ def _extract_last_human_message(state: AgentState) -> str:
     for msg in reversed(messages):
         if hasattr(msg, "type") and msg.type == "human":
             return str(msg.content)
-        if isinstance(msg, dict) and msg.get("type") == "human":
+        if isinstance(msg, dict) and (msg.get("type") == "human" or msg.get("role") == "user"):
             return str(msg.get("content", ""))
     return ""
 
@@ -82,13 +84,22 @@ def _handle_no_teams(user_id: str) -> ContextResult:
 
 
 def context_node(state: AgentState) -> ContextResult:
-    if state.get("billing_context"):
-        return ContextResult(context_status="billing_blocked")
-
     user_id = state.get("user_id", "")
     if not user_id:
         return ContextResult(context_status="error", context_error="No user ID found")
 
+    decision = current_runtime().plugins.access.evaluate(
+        AccessRequest(user_id, Action.QUESTION, _extract_last_human_message(state))
+    )
+    if not decision.allowed:
+        return ContextResult(context_status="access_blocked", access_context=decision.response)
+
+    result = _resolve_context(state, user_id)
+    result["access_context"] = None
+    return result
+
+
+def _resolve_context(state: AgentState, user_id: str) -> ContextResult:
     has_oauth = check_oauth_status(user_id)
 
     if not has_oauth:

@@ -1,7 +1,10 @@
 """Job registration for APScheduler."""
 
+from datetime import UTC, datetime
+
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from gordie.module.config import sport_enabled
 from gordie.module.logger import get_logger
 
 logger = get_logger(__name__)
@@ -60,3 +63,12 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
         replace_existing=True,
     )
     logger.info("Registered scheduled job: cleanup_pending_oauth (hourly)")
+
+
+def register_application_jobs(scheduler: BackgroundScheduler) -> None:
+    register_scheduled_jobs(scheduler)
+    for sport, job_id in (("nhl", "refresh_stats_db"), ("mlb", "refresh_mlb_stats_db")):
+        if sport_enabled(sport):
+            job = scheduler.get_job(job_id)
+            if job is not None:
+                job.modify(next_run_time=datetime.now(UTC))

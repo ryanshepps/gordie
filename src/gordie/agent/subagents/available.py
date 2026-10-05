@@ -1,6 +1,5 @@
 """Available players sub-agent for finding streaming and pickup opportunities."""
 
-from functools import cache
 from typing import Annotated, Any, cast
 
 from langchain.tools import InjectedState, tool
@@ -11,6 +10,7 @@ from gordie.agent.context_types import Sport
 from gordie.agent.prompts.sport_context import get_sport_context
 from gordie.agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from gordie.module.logger import get_logger
+from gordie.runtime import current_runtime
 from gordie.tools.available.search_available_players import search_available_players
 from gordie.tools.hockey.stats.get_player_line_info import get_player_line_info
 from gordie.tools.hockey.stats.get_player_schedule import get_player_schedule
@@ -66,8 +66,7 @@ League: {league_id} | Team: {team_id}
 """
 
 
-@cache
-def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
+def _build_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
     return create_subagent(
         name="available",
         system_prompt=_available_players_task,
@@ -83,6 +82,10 @@ def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
         ],
         response_format=None,  # Flexible responses based on query type
     )
+
+
+def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
+    return current_runtime().resource("subagent:available", _build_agent)
 
 
 @tool

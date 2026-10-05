@@ -6,17 +6,17 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 
 from gordie.agent.agent_state import AgentState
-from gordie.agent.checkpointer import checkpointer
+from gordie.agent.checkpointer import get_checkpointer
 from gordie.agent.prompts.assemble import assemble_system_prompt
 from gordie.agent.subagents.available import available_players
 from gordie.agent.subagents.statistician import statistician
 from gordie.agent.subagents.trade import trade
-from gordie.billing import billing_enabled
 from gordie.middleware.sport_tool_filter import sport_tool_filter
 from gordie.middleware.state_logger import StateLoggingMiddleware
 from gordie.middleware.tool_call_error_wrapper import handle_tool_errors
 from gordie.module.llm import make_llm
 from gordie.module.logger import get_logger
+from gordie.runtime import current_runtime
 from gordie.tools.hockey.stats.query_stats_db import query_hockey_stats_db
 from gordie.tools.memory.search_past_conversations import create_search_past_conversations_tool
 from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
@@ -45,19 +45,14 @@ def create_supervisor_agent(system_prompt: str):
         search_past_conversations,
     ]
 
-    if billing_enabled:
-        from gordie.billing.tools.generate_checkout_link import generate_checkout_link
-        from gordie.billing.tools.generate_portal_link import generate_portal_link
-        from gordie.billing.tools.get_subscription_status import get_subscription_status
-
-        tools += [get_subscription_status, generate_checkout_link, generate_portal_link]
+    tools.extend(current_runtime().plugins.extra_tools)
 
     return create_agent(
         model=make_llm(temperature=0),
         tools=tools,
         middleware=[StateLoggingMiddleware("supervisor"), sport_tool_filter, handle_tool_errors],
         system_prompt=system_prompt,
-        checkpointer=checkpointer,
+        checkpointer=get_checkpointer(),
         state_schema=AgentState,  # type: ignore[arg-type]
     )
 
@@ -69,35 +64,14 @@ def _add_error_response(state: AgentState, error_message: str) -> None:
     state["response"] = error_message
 
 
-def _invoke_billing_response(
+def _invoke_access_response(
     state: AgentState,
 ) -> Command[Literal["data_quality", "response", "__end__"]]:
-    try:
-        system_prompt = assemble_system_prompt(state)
-
-        llm = make_llm(temperature=0)
-        user_messages = []
-        for m in state.get("messages", []):
-            if isinstance(m, dict):
-                user_messages.append({"role": "user", "content": str(m.get("content", ""))})
-            elif hasattr(m, "type") and m.type == "human":
-                user_messages.append({"role": "user", "content": str(m.content)})
-        messages = [{"role": "system", "content": system_prompt}, *user_messages]
-
-        response = llm.invoke(messages)
-        response_content = str(response.content)
-
-        state["response"] = response_content
-        ai_msg = AIMessage(content=response_content)
-        state["messages"] = [*list(state.get("messages", [])), ai_msg]
-
-        return Command(goto="data_quality", update=state)
-    except Exception as e:
-        logger.error(f"Error in billing response: {e}", exc_info=True)
-        _add_error_response(
-            state, "I encountered an error processing your request. Could you please try again?"
-        )
-        return Command(goto="response", update=state)
+    response = state.get("access_context") or "This action is unavailable."
+    return Command(
+        goto=END_NODE,
+        update={"response": response, "messages": [AIMessage(content=response)]},
+    )
 
 
 def _invoke_supervisor(
@@ -156,7 +130,7 @@ def supervisor_node(
 
     logger.info(f"Supervisor processing: {message_content}...")
 
-    if state.get("context_status") == "billing_blocked":
-        return _invoke_billing_response(state)
+    if state.get("context_status") == "access_blocked":
+        return _invoke_access_response(state)
 
     return _invoke_supervisor(state)

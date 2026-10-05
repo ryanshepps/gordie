@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 
 import typer
 
-from gordie.module.config_requirements import (
+from gordie.integrations.config_requirements import (
     LLMProvider,
     default_llm_model,
     required_keys_for_runtime,

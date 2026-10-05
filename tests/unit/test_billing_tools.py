@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from requests.exceptions import RequestException
 
-from gordie.billing.tier import BillingStatus
+from gordie.integrations.creem.tier import BillingStatus
 
 
 def _billing_status(
@@ -30,11 +30,11 @@ USER_STATE = {"state": {"user_id": "00000000-0000-0000-0000-000000000001"}}
 
 
 class TestGetSubscriptionStatus:
-    @patch("gordie.billing.tools.get_subscription_status.get_billing_status_by_user_id")
+    @patch("gordie.integrations.creem.tools.get_subscription_status.get_billing_status_by_user_id")
     def test_free_user_includes_current_limits(self, mock_billing) -> None:
         mock_billing.return_value = _billing_status(leagues_connected=1)
 
-        from gordie.billing.tools.get_subscription_status import get_subscription_status
+        from gordie.integrations.creem.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(
             get_subscription_status.func(state=USER_STATE["state"])  # pyright: ignore[reportAttributeAccessIssue]
@@ -47,7 +47,7 @@ class TestGetSubscriptionStatus:
         assert result["plans"]["hosted"]["price"] == "$10/mo"
         assert result["plans"]["free"]["digests"] == "Unavailable"
 
-    @patch("gordie.billing.tools.get_subscription_status.get_billing_status_by_user_id")
+    @patch("gordie.integrations.creem.tools.get_subscription_status.get_billing_status_by_user_id")
     def test_hosted_user_includes_period_end(self, mock_billing) -> None:
         mock_billing.return_value = _billing_status(
             tier="hosted",
@@ -58,7 +58,7 @@ class TestGetSubscriptionStatus:
             leagues_allowed=3,
         )
 
-        from gordie.billing.tools.get_subscription_status import get_subscription_status
+        from gordie.integrations.creem.tools.get_subscription_status import get_subscription_status
 
         result = json.loads(
             get_subscription_status.func(state=USER_STATE["state"])  # pyright: ignore[reportAttributeAccessIssue]
@@ -70,14 +70,14 @@ class TestGetSubscriptionStatus:
 
 class TestGenerateCheckoutLink:
     @patch(
-        "gordie.billing.tools.generate_checkout_link._email_for_user_id",
+        "gordie.integrations.creem.tools.generate_checkout_link._email_for_user_id",
         return_value="user@test.com",
     )
-    @patch("gordie.billing.tools.generate_checkout_link.create_checkout_session")
+    @patch("gordie.integrations.creem.tools.generate_checkout_link.create_checkout_session")
     def test_valid_plan_returns_url(self, mock_checkout, _mock_email) -> None:
         mock_checkout.return_value = "https://checkout.creem.io/sess_abc"
 
-        from gordie.billing.tools.generate_checkout_link import generate_checkout_link
+        from gordie.integrations.creem.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.func(  # pyright: ignore[reportAttributeAccessIssue]
             "hosted_monthly", state=USER_STATE["state"]
@@ -88,14 +88,14 @@ class TestGenerateCheckoutLink:
         mock_checkout.assert_called_once_with("hosted_monthly", "user@test.com")
 
     def test_invalid_plan_returns_error(self) -> None:
-        from gordie.billing.tools.generate_checkout_link import generate_checkout_link
+        from gordie.integrations.creem.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.invoke({**USER_STATE, "plan": "platinum"})
 
         assert "Invalid plan" in result
 
     def test_allstar_plan_is_not_valid(self) -> None:
-        from gordie.billing.tools.generate_checkout_link import generate_checkout_link
+        from gordie.integrations.creem.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.func(  # pyright: ignore[reportAttributeAccessIssue]
             "allstar_monthly", state=USER_STATE["state"]
@@ -105,15 +105,15 @@ class TestGenerateCheckoutLink:
         assert "allstar" not in result.lower()
 
     @patch(
-        "gordie.billing.tools.generate_checkout_link._email_for_user_id",
+        "gordie.integrations.creem.tools.generate_checkout_link._email_for_user_id",
         return_value="user@test.com",
     )
     @patch(
-        "gordie.billing.tools.generate_checkout_link.create_checkout_session",
+        "gordie.integrations.creem.tools.generate_checkout_link.create_checkout_session",
         side_effect=RequestException("API error"),
     )
     def test_api_failure_returns_friendly_error(self, mock_checkout, _mock_email) -> None:
-        from gordie.billing.tools.generate_checkout_link import generate_checkout_link
+        from gordie.integrations.creem.tools.generate_checkout_link import generate_checkout_link
 
         result = generate_checkout_link.func(  # pyright: ignore[reportAttributeAccessIssue]
             "hosted_monthly", state=USER_STATE["state"]
@@ -123,8 +123,8 @@ class TestGenerateCheckoutLink:
 
 
 class TestGeneratePortalLink:
-    @patch("gordie.billing.tools.generate_portal_link.get_billing_portal_link")
-    @patch("gordie.billing.tools.generate_portal_link.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tools.generate_portal_link.get_billing_portal_link")
+    @patch("gordie.integrations.creem.tools.generate_portal_link.SubscriptionRepository")
     def test_existing_customer_returns_portal_url(self, mock_repo_cls, mock_portal) -> None:
         mock_repo_cls.return_value.get_subscription_by_user_id.return_value = (
             "00000000-0000-0000-0000-000000000001",
@@ -135,22 +135,22 @@ class TestGeneratePortalLink:
             None,
             None,
         )
-        mock_portal.return_value = "https://gordie.billing.creem.io/portal_abc"
+        mock_portal.return_value = "https://gordie.integrations.creem.creem.io/portal_abc"
 
-        from gordie.billing.tools.generate_portal_link import generate_portal_link
+        from gordie.integrations.creem.tools.generate_portal_link import generate_portal_link
 
         result = generate_portal_link.func(  # pyright: ignore[reportAttributeAccessIssue]
             state=USER_STATE["state"]
         )
 
-        assert "https://gordie.billing.creem.io/portal_abc" in result
+        assert "https://gordie.integrations.creem.creem.io/portal_abc" in result
         mock_portal.assert_called_once_with("cus_789")
 
-    @patch("gordie.billing.tools.generate_portal_link.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tools.generate_portal_link.SubscriptionRepository")
     def test_no_subscription_returns_error(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription_by_user_id.return_value = None
 
-        from gordie.billing.tools.generate_portal_link import generate_portal_link
+        from gordie.integrations.creem.tools.generate_portal_link import generate_portal_link
 
         result = generate_portal_link.func(  # pyright: ignore[reportAttributeAccessIssue]
             state=USER_STATE["state"]
@@ -158,7 +158,7 @@ class TestGeneratePortalLink:
 
         assert "No active subscription" in result
 
-    @patch("gordie.billing.tools.generate_portal_link.SubscriptionRepository")
+    @patch("gordie.integrations.creem.tools.generate_portal_link.SubscriptionRepository")
     def test_no_creem_customer_id_returns_error(self, mock_repo_cls) -> None:
         mock_repo_cls.return_value.get_subscription_by_user_id.return_value = (
             "00000000-0000-0000-0000-000000000001",
@@ -169,7 +169,7 @@ class TestGeneratePortalLink:
             None,
         )
 
-        from gordie.billing.tools.generate_portal_link import generate_portal_link
+        from gordie.integrations.creem.tools.generate_portal_link import generate_portal_link
 
         result = generate_portal_link.func(  # pyright: ignore[reportAttributeAccessIssue]
             state=USER_STATE["state"]

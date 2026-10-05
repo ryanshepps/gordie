@@ -1,9 +1,6 @@
 from datetime import UTC, datetime
 
-from gordie.module.paths import data_path
-
 MLB_SEASONS = list(range(2021, datetime.now(UTC).year + 1))
-MLB_DB_PATH = data_path("mlb_stats.duckdb")
 MLB_TABLES = ["mlb_batters", "mlb_pitchers", "mlb_teams"]
 
 MLB_TOOL_DESCRIPTION = f"""\

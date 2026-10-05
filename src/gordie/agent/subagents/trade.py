@@ -1,6 +1,5 @@
 """Trade sub-agent for finding players to trade for"""
 
-from functools import cache
 from typing import Annotated, Any, cast
 
 from langchain.tools import InjectedState, tool
@@ -12,6 +11,7 @@ from gordie.agent.prompts.sport_context import get_sport_context
 from gordie.agent.response_models import TradeResponse
 from gordie.agent.subagents.base import create_subagent, extract_response, invoke_subagent
 from gordie.module.logger import get_logger
+from gordie.runtime import current_runtime
 from gordie.tools.hockey.player.calculate_undervalued_score import (
     calculate_undervalued_score,
 )
@@ -89,8 +89,7 @@ League: {league_id} | Team: {team_id}
 """
 
 
-@cache
-def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
+def _build_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
     return create_subagent(
         name="trade",
         system_prompt=_player_assessment_task,
@@ -105,6 +104,10 @@ def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
         ],
         response_format=TradeResponse,
     )
+
+
+def get_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentState]:
+    return current_runtime().resource("subagent:trade", _build_agent)
 
 
 @tool

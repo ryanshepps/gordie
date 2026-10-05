@@ -26,9 +26,14 @@ def _fake_team_pitching(season: int, **_kwargs: object) -> pd.DataFrame:
 @pytest.fixture(autouse=True)
 def isolate_db(tmp_path, monkeypatch):
     test_db_path = tmp_path / "mlb_stats.duckdb"
-    monkeypatch.setattr("gordie.scheduled.refresh_mlb_stats_db.MLB_DB_PATH", test_db_path)
-    monkeypatch.setattr("gordie.tools.mlb.stats.mlb_connection.MLB_DB_PATH", test_db_path)
-    return test_db_path
+    from gordie.integrations.defaults import default_plugins
+    from gordie.runtime import Runtime
+
+    monkeypatch.setenv("GORDIE_DATA_DIR", str(tmp_path))
+    runtime = Runtime(default_plugins())
+    with runtime.activate():
+        yield test_db_path
+    runtime.close()
 
 
 class TestRefreshMlbStatsDb:
