@@ -15,8 +15,6 @@ from gordie.tools.available.search_available_players import search_available_pla
 from gordie.tools.hockey.stats.get_player_line_info import get_player_line_info
 from gordie.tools.hockey.stats.get_player_schedule import get_player_schedule
 from gordie.tools.hockey.stats.query_stats_db import query_hockey_stats_db
-from gordie.tools.mlb.player.get_team_schedule import get_mlb_team_schedule
-from gordie.tools.mlb.stats.query_mlb_stats_db import query_mlb_stats_db
 from gordie.tools.yahoo.get_player_yahoo_info import get_player_yahoo_info
 from gordie.tools.yahoo.get_team_roster import get_team_roster
 
@@ -73,10 +71,8 @@ def _build_agent() -> CompiledStateGraph[AgentState, None, AgentState, AgentStat
         tools=[
             search_available_players,
             query_hockey_stats_db,
-            query_mlb_stats_db,
             get_player_schedule,
             get_player_line_info,
-            get_mlb_team_schedule,
             get_player_yahoo_info,
             get_team_roster,
         ],

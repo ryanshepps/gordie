@@ -14,12 +14,6 @@ SPORT_TOOLS: dict[Sport, set[str]] = {
         "compare_players_comprehensive",
         "fuzzy_resolve_nhl_api_player_ids",
     },
-    "mlb": {
-        "query_mlb_stats_db",
-        "calculate_mlb_undervalued_score",
-        "get_mlb_team_schedule",
-        "fuzzy_resolve_mlb_player_ids",
-    },
 }
 
 ALL_SPORT_TOOLS = {name for names in SPORT_TOOLS.values() for name in names}

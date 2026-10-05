@@ -29,7 +29,6 @@ dependencies = [
     "duckdb>=1.0.0",
     "scipy>=1.14.0",
     "numpy>=2.0.0",
-    "pybaseball>=2.2.7",
     "typer>=0.25.1",
 ]
 

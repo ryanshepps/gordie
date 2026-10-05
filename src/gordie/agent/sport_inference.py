@@ -16,20 +16,6 @@ SPORT_KEYWORDS: dict[Sport, list[str]] = {
         "fenwick",
         "hat trick",
     ],
-    "mlb": [
-        "baseball",
-        "mlb",
-        "batting",
-        "pitcher",
-        "pitching",
-        "home run",
-        "era",
-        "strikeout",
-        "inning",
-        "bullpen",
-        "ops",
-        "whip",
-    ],
     "nfl": [
         "football",
         "nfl",
@@ -65,7 +51,7 @@ def _user_sports(user_teams: list[dict[str, str]]) -> set[Sport]:
     sports: set[Sport] = set()
     for team in user_teams:
         sport = team.get("sport")
-        if sport in ("nhl", "mlb", "nfl", "nba"):
+        if sport in ("nhl", "nfl", "nba"):
             sports.add(sport)  # type: ignore[arg-type]
     return sports
 
@@ -88,7 +74,7 @@ def _match_team_names(message_text: str, user_teams: list[dict[str, str]]) -> Sp
         team_name = team.get("team_name", "").lower()
         league_name = team.get("league_name", "").lower()
         sport = team.get("sport")
-        if sport not in ("nhl", "mlb", "nfl", "nba"):
+        if sport not in ("nhl", "nfl", "nba"):
             continue
         if (team_name and team_name in text_lower) or (league_name and league_name in text_lower):
             matched_sports.add(sport)  # type: ignore[arg-type]
@@ -115,7 +101,7 @@ def infer_sport(
 ) -> Sport | None:
     if len(user_teams) == 1:
         sport = user_teams[0].get("sport")
-        if sport in ("nhl", "mlb", "nfl", "nba"):
+        if sport in ("nhl", "nfl", "nba"):
             return sport  # type: ignore[return-value]
         return None
 

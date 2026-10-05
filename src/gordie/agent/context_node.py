@@ -29,7 +29,7 @@ def _fetch_onboarded_teams(user_id: str) -> list[dict[str, str]]:
         repo.close()
 
 
-VALID_SPORTS: set[Sport] = {"nhl", "mlb", "nfl", "nba"}
+VALID_SPORTS: set[Sport] = {"nhl", "nfl", "nba"}
 
 
 def _extract_last_human_message(state: AgentState) -> str:
@@ -116,12 +116,21 @@ def _resolve_context(state: AgentState, user_id: str) -> ContextResult:
         status = "first_time_user" if first_time else "no_oauth"
         return ContextResult(context_status=status, oauth_url=oauth_url)
 
-    onboarded_teams = _fetch_onboarded_teams(user_id)
+    onboarded_teams = [
+        team for team in _fetch_onboarded_teams(user_id) if team.get("sport", "nhl") in VALID_SPORTS
+    ]
     if not onboarded_teams:
         return _handle_no_teams(user_id)
 
     league_id, team_id = resolve_team_context(state, onboarded_teams)
-    if league_id and team_id:
+    if (
+        league_id
+        and team_id
+        and any(
+            team["league_id"] == league_id and team["team_id"] == team_id
+            for team in onboarded_teams
+        )
+    ):
         sport = _infer_sport(onboarded_teams, league_id)
         return ContextResult(
             context_status="validated",

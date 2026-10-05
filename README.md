@@ -4,7 +4,7 @@ Gordie contains a Yahoo Fantasy account integration, sports data tools, an AI ag
 
 ## Current runtime
 
-The Quart server exposes `/health`, Yahoo's `/callback`, and Creem billing routes when billing is configured. The scheduler refreshes NHL and MLB stats and cleans up expired OAuth requests. Weekly and news delivery jobs are inactive.
+The Quart server exposes `/health`, Yahoo's `/callback`, and Creem billing routes when billing is configured. The scheduler refreshes NHL stats and cleans up expired OAuth requests. Weekly and news delivery jobs are inactive.
 
 The command-line agent can still be used for local development:
 
@@ -48,7 +48,7 @@ to apply migrations and start the HTTP server, and
 Load configuration into the environment or use a local `.env` file. Docker Compose
 setup still requires the repository's Compose file and Dockerfile.
 
-Set `GORDIE_DATA_DIR` to the writable directory for NHL and MLB statistics.
+Set `GORDIE_DATA_DIR` to the writable directory for NHL statistics.
 The default is `~/.local/share/gordie`. Persist this directory across container
 restarts. Importing modules does not construct LLM clients or connect to PostgreSQL;
 those resources initialize when used.

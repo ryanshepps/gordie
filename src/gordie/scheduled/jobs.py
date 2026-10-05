@@ -30,7 +30,6 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
     Args:
         scheduler: APScheduler BackgroundScheduler instance
     """
-    from gordie.scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
     from gordie.scheduled.refresh_stats_db import refresh_stats_db
 
     scheduler.add_job(
@@ -45,17 +44,6 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
     logger.info("Registered scheduled job: refresh_stats_db (daily at 7:00 AM UTC)")
 
     scheduler.add_job(
-        func=refresh_mlb_stats_db,
-        trigger="cron",
-        hour=7,
-        minute=30,
-        id="refresh_mlb_stats_db",
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
-    logger.info("Registered scheduled job: refresh_mlb_stats_db (daily at 7:30 AM UTC)")
-
-    scheduler.add_job(
         func=cleanup_expired_pending_oauth,
         trigger="interval",
         hours=1,
@@ -67,8 +55,7 @@ def register_scheduled_jobs(scheduler: BackgroundScheduler) -> None:
 
 def register_application_jobs(scheduler: BackgroundScheduler) -> None:
     register_scheduled_jobs(scheduler)
-    for sport, job_id in (("nhl", "refresh_stats_db"), ("mlb", "refresh_mlb_stats_db")):
-        if sport_enabled(sport):
-            job = scheduler.get_job(job_id)
-            if job is not None:
-                job.modify(next_run_time=datetime.now(UTC))
+    if sport_enabled("nhl"):
+        job = scheduler.get_job("refresh_stats_db")
+        if job is not None:
+            job.modify(next_run_time=datetime.now(UTC))

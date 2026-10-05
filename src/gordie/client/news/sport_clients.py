@@ -8,9 +8,6 @@ from gordie.agent.context_types import Sport
 from gordie.agent.news.news_digest import InjuryAlert, MatchupAlert, TradeAlert
 from gordie.client.news.espn_client import fetch_injuries
 from gordie.client.news.matchup_client import fetch_matchups
-from gordie.client.news.mlb_matchup_client import fetch_mlb_matchups
-from gordie.client.news.mlb_schedule_client import fetch_mlb_teams_playing_today
-from gordie.client.news.mlb_transactions_client import fetch_mlb_trades
 from gordie.client.news.schedule_client import fetch_teams_playing_today
 from gordie.client.news.transactions_client import fetch_trades
 
@@ -30,16 +27,8 @@ _NHL_CLIENTS = NewsClientBundle(
     fetch_teams_playing_today=fetch_teams_playing_today,
 )
 
-_MLB_CLIENTS = NewsClientBundle(
-    fetch_injuries=partial(fetch_injuries, sport="mlb"),
-    fetch_trades=fetch_mlb_trades,
-    fetch_matchups=fetch_mlb_matchups,
-    fetch_teams_playing_today=fetch_mlb_teams_playing_today,
-)
-
 _REGISTRY: dict[Sport, NewsClientBundle] = {
     "nhl": _NHL_CLIENTS,
-    "mlb": _MLB_CLIENTS,
 }
 
 

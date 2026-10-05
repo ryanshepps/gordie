@@ -7,6 +7,7 @@ from uuid import UUID
 from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 
+from gordie.agent.context_types import Sport
 from gordie.client.authenticated_yahoo_client import AuthenticatedYahooClient
 from gordie.data.yahoo_league_repository import YahooLeagueRepository
 from gordie.data.yahoo_user_team_repository import YahooUserTeamRepository
@@ -23,8 +24,8 @@ class OnboardUserTeamInput(BaseModel):
     game_key: str = Field(
         description="Numeric Yahoo Fantasy game key from get_user_leagues (e.g., '423', '465')"
     )
-    game_code: str = Field(
-        description="Yahoo Fantasy sport code from get_user_leagues (e.g., 'nhl', 'mlb', 'nfl', 'nba')"
+    game_code: Sport = Field(
+        description="Yahoo Fantasy sport code from get_user_leagues ('nhl', 'nfl', 'nba')"
     )
     league_id: int = Field(
         description="Yahoo Fantasy league ID from get_user_leagues (just the numeric ID, e.g., '26455')"
@@ -38,7 +39,7 @@ class OnboardUserTeamInput(BaseModel):
 @tool(args_schema=OnboardUserTeamInput)
 def onboard_user_team(
     game_key: str,
-    game_code: str,
+    game_code: Sport,
     league_id: int,
     team_name: str,
     team_id: int,
@@ -50,7 +51,7 @@ def onboard_user_team(
 
     Args:
         game_key: Numeric Yahoo Fantasy game key from get_user_leagues (e.g., "423", "465")
-        game_code: Yahoo Fantasy sport code (e.g., "nhl", "mlb", "nfl", "nba")
+        game_code: Yahoo Fantasy sport code ("nhl", "nfl", "nba")
         league_id: Yahoo Fantasy league ID from get_user_leagues (just the numeric ID, e.g., "26455")
         team_id: Yahoo Fantasy team ID from get_user_leagues (just the numeric team ID)
 

@@ -65,7 +65,7 @@ def resolve_team_context(
     return None, None
 
 
-SUPPORTED_SPORTS: set[str] = {"nhl", "mlb", "nfl", "nba"}
+SUPPORTED_SPORTS: set[str] = {"nhl", "nfl", "nba"}
 
 
 def fetch_supported_teams(user_id: str) -> list[dict[str, str]]:

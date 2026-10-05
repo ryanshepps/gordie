@@ -114,7 +114,7 @@ def build_env_values(
         "ANTHROPIC_API_KEY": answers.values.get("ANTHROPIC_API_KEY", ""),
         "YAHOO_CLIENT_ID": answers.values["YAHOO_CLIENT_ID"],
         "YAHOO_CLIENT_SECRET": answers.values["YAHOO_CLIENT_SECRET"],
-        "ENABLED_SPORTS": answers.values.get("ENABLED_SPORTS", "nhl,mlb"),
+        "ENABLED_SPORTS": answers.values.get("ENABLED_SPORTS", "nhl"),
     }
 
     if answers.llm_provider is LLMProvider.OPENAI:
