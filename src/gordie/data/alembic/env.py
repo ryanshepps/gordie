@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from gordie.data.models import Base
+from gordie.integrations.creem import models
 
 _ = load_dotenv()
 
@@ -15,11 +16,12 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Override sqlalchemy.url from environment
-_raw_url = os.environ.get("DATABASE_URL", "")
+_raw_url = config.get_main_option("sqlalchemy.url") or os.environ.get("DATABASE_URL", "")
 _url = _raw_url.replace("postgresql://", "postgresql+psycopg://", 1) if _raw_url else ""
-config.set_main_option("sqlalchemy.url", _url)
+config.set_main_option("sqlalchemy.url", _url.replace("%", "%%"))
 
 target_metadata = Base.metadata
+_ = models.UserSubscription
 
 
 def run_migrations_offline() -> None:

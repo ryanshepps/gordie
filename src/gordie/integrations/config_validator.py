@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from gordie.module.config_requirements import (
+from gordie.integrations.config_requirements import (
     ConfigRequirement,
     LLMProvider,
     required_config_for_runtime,

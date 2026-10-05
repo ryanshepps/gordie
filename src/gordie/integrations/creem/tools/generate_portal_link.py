@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from requests.exceptions import RequestException
 from sqlalchemy.exc import SQLAlchemyError
 
-from gordie.billing.creem_client import get_billing_portal_link
-from gordie.billing.repository import SubscriptionRepository
+from gordie.integrations.creem.creem_client import get_billing_portal_link
+from gordie.integrations.creem.repository import SubscriptionRepository
 from gordie.module.logger import get_logger
 from gordie.tools.user_context import get_user_id
 

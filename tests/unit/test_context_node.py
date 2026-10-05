@@ -20,13 +20,18 @@ def _make_state(**overrides) -> AgentState:
     return defaults
 
 
-class TestBillingBlocked:
-    def test_returns_billing_blocked_when_billing_context_present(self):
-        state = _make_state(billing_context="BILLING LIMIT REACHED")
+class TestAccessContext:
+    @patch("gordie.agent.context_node.check_oauth_status", return_value=True)
+    @patch("gordie.agent.context_node._fetch_onboarded_teams", return_value=[])
+    @patch("gordie.agent.context_node.fetch_supported_teams", return_value=[])
+    def test_clears_previous_denial_when_access_is_allowed(self, *_mocks):
+        state = _make_state(access_context="Previous denial")
 
         result = context_node(state)
 
-        assert result["context_status"] == "billing_blocked"
+        assert result["context_status"] != "access_blocked"
+        assert "access_context" in result
+        assert result["access_context"] is None
 
 
 class TestMissingUserId:

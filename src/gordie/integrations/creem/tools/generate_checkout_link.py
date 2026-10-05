@@ -7,9 +7,9 @@ from langchain.tools import InjectedState, tool
 from pydantic import BaseModel, Field
 from requests.exceptions import RequestException
 
-from gordie.billing.creem_client import create_checkout_session
 from gordie.data.models import Medium
 from gordie.data.user_repository import UserRepository
+from gordie.integrations.creem.creem_client import create_checkout_session
 from gordie.module.logger import get_logger
 from gordie.tools.user_context import get_user_id
 
@@ -23,6 +23,7 @@ PLAN_DESCRIPTIONS: dict[str, str] = {
 
 
 class GenerateCheckoutLinkInput(BaseModel):
+    state: Annotated[dict[str, object] | None, InjectedState] = None
     plan: str = Field(description="Plan to generate checkout for: hosted_monthly")
 
 

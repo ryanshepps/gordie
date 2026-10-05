@@ -58,6 +58,6 @@ class AgentState(_AgentStateRequired, total=False):
     current_agent_index: int  # Current position in flow (0-based)
     flow_complete: bool  # Explicit completion flag
     flow_reasoning: str | None  # LLM reasoning for agent flow decision
-    billing_context: str | None  # Billing limit info injected into system prompt
+    access_context: str | None
     data_quality_retries: int  # Number of times data_quality has looped back to supervisor
     sport_inferred_at: str | None

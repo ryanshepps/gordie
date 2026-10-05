@@ -1,8 +1,20 @@
 """Shared test fixtures for Gordie tests."""
 
 import json
+from collections.abc import Iterator
 
 import pytest
+
+from gordie.integrations.defaults import default_plugins
+from gordie.runtime import Runtime
+
+
+@pytest.fixture(autouse=True)
+def application_runtime() -> Iterator[Runtime]:
+    runtime = Runtime(default_plugins())
+    with runtime.activate():
+        yield runtime
+    runtime.close()
 
 
 @pytest.fixture

@@ -5,35 +5,30 @@ from typing import Any, cast
 from langchain.agents import create_agent
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from gordie.agent.agent_state import AgentState
-from gordie.agent.checkpointer import checkpointer
+from gordie.agent.checkpointer import get_checkpointer
 from gordie.agent.context_types import Sport
 from gordie.middleware.sport_tool_filter import sport_tool_filter
 from gordie.middleware.state_logger import StateLoggingMiddleware
 from gordie.middleware.tool_call_error_wrapper import handle_tool_errors
+from gordie.module.llm import make_llm
 from gordie.module.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def get_checkpointer():
-    """Return the shared PostgreSQL checkpointer for conversation persistence."""
-    return checkpointer
 
 
 def create_subagent(
     name: str,
     system_prompt: str,
     tools: list[Any],
-    model: str = "gpt-4o",
+    model: str | None = None,
     temperature: float = 0,
     response_format: type[BaseModel] | None = None,
 ) -> Any:
     """Create a sub-agent with standard configuration."""
-    llm = ChatOpenAI(model=model, temperature=temperature).bind(
+    llm = make_llm(model=model, temperature=temperature).bind(
         parallel_tool_calls=False,
     )
     agent_kwargs: dict[str, Any] = {
@@ -41,7 +36,7 @@ def create_subagent(
         "tools": tools,
         "middleware": [StateLoggingMiddleware(name), sport_tool_filter, handle_tool_errors],
         "system_prompt": SystemMessage(content=system_prompt),
-        "checkpointer": checkpointer,
+        "checkpointer": get_checkpointer(),
         "state_schema": AgentState,
     }
 

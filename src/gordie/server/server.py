@@ -1,139 +1,45 @@
-"""
-HTTP server for Yahoo OAuth and billing.
-
-This module provides the Quart server that handles incoming HTTP requests
-for Yahoo authentication and billing.
-"""
+from __future__ import annotations
 
 import asyncio
-import atexit
-import logging
 import threading
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-from quart import Quart, jsonify
 
-from gordie import billing
+from gordie.application import create_app
 from gordie.module.logger import get_logger
-from gordie.scheduled.jobs import register_scheduled_jobs
-from gordie.server.routes.oauth_routes import register_oauth_routes
+from gordie.plugins import Plugins
 
-# Suppress Hypercorn's default access logging
-logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
-
-# Global singleton server instance
-_server_instance: "Server | None" = None
+_server_instance: Server | None = None
 _server_lock = threading.Lock()
 
 
 class Server:
-    """
-    Quart server for Yahoo OAuth and billing.
+    def __init__(self, host: str, port: int, plugins: Plugins | None = None) -> None:
+        if plugins is None:
+            from gordie.integrations.defaults import default_plugins
 
-    The server listens on the configured host/port and handles:
-    - /callback - OAuth authorization code redirects from Yahoo
-    - /health - Health check endpoint
-    """
-
-    def __init__(self, host: str, port: int) -> None:
-        """
-        Initialize the server.
-
-        Args:
-            host: Host to bind the server to (e.g., "localhost")
-            port: Port to listen on (e.g., 8000)
-        """
-        billing.validate_billing_config()
-
+            plugins = default_plugins()
         self.host = host
         self.port = port
-        self.app = Quart(__name__)
-
-        self.scheduler = BackgroundScheduler()
-        self.scheduler.start()
-
-        # Register scheduled jobs
-        register_scheduled_jobs(self.scheduler)
-
-        # Ensure stats DB exists on first deploy
-        threading.Thread(target=self._refresh_stats_db_on_startup, daemon=True).start()
-
-        # Shut down the scheduler when exiting
-        atexit.register(lambda: self.scheduler.shutdown())
-
-        # Set up routes
-        self._setup_routes()
-
-    @staticmethod
-    def _refresh_stats_db_on_startup() -> None:
-        from gordie.module.config import sport_enabled
-
-        logger = get_logger(__name__)
-
-        if sport_enabled("nhl"):
-            try:
-                from gordie.scheduled.refresh_stats_db import refresh_stats_db
-
-                refresh_stats_db()
-                logger.info("NHL stats DB refreshed on startup")
-            except Exception:
-                logger.exception("Failed to refresh NHL stats DB on startup")
-        else:
-            logger.info("NHL disabled via ENABLED_SPORTS; skipping stats refresh")
-
-        if sport_enabled("mlb"):
-            try:
-                from gordie.scheduled.refresh_mlb_stats_db import refresh_mlb_stats_db
-
-                refresh_mlb_stats_db()
-                logger.info("MLB stats DB refreshed on startup")
-            except Exception:
-                logger.exception("Failed to refresh MLB stats DB on startup")
-        else:
-            logger.info("MLB disabled via ENABLED_SPORTS; skipping stats refresh")
-
-    def _setup_routes(self) -> None:
-        """Configure Quart routes."""
-        register_oauth_routes(self.app)
-        if billing.billing_enabled:
-            billing.register_routes(self.app)
-
-        @self.app.route("/health")
-        async def health():
-            """Health check endpoint."""
-            return jsonify({"status": "ok"})
+        self.app = create_app(plugins)
 
     def run(self) -> None:
-        """
-        Run the server on the main thread (blocking).
-
-        Hypercorn requires the main thread for signal handling.
-        """
-        logger = get_logger(__name__, log_file="gordie.server.log")
-
         config = Config()
         config.bind = [f"{self.host}:{self.port}"]
-        config.errorlog = logger
+        config.errorlog = get_logger(__name__, log_file="server.log")
         asyncio.run(serve(self.app, config))
 
 
 def start_server(host: str = "localhost", port: int = 8000) -> None:
-    """Start the server in a background thread if not already running."""
     global _server_instance
-
     with _server_lock:
         if _server_instance is None:
             _server_instance = Server(host, port)
-            server_thread = threading.Thread(target=_server_instance.run, daemon=True)
-            server_thread.start()
-            logger = get_logger(__name__)
-            logger.info(f"Server started on {host}:{port}")
+            threading.Thread(target=_server_instance.run, daemon=True).start()
 
 
 def get_server_url() -> str:
-    """Get the current server URL."""
     if _server_instance:
         return f"http://{_server_instance.host}:{_server_instance.port}"
     return "http://localhost:8000"

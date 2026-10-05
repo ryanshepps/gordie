@@ -2,7 +2,7 @@
 
 import pytest
 
-from gordie.module.config_validator import ConfigValidationError, validate_startup_config
+from gordie.integrations.config_validator import ConfigValidationError, validate_startup_config
 
 
 def _valid_env(**overrides: str) -> dict[str, str]:
