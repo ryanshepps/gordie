@@ -1,6 +1,6 @@
 # Quickstart
 
-Gordie currently exposes Yahoo OAuth, optional billing, health checks, stats refresh, and a local command-line agent. User messaging and website signup are unavailable.
+Gordie currently exposes Yahoo OAuth, optional billing, health checks, stats refresh, and a local command-line agent. User messaging is unavailable.
 
 ## Prerequisites
 
@@ -26,16 +26,6 @@ uv run python -m gordie.scripts.message_agent you@example.com "What can you do?"
 ```
 
 The response prints to the terminal. For Yahoo data, follow the authorization URL returned by the agent. The callback saves the Yahoo tokens; run the command again for fantasy analysis. There is no email, SMS, or chat delivery.
-
-## Run the project website
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-The website describes project availability and links to the source. It has no signup form.
 
 ## Focused checks
 

@@ -1,6 +1,6 @@
 # Gordie — open source fantasy sports assistant
 
-Gordie contains a Yahoo Fantasy account integration, sports data tools, an AI agent, billing support, and scheduled stats refreshes. User-facing messaging and website signup are currently unavailable while the communication integration is rebuilt.
+Gordie contains a Yahoo Fantasy account integration, sports data tools, an AI agent, billing support, and scheduled stats refreshes. User-facing messaging is currently unavailable while the communication integration is rebuilt.
 
 ## Current runtime
 
@@ -19,7 +19,6 @@ The account email remains the identity used by Yahoo and billing. The command pr
 - `src/gordie/agent/`: LangGraph agent, prompts, and analysis
 - `src/gordie/client/`: Yahoo and sports data clients
 - `src/gordie/data/`: account, token, and sports data models
-- `frontend/`: SvelteKit project website
 - `src/gordie/scheduled/`: stats refresh and OAuth cleanup
 - `src/gordie/server/`: Yahoo OAuth and optional billing HTTP routes
 - `src/gordie/tools/`: agent tools
