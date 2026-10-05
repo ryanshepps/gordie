@@ -28,6 +28,16 @@ Start with [the self-hosting quickstart](docs/setup/quickstart.md) or [Yahoo OAu
 
 ## Python package
 
+Published wheels are available from [GitHub Releases](https://github.com/ryanshepps/gordie/releases).
+Install a release into a Python 3.13 environment:
+
+```bash
+uv pip install https://github.com/ryanshepps/gordie/releases/download/v0.1.0/gordie-0.1.0-py3-none-any.whl
+```
+
+Replace both version numbers with the release you want. Then import Gordie with
+`from gordie import Plugins, create_app, create_agent` in your project.
+
 Build locally with `uv build`. Install `dist/gordie-0.1.0-py3-none-any.whl` into a
 Python 3.13 environment with `uv pip install`. The application imports under
 `gordie`; it does not require the repository to be the working directory.
@@ -45,6 +55,19 @@ those resources initialize when used.
 
 Verify an installed wheel outside the checkout with
 `uv run python scripts/check_package.py dist/gordie-0.1.0-py3-none-any.whl`.
+
+### Publishing a release
+
+Only `ryanshepps` can publish through the **Publish Python package** workflow in
+GitHub Actions. Select **Run workflow** with the `main` branch. Dispatches from
+other accounts or branches, including reruns by other accounts, skip publishing.
+
+Before each new release, update `project.version` in `pyproject.toml` and refresh
+`uv.lock` with `uv lock`, then merge those changes to `main`. The workflow builds
+and verifies the wheel, creates a `v<version>` tag at the selected commit, and
+uploads the wheel and source archive to a GitHub Release. An existing release
+or tag with the same version causes publishing to fail; published files are not replaced.
+The first release becomes available after this workflow is merged and run.
 
 ## Integration interface
 
