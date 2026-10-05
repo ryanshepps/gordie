@@ -17,7 +17,7 @@ run() (
         esac
     done < <(compgen -e)
     export GH_HOST=github.com GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-    "$@"
+    command "$@"
 )
 gh() { run gh "$@"; }
 git() {
