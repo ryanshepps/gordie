@@ -58,35 +58,43 @@ Verify an installed wheel outside the checkout with
 
 ### Publishing a release
 
-Only `ryanshepps` can publish through the **Publish Python package** workflow in
-GitHub Actions. Select **Run workflow** with the `main` branch. Dispatches from
-other accounts or branches, including reruns by other accounts, skip publishing.
-
-For the first release, run the workflow after it is merged to publish the current
-`0.1.0` version and establish the baseline tag.
-
-For subsequent releases, prepare a local release PR with Commitizen:
+Use the local release script after this PR is merged. It requires Python 3.13,
+`uv`, Git, and the GitHub CLI. Preview a release without remote changes:
 
 ```bash
-git switch main
-git pull --ff-only
-git fetch --tags
-uv sync --frozen
-git switch -c release/next
-uv run cz bump --yes --version-files-only
-git add pyproject.toml uv.lock CHANGELOG.md
-git commit -m "chore(release): bump version"
-git push -u origin release/next
-gh pr create --base main --title "chore(release): bump version" \
-  --body "Prepare the next Gordie release with Commitizen."
+uv run python scripts/release.py
 ```
 
-Commitizen calculates the next version from commits since the current version's
-tag, updates `pyproject.toml` and `uv.lock`, and generates `CHANGELOG.md`.
-`--version-files-only` leaves committing and tagging to the PR and publishing
-workflow, so the release tag points to the merged commit. Use a fresh branch name
-for each release PR. Merge the release PR after CI passes, then run the publishing
-workflow on `main`.
+To publish, authenticate `gh` to github.com as `ryanshepps` and opt in explicitly:
+
+```bash
+gh auth login --hostname github.com
+uv run python scripts/release.py --publish
+```
+
+The script clones `ryanshepps/gordie` at `main` into a temporary directory,
+calculates the next version with Commitizen, updates both version files and the
+changelog, and runs lint, format, type, non-eval tests, build, and installed-wheel
+checks. It opens a release PR, waits for CI, and squash-merges it without bypassing
+branch protection. It verifies that the merged source matches the validated
+source before tagging and uploading the wheel and source archive to GitHub Releases.
+The first release publishes the current `0.1.0` version to establish the baseline.
+If a version bump is already merged but untagged, it validates and publishes that
+version without creating another release PR.
+
+Only the authenticated `ryanshepps` account passes the publishing guard; GitHub
+permissions remain the authority for remote writes. No credentials are stored in
+the script or repository. GitHub tokens are passed only to authenticated Git/GitHub
+commands, and application secrets are excluded from all subprocess environments.
+Builds and tests execute trusted canonical code locally; this is not a sandbox.
+Run the script from a trusted checkout with trusted tools.
+
+Your working tree is untouched, and the temporary checkout is removed on exit.
+The script does not force-push, replace existing tags or releases, or use admin
+merge overrides. Failures stop the release; any remote PR or tag already created
+remains for inspection and recovery. Required reviews or a merge queue can stop
+automatic completion. An existing tag without a release needs manual recovery
+before retrying; it will not be overwritten.
 
 Use Conventional Commit PR titles and squash merges so Commitizen can classify
 changes. CI checks PR titles. `fix:`, `perf:`, and `refactor:` bump the patch
@@ -95,11 +103,6 @@ changes (`feat!:` or a `BREAKING CHANGE:` footer) also bump the minor version.
 Remove `major_version_zero` from the Commitizen configuration when adopting
 stable `1.x` versioning. Documentation and chore commits do not trigger a bump;
 Commitizen stops if there are no release-worthy commits.
-
-The workflow reads the version through Commitizen, builds and verifies the wheel,
-creates a `v<version>` tag at the selected commit, and uploads the wheel and source
-archive to a GitHub Release. An existing tag or release causes publishing to fail;
-published files are not replaced.
 
 ## Integration interface
 
