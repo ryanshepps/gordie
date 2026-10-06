@@ -4,13 +4,28 @@ from typing import cast
 from langchain_core.runnables import RunnableConfig
 
 from gordie.agent.agent_state import AgentState
+from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
 from gordie.plugins import IncomingMessage, OutgoingMessage, Plugins
 from gordie.runtime import Runtime
 
 
 class Agent:
-    def __init__(self, plugins: Plugins) -> None:
-        self.runtime = Runtime(plugins)
+    def __init__(
+        self,
+        plugins: Plugins,
+        *,
+        openrouter_api_key: str,
+        model: str,
+        embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+        embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
+    ) -> None:
+        self.runtime = Runtime(
+            plugins,
+            openrouter_api_key=openrouter_api_key,
+            model=model,
+            embedding_model=embedding_model,
+            embedding_dimensions=embedding_dimensions,
+        )
 
     def invoke(self, state: AgentState, config: RunnableConfig | None = None) -> AgentState:
         from gordie.agent.graph_builder import get_agent
@@ -33,5 +48,18 @@ class Agent:
         self.runtime.close()
 
 
-def create_agent(plugins: Plugins) -> Agent:
-    return Agent(plugins)
+def create_agent(
+    plugins: Plugins,
+    *,
+    openrouter_api_key: str,
+    model: str,
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
+) -> Agent:
+    return Agent(
+        plugins,
+        openrouter_api_key=openrouter_api_key,
+        model=model,
+        embedding_model=embedding_model,
+        embedding_dimensions=embedding_dimensions,
+    )

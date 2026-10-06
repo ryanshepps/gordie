@@ -63,7 +63,7 @@ async def test_retired_channel_routes_are_absent() -> None:
     from gordie import create_app
     from gordie.integrations.defaults import default_plugins
 
-    app = create_app(default_plugins())
+    app = create_app(default_plugins(), openrouter_api_key="test-key", model="openai/gpt-4o-mini")
     client = app.test_client()
 
     for path in ("/api/signup", "/email/webhook", "/sms/webhook", "/discord/interactions"):

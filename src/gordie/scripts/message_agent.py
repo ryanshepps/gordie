@@ -1,4 +1,5 @@
 import argparse
+import os
 from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
@@ -144,7 +145,7 @@ def run_message_agent(
         return AgentRunResult(response_text="", state=initial_state)
 
 
-def _main() -> None:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Send a message to the onboarding agent")
     parser.add_argument("email", type=str, help="User's email address (thread ID)")
     parser.add_argument("message", type=str, help="Message to send to the agent")
@@ -155,7 +156,10 @@ def _main() -> None:
         default=None,
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def _main(args: argparse.Namespace) -> None:
     try:
         from gordie.data.thread_repository import ThreadRepository
         from gordie.data.user_repository import UserRepository
@@ -192,16 +196,26 @@ def _main() -> None:
 
 
 def main() -> None:
+    args = _parse_args()
     from dotenv import load_dotenv
 
     from gordie.integrations.defaults import default_plugins
+    from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
     from gordie.runtime import Runtime
 
     load_dotenv()
-    runtime = Runtime(default_plugins())
+    runtime = Runtime(
+        default_plugins(),
+        openrouter_api_key=os.environ["OPENROUTER_API_KEY"],
+        model=os.environ["LLM_MODEL"],
+        embedding_model=os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+        embedding_dimensions=int(
+            os.getenv("EMBEDDING_DIMENSIONS", str(DEFAULT_EMBEDDING_DIMENSIONS))
+        ),
+    )
     try:
         with runtime.activate():
-            _main()
+            _main(args)
     finally:
         runtime.close()
 

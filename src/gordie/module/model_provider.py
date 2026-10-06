@@ -1,21 +1,39 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from langchain_core.language_models import BaseChatModel
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from pydantic import SecretStr
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+DEFAULT_EMBEDDING_DIMENSIONS = 1536
 
 
 @dataclass(frozen=True, slots=True)
-class EnvironmentModels:
-    provider: str
+class OpenRouterModels:
+    api_key: str = field(repr=False)
     model: str
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS
+
+    def __post_init__(self) -> None:
+        if not self.embedding_model.strip():
+            raise ValueError("Embedding model must be non-empty.")
+        if self.embedding_dimensions < 1:
+            raise ValueError("Embedding dimensions must be positive.")
 
     def chat(self, *, temperature: float = 0, model: str | None = None) -> BaseChatModel:
-        chosen = model or self.model
-        if self.provider == "openai":
-            from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            api_key=SecretStr(self.api_key),
+            base_url=OPENROUTER_BASE_URL,
+            model=model or self.model,
+            temperature=temperature,
+        )
 
-            return ChatOpenAI(model=chosen, temperature=temperature)
-        if self.provider == "anthropic":
-            from langchain_anthropic import ChatAnthropic
-
-            return ChatAnthropic(model_name=chosen, temperature=temperature, timeout=60, stop=None)
-        raise ValueError(f"Unsupported LLM_PROVIDER: {self.provider!r}.")
+    def embeddings(self) -> OpenAIEmbeddings:
+        return OpenAIEmbeddings(
+            api_key=SecretStr(self.api_key),
+            base_url=OPENROUTER_BASE_URL,
+            model=self.embedding_model,
+            check_embedding_ctx_length=False,
+        )

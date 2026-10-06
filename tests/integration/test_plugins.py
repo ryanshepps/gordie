@@ -8,6 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 from apscheduler.schedulers.background import BackgroundScheduler
+from langchain_core.embeddings.fake import DeterministicFakeEmbedding
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -33,7 +34,7 @@ from gordie import (
 from gordie.agent.agent_state import AgentState
 from gordie.agent.memory_store import get_memory_store
 from gordie.module.llm import make_llm
-from gordie.module.model_provider import EnvironmentModels
+from gordie.module.model_provider import OpenRouterModels
 from gordie.module.paths import data_path
 from gordie.runtime import current_runtime
 
@@ -67,7 +68,6 @@ class FixtureStorage:
 @pytest.fixture(autouse=True)
 def embedded_services(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("GORDIE_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr("gordie.application.register_application_jobs", lambda scheduler: None)
 
 
@@ -97,16 +97,17 @@ async def test_http_apps_use_isolated_storage_and_embedded_resources(
     calls: list[str] = []
 
     def chat(
-        provider: EnvironmentModels, *, temperature: float = 0, model: str | None = None
+        provider: OpenRouterModels, *, temperature: float = 0, model: str | None = None
     ) -> BaseChatModel:
         calls.append(provider.model)
         return FakeMessagesListChatModel(responses=[AIMessage(content=provider.model)])
 
-    monkeypatch.setattr(EnvironmentModels, "chat", chat)
-    monkeypatch.setenv("LLM_MODEL", "first")
-    first = create_app(Plugins(first_storage))
-    monkeypatch.setenv("LLM_MODEL", "second")
-    second = create_app(Plugins(second_storage))
+    monkeypatch.setattr(OpenRouterModels, "chat", chat)
+    monkeypatch.setattr(
+        OpenRouterModels, "embeddings", lambda self: DeterministicFakeEmbedding(size=1536)
+    )
+    first = create_app(Plugins(first_storage), openrouter_api_key="first-key", model="first")
+    second = create_app(Plugins(second_storage), openrouter_api_key="second-key", model="second")
     register_probe(first)
     register_probe(second)
     assert first_storage.events == second_storage.events == []
@@ -140,8 +141,12 @@ async def test_public_agent_enforces_access_before_models_or_account_queries(
 ) -> None:
     policy = DeniedAccess()
     model_factory = Mock(side_effect=AssertionError("Denied access must not invoke a model"))
-    monkeypatch.setattr(EnvironmentModels, "chat", model_factory)
-    agent = create_agent(Plugins(FixtureStorage("denied"), access=policy))
+    monkeypatch.setattr(OpenRouterModels, "chat", model_factory)
+    agent = create_agent(
+        Plugins(FixtureStorage("denied"), access=policy),
+        openrouter_api_key="test-key",
+        model="openai/gpt-4o-mini",
+    )
     state: AgentState = {
         "user_id": "user-1",
         "messages": [HumanMessage(content="Who should I trade?")],
@@ -209,8 +214,12 @@ async def test_injected_tool_executes_with_the_application_runtime(
             ]
             return {"tool_output": outputs[0]}
 
-    monkeypatch.setattr(EnvironmentModels, "chat", lambda self, **kwargs: tool_model())
-    app = create_app(Plugins(FixtureStorage("tools"), extra_tools=(hosted_feature,)))
+    monkeypatch.setattr(OpenRouterModels, "chat", lambda self, **kwargs: tool_model())
+    app = create_app(
+        Plugins(FixtureStorage("tools"), extra_tools=(hosted_feature,)),
+        openrouter_api_key="test-key",
+        model="openai/gpt-4o-mini",
+    )
     register_ask(app)
     async with app.test_app():
         response = await app.test_client().get("/ask")
@@ -234,7 +243,7 @@ async def test_embedded_jobs_run_with_their_runtime_and_stop_before_storage(
         scheduler.add_job(job, "date", run_date=datetime.now(UTC), args=("job",))
 
     monkeypatch.setattr("gordie.application.register_application_jobs", register_jobs)
-    app = create_app(Plugins(storage))
+    app = create_app(Plugins(storage), openrouter_api_key="test-key", model="openai/gpt-4o-mini")
     async with app.test_app():
         assert await asyncio.to_thread(finished.wait, 5)
     assert observed == [tmp_path / "job"]
@@ -246,7 +255,11 @@ def test_team_access_policy_stops_onboarding_before_yahoo_or_database_calls(tmp_
     from gordie.tools.yahoo.onboard_user_team import onboard_user_team
 
     policy = DeniedAccess()
-    runtime = Runtime(Plugins(FixtureStorage("teams"), access=policy))
+    runtime = Runtime(
+        Plugins(FixtureStorage("teams"), access=policy),
+        openrouter_api_key="test-key",
+        model="z-ai/glm-5.3-flash",
+    )
     with runtime.activate():
         result = onboard_user_team.invoke(
             {
@@ -305,7 +318,11 @@ async def test_communication_routes_inbound_messages_delivers_denials_and_owns_l
     storage = FixtureStorage("communication")
     communication = RecordingCommunication(storage.events)
     policy = DeniedAccess()
-    app = create_app(Plugins(storage, access=policy, communication=communication))
+    app = create_app(
+        Plugins(storage, access=policy, communication=communication),
+        openrouter_api_key="test-key",
+        model="openai/gpt-4o-mini",
+    )
     assert storage.events == ["communication.register"]
 
     async with app.test_app():
@@ -333,7 +350,11 @@ async def test_communication_routes_inbound_messages_delivers_denials_and_owns_l
 async def test_communication_listener_callback_uses_its_owner_outside_an_http_request() -> None:
     storage = FixtureStorage("listener")
     communication = RecordingCommunication(storage.events)
-    app = create_app(Plugins(storage, access=DeniedAccess(), communication=communication))
+    app = create_app(
+        Plugins(storage, access=DeniedAccess(), communication=communication),
+        openrouter_api_key="test-key",
+        model="openai/gpt-4o-mini",
+    )
     message = IncomingMessage(
         MessageContext("listener-user", "listener-thread", "user@example.com", "chat-42"),
         "Hello",
@@ -358,7 +379,7 @@ async def test_agent_receives_and_delivers_the_final_rewritten_response(
     )
 
     def chat(
-        provider: EnvironmentModels, *, temperature: float = 0, model: str | None = None
+        provider: OpenRouterModels, *, temperature: float = 0, model: str | None = None
     ) -> BaseChatModel:
         responses: list[BaseMessage] = (
             [AIMessage(content="Final rewritten advice")]
@@ -367,8 +388,12 @@ async def test_agent_receives_and_delivers_the_final_rewritten_response(
         )
         return ToolModel(responses=responses)
 
-    monkeypatch.setattr(EnvironmentModels, "chat", chat)
-    agent = create_agent(Plugins(storage, communication=communication))
+    monkeypatch.setattr(OpenRouterModels, "chat", chat)
+    agent = create_agent(
+        Plugins(storage, communication=communication),
+        openrouter_api_key="test-key",
+        model="openai/gpt-4o-mini",
+    )
     message = IncomingMessage(
         MessageContext("user-1", "final-response-thread", "user@example.com", "chat-42"),
         "Help with my team",
@@ -389,7 +414,11 @@ def test_communication_delivery_failure_reaches_the_caller(monkeypatch: MonkeyPa
         raise RuntimeError("Provider unavailable")
 
     monkeypatch.setattr(communication, "send", fail_send)
-    agent = create_agent(Plugins(storage, access=DeniedAccess(), communication=communication))
+    agent = create_agent(
+        Plugins(storage, access=DeniedAccess(), communication=communication),
+        openrouter_api_key="test-key",
+        model="openai/gpt-4o-mini",
+    )
     message = IncomingMessage(
         MessageContext("user-1", "failed-delivery-thread", "user@example.com", "chat-42"),
         "Hello",

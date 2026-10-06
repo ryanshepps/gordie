@@ -4,7 +4,6 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from gordie.integrations.config_requirements import LLMProvider
 from gordie.integrations.config_validator import validate_startup_config
 from gordie.scripts.setup import (
     DeploymentTarget,
@@ -18,11 +17,10 @@ from gordie.scripts.setup import (
 def test_build_env_values_keeps_yahoo_without_retired_config() -> None:
     answers = SetupAnswers(
         deployment_target=DeploymentTarget.DOCKER,
-        llm_provider=LLMProvider.OPENAI,
         values={
             "OAUTH_BASE_URL": "https://gordie.example.com",
             "NGROK_AUTHTOKEN": "test-tunnel",
-            "OPENAI_API_KEY": "test-model",
+            "OPENROUTER_API_KEY": "test-model",
             "YAHOO_CLIENT_ID": "test-yahoo-id",
             "YAHOO_CLIENT_SECRET": "test-yahoo-secret",
         },
@@ -32,6 +30,9 @@ def test_build_env_values_keeps_yahoo_without_retired_config() -> None:
 
     validate_startup_config(values)
     assert values["YAHOO_CLIENT_ID"] == "test-yahoo-id"
+    assert values["LLM_MODEL"] == "z-ai/glm-5.3-flash"
+    assert values["EMBEDDING_MODEL"] == "openai/text-embedding-3-small"
+    assert values["EMBEDDING_DIMENSIONS"] == "1536"
     assert "CREEM_API_KEY" not in values
     assert "CHAT_MEDIA" not in values
     assert not any(
@@ -39,17 +40,40 @@ def test_build_env_values_keeps_yahoo_without_retired_config() -> None:
     )
 
 
+def test_build_env_values_accepts_custom_embedding_settings() -> None:
+    answers = SetupAnswers(
+        deployment_target=DeploymentTarget.DOCKER,
+        values={
+            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "NGROK_AUTHTOKEN": "test-tunnel",
+            "OPENROUTER_API_KEY": "test-key",
+            "YAHOO_CLIENT_ID": "test-yahoo-id",
+            "YAHOO_CLIENT_SECRET": "test-yahoo-secret",
+            "EMBEDDING_MODEL": "test/embedding-model",
+            "EMBEDDING_DIMENSIONS": "768",
+        },
+    )
+
+    values = build_env_values(answers, admin_api_key="test-admin")
+
+    validate_startup_config(values)
+    assert values["EMBEDDING_MODEL"] == "test/embedding-model"
+    assert values["EMBEDDING_DIMENSIONS"] == "768"
+
+
 def test_render_env_file_keeps_account_settings() -> None:
     rendered = render_env_file(
-        "YAHOO_CLIENT_ID=\nOPENAI_API_KEY=\n",
+        "YAHOO_CLIENT_ID=\nOPENROUTER_API_KEY=\nLLM_PROVIDER=openai\nOPENAI_API_KEY=old\n",
         {
             "YAHOO_CLIENT_ID": "test-yahoo",
-            "OPENAI_API_KEY": "test-model",
+            "OPENROUTER_API_KEY": "test-model",
         },
     )
 
     assert "YAHOO_CLIENT_ID=test-yahoo" in rendered
-    assert "OPENAI_API_KEY=test-model" in rendered
+    assert "OPENROUTER_API_KEY=test-model" in rendered
+    assert "OPENAI_API_KEY" not in rendered
+    assert "LLM_PROVIDER" not in rendered
 
 
 def test_init_rejects_missing_template(tmp_path: Path) -> None:
@@ -77,11 +101,10 @@ def test_init_removes_retired_config(tmp_path: Path, monkeypatch) -> None:
     )
     answers = SetupAnswers(
         deployment_target=DeploymentTarget.DOCKER,
-        llm_provider=LLMProvider.OPENAI,
         values={
             "OAUTH_BASE_URL": "https://gordie.example.com",
             "NGROK_AUTHTOKEN": "test-tunnel",
-            "OPENAI_API_KEY": "test-model",
+            "OPENROUTER_API_KEY": "test-model",
             "YAHOO_CLIENT_ID": "test-yahoo-id",
             "YAHOO_CLIENT_SECRET": "test-yahoo-secret",
         },

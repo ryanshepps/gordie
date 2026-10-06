@@ -23,10 +23,9 @@ from urllib.parse import urlparse
 import typer
 
 from gordie.integrations.config_requirements import (
-    LLMProvider,
-    default_llm_model,
     required_keys_for_runtime,
 )
+from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
 
 app = typer.Typer(help="Gordie developer and self-hosting utilities.")
 
@@ -42,7 +41,6 @@ class DeploymentTarget(StrEnum):
 @dataclass(frozen=True, slots=True)
 class SetupAnswers:
     deployment_target: DeploymentTarget
-    llm_provider: LLMProvider
     values: Mapping[str, str]
 
 
@@ -70,10 +68,12 @@ _RETIRED_CONFIG_KEYS = frozenset(
         "CREEM_WEBHOOK_SECRET",
         "CREEM_API_BASE_URL",
         "CREEM_PRODUCT_HOSTED_MONTHLY",
+        "LLM_PROVIDER",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
     }
 )
-_OPENAI_API_KEYS_URL: Final = "https://platform.openai.com/api-keys"
-_ANTHROPIC_API_KEYS_URL: Final = "https://console.anthropic.com/settings/keys"
+_OPENROUTER_API_KEYS_URL: Final = "https://openrouter.ai/settings/keys"
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(str(files("gordie").joinpath("resources/env.example")))
@@ -109,19 +109,16 @@ def build_env_values(
         "ENVIRONMENT": answers.values.get("ENVIRONMENT", "development"),
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
         "NGROK_AUTHTOKEN": answers.values.get("NGROK_AUTHTOKEN", ""),
-        "LLM_PROVIDER": answers.llm_provider.value,
-        "LLM_MODEL": answers.values.get("LLM_MODEL", default_llm_model(answers.llm_provider)),
-        "OPENAI_API_KEY": answers.values.get("OPENAI_API_KEY", ""),
-        "ANTHROPIC_API_KEY": answers.values.get("ANTHROPIC_API_KEY", ""),
+        "LLM_MODEL": answers.values.get("LLM_MODEL", "z-ai/glm-5.3-flash"),
+        "EMBEDDING_MODEL": answers.values.get("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+        "EMBEDDING_DIMENSIONS": answers.values.get(
+            "EMBEDDING_DIMENSIONS", str(DEFAULT_EMBEDDING_DIMENSIONS)
+        ),
+        "OPENROUTER_API_KEY": answers.values.get("OPENROUTER_API_KEY", ""),
         "YAHOO_CLIENT_ID": answers.values["YAHOO_CLIENT_ID"],
         "YAHOO_CLIENT_SECRET": answers.values["YAHOO_CLIENT_SECRET"],
         "ENABLED_SPORTS": answers.values.get("ENABLED_SPORTS", "nhl"),
     }
-
-    if answers.llm_provider is LLMProvider.OPENAI:
-        values["OPENAI_API_KEY"] = answers.values["OPENAI_API_KEY"]
-    else:
-        values["ANTHROPIC_API_KEY"] = answers.values["ANTHROPIC_API_KEY"]
 
     _validate_required_values(values, answers)
     return values
@@ -140,6 +137,8 @@ def render_env_file(template_text: str, values: Mapping[str, str]) -> str:
             continue
 
         key, _old_value, comment = match.groups()
+        if key in _RETIRED_CONFIG_KEYS:
+            continue
         if key not in values:
             rendered_lines.append(line)
             continue
@@ -267,13 +266,7 @@ def _prompt_for_answers(
         _validate_docker_available()
 
     values: dict[str, str] = {}
-    llm_provider = _prompt_enum(
-        "LLM provider",
-        LLMProvider,
-        default=LLMProvider.OPENAI,
-        existing_value=_existing_value(existing_values, "LLM_PROVIDER"),
-    )
-    values.update(_prompt_llm_values(llm_provider, existing_values))
+    values.update(_prompt_llm_values(existing_values))
 
     values.update(
         _prompt_ngrok_tunnel_values(
@@ -304,36 +297,35 @@ def _prompt_for_answers(
 
     return SetupAnswers(
         deployment_target=deployment_target,
-        llm_provider=llm_provider,
         values=dict(existing_values) | values,
     )
 
 
-def _prompt_llm_values(
-    provider: LLMProvider,
-    existing_values: Mapping[str, str],
-) -> dict[str, str]:
-    if provider is LLMProvider.OPENAI:
-        return {
-            "OPENAI_API_KEY": _existing_or_prompt_required(
-                "OPENAI_API_KEY",
-                "OpenAI API key",
-                existing_values,
-                hide_input=True,
-                help_url=_OPENAI_API_KEYS_URL,
-                help_label="OpenAI API keys",
-            )
-        }
-
+def _prompt_llm_values(existing_values: Mapping[str, str]) -> dict[str, str]:
     return {
-        "ANTHROPIC_API_KEY": _existing_or_prompt_required(
-            "ANTHROPIC_API_KEY",
-            "Anthropic API key",
+        "OPENROUTER_API_KEY": _existing_or_prompt_required(
+            "OPENROUTER_API_KEY",
+            "OpenRouter API key",
             existing_values,
             hide_input=True,
-            help_url=_ANTHROPIC_API_KEYS_URL,
-            help_label="Anthropic API keys",
-        )
+            help_url=_OPENROUTER_API_KEYS_URL,
+            help_label="OpenRouter API keys",
+        ),
+        "LLM_MODEL": _existing_or_prompt_text(
+            "LLM_MODEL", "OpenRouter model", existing_values, default="z-ai/glm-5.3-flash"
+        ),
+        "EMBEDDING_MODEL": _existing_or_prompt_text(
+            "EMBEDDING_MODEL",
+            "OpenRouter embedding model",
+            existing_values,
+            default=DEFAULT_EMBEDDING_MODEL,
+        ),
+        "EMBEDDING_DIMENSIONS": _existing_or_prompt_text(
+            "EMBEDDING_DIMENSIONS",
+            "Embedding dimensions",
+            existing_values,
+            default=str(DEFAULT_EMBEDDING_DIMENSIONS),
+        ),
     }
 
 
@@ -739,7 +731,6 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
     required_keys = [
         "NGROK_AUTHTOKEN",
         *required_keys_for_runtime(
-            llm_provider=answers.llm_provider,
             values=values,
             include_database_url=False,
             include_admin_api_key=True,
@@ -749,6 +740,15 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
     if missing:
         missing_list = ", ".join(missing)
         raise SetupInputError(f"Missing required setup values: {missing_list}.")
+
+    if not values["EMBEDDING_MODEL"].strip():
+        raise SetupInputError("EMBEDDING_MODEL must be a non-empty OpenRouter model ID.")
+    try:
+        dimensions = int(values["EMBEDDING_DIMENSIONS"])
+    except ValueError as exc:
+        raise SetupInputError("EMBEDDING_DIMENSIONS must be a positive integer.") from exc
+    if dimensions < 1:
+        raise SetupInputError("EMBEDDING_DIMENSIONS must be a positive integer.")
 
     _ = _normalize_https_base_url(values["OAUTH_BASE_URL"])
 

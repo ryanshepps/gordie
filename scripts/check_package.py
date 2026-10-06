@@ -58,7 +58,7 @@ from gordie.runtime import Runtime
 from gordie.scripts.setup import _DEFAULT_TEMPLATE_FILE
 from gordie.module.paths import data_path
 
-runtime = Runtime(default_plugins())
+runtime = Runtime(default_plugins(), openrouter_api_key="test-key", model="z-ai/glm-5.3-flash")
 with runtime.activate():
     DB_PATH = data_path("moneypuck_stats.duckdb")
 

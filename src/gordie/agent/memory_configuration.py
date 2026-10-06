@@ -1,8 +1,9 @@
-import os
 from dataclasses import dataclass
 
 from langgraph.store.base import BaseStore
 from langgraph.store.memory import InMemoryStore
+
+from gordie.module.model_provider import OpenRouterModels
 
 
 @dataclass(frozen=True, slots=True)
@@ -11,15 +12,8 @@ class ConversationMemory:
     search_enabled: bool = False
 
 
-def environment_memory() -> ConversationMemory:
-    if os.getenv("LLM_PROVIDER", "openai").lower() != "openai" or not os.getenv("OPENAI_API_KEY"):
-        return ConversationMemory(InMemoryStore())
-
-    from langchain_openai import OpenAIEmbeddings
-
+def environment_memory(models: OpenRouterModels) -> ConversationMemory:
     return ConversationMemory(
-        InMemoryStore(
-            index={"dims": 1536, "embed": OpenAIEmbeddings(model="text-embedding-3-small")}
-        ),
+        InMemoryStore(index={"dims": models.embedding_dimensions, "embed": models.embeddings()}),
         search_enabled=True,
     )
