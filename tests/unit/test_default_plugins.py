@@ -5,10 +5,10 @@ from gordie.integrations.defaults import default_plugins
 from gordie.plugins import UnrestrictedAccess
 
 
-async def test_default_plugins_without_creem_credentials_have_no_payment_surface(
+async def test_default_plugins_have_no_payment_surface(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("CREEM_API_KEY", raising=False)
+    monkeypatch.setenv("CREEM_API_KEY", "unused")
     plugins = default_plugins()
     assert isinstance(plugins.access, UnrestrictedAccess)
     assert plugins.extra_tools == ()

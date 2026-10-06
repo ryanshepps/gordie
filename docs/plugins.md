@@ -112,24 +112,12 @@ Existing environment configuration still applies:
 `LLM_PROVIDER`, `LLM_MODEL`, model API credentials, `GORDIE_DATA_DIR`, and
 `ENABLED_SPORTS`.
 
-Yahoo callbacks and health endpoints are always registered. Creem's webhook is
-registered when `CREEM_API_KEY` is configured. Gordie registers its maintenance
-and statistics jobs during application startup.
+Yahoo callbacks and health endpoints are always registered. Gordie registers
+its maintenance and statistics jobs during application startup.
 
-`gordie.integrations.defaults.default_plugins()` selects PostgreSQL storage and
-optional Creem access/tools from environment configuration. The CLI uses this
-assembly. Creem can also supply the two relevant extension points explicitly:
-
-```python
-from gordie.integrations.creem.plugin import with_creem
-
-app = create_app(with_creem(plugins))
-```
-
-`with_creem(plugins)` returns a new configuration with a subscription access policy
-and checkout, portal, and subscription-status tools. Existing environment
-credentials configure Creem. Apply it only to a configuration without Creem.
-The current implementation stays in this repository for later extraction.
+`gordie.integrations.defaults.default_plugins()` selects PostgreSQL storage.
+The CLI uses this assembly. Hosts can supply their own access policy and tools
+through `Plugins`.
 
 ## Runtime ownership
 

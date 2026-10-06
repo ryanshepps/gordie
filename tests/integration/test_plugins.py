@@ -68,7 +68,6 @@ class FixtureStorage:
 def embedded_services(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("GORDIE_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("CREEM_API_KEY", raising=False)
     monkeypatch.setattr("gordie.application.register_application_jobs", lambda scheduler: None)
 
 
@@ -262,26 +261,6 @@ def test_team_access_policy_stops_onboarding_before_yahoo_or_database_calls(tmp_
     runtime.close()
     assert result == "Upgrade using https://billing.example/checkout"
     assert policy.requests == [AccessRequest("user-1", Action.CONNECT_TEAM)]
-
-
-async def test_creem_extension_supplies_access_and_tools_with_embedded_webhook(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    from gordie.integrations.creem.plugin import with_creem
-
-    plugins = Plugins(FixtureStorage("creem"))
-    hosted = with_creem(plugins)
-    assert {tool.name for tool in hosted.extra_tools} == {
-        "get_subscription_status",
-        "generate_checkout_link",
-        "generate_portal_link",
-    }
-    assert plugins.extra_tools == ()
-    monkeypatch.setenv("CREEM_API_KEY", "test-key")
-    app = create_app(hosted)
-    response = await app.test_client().post("/webhooks/creem", data=b"{}")
-    assert response.status_code == 403
-    app.runtime.close()
 
 
 class RecordingCommunication:

@@ -1,5 +1,4 @@
 import asyncio
-import os
 from collections.abc import AsyncGenerator, Callable
 from functools import partial
 
@@ -38,10 +37,6 @@ def create_app(plugins: Plugins) -> Application:
 
         with runtime.activate():
             communication.register(app, handle_message)
-    if os.getenv("CREEM_API_KEY"):
-        from gordie.integrations.creem.webhook import register_routes
-
-        register_routes(app)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
