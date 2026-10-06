@@ -66,7 +66,7 @@ def register_oauth_routes(app):
             _, nonce, medium_value, external_id, _, _ = record
             from gordie.data.models import Medium
 
-            if medium_value != Medium.EMAIL.value:
+            if medium_value not in (Medium.EMAIL.value, Medium.PHONE.value):
                 return _error_html("Invalid Request", "Unsupported OAuth account identity."), 400
 
             # Exchange code for tokens
@@ -106,24 +106,31 @@ def register_oauth_routes(app):
             user_repo = UserRepository()
             try:
                 email_user = user_repo.get_by_identity(Medium.EMAIL, yahoo_email)
-                source_user = user_repo.get_by_identity(Medium.EMAIL, str(external_id))
+                source_medium = Medium(medium_value)
+                source_user = user_repo.get_by_identity(source_medium, str(external_id))
                 if email_user:
                     user_id = UUID(str(email_user[0]))
                     if not source_user:
                         user_repo.link_identity(
-                            user_id, Medium.EMAIL, str(external_id), str(external_id)
+                            user_id, source_medium, str(external_id), str(external_id)
                         )
                     elif UUID(str(source_user[0])) != user_id:
-                        user_repo.merge_users(UUID(str(source_user[0])), user_id)
+                        return (
+                            _error_html(
+                                "Account Already Linked",
+                                "This Yahoo account is linked to another conversation.",
+                            ),
+                            409,
+                        )
                 elif source_user:
                     user_id = UUID(str(source_user[0]))
                     user_repo.link_identity(user_id, Medium.EMAIL, yahoo_email, yahoo_email)
                 else:
                     user_id = user_repo.create_with_identity(
-                        Medium.EMAIL,
-                        yahoo_email,
-                        yahoo_email,
+                        source_medium, str(external_id), str(external_id)
                     )
+                    if source_medium != Medium.EMAIL or str(external_id) != yahoo_email:
+                        user_repo.link_identity(user_id, Medium.EMAIL, yahoo_email, yahoo_email)
             finally:
                 user_repo.close()
 
