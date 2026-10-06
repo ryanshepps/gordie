@@ -1,0 +1,162 @@
+## v0.1.1 (2026-10-06)
+
+### Refactor
+
+- remove bundled Creem billing (#60)
+
+## v0.1.0 (2026-10-05)
+
+### Feat
+
+- **release**: publish Python packages locally (#56)
+- **setup**: improve init onboarding and readiness checks (#46)
+- **config**: validate startup environment before boot (#40)
+- **setup**: switch default tunnel to ngrok (#39)
+- **setup**: add gordie init wizard (#33)
+- **discord**: add interaction adapter (#32)
+- **channels**: add adapter registry for agent responses (#31)
+- **identity**: add canonical multi-medium users (#25)
+- **billing**: consolidate billing under billing/ package with self-hosted bypass (#21)
+- **ci**: GitHub Actions CI with parallel lint, format, and test jobs (#20)
+- **middleware**: propagate sport to sub-agents and complete tool registry
+- **onboarding**: parameterize game_code for multi-sport onboarding
+- **multi-sport**: add sport-specific API clients with MLB support
+- **middleware**: add sport-based tool filtering via LangGraph middleware
+- **mlb**: add baseball data sources, schemas, and undervalued scoring
+- **prompts**: make all text sport-aware with single sport context injection
+- **context**: add sport context inference for multi-team users
+- **context**: support multi-sport inference from user team data
+- **agent**: add statistician sub-agent with Yahoo stats tools and sandboxed compute
+- **agent**: add data quality node to validate statistical rigor
+- **agent**: add voice rewrite node to enforce Gordie persona
+- **agent**: improve subagent accuracy, thread safety, and observability
+- **tools**: replace moneypuckpy CLI with DuckDB stats engine
+- **tools**: replace MoneyPuck CSV client with moneypuckpy CLI tool
+- **deps**: add moneypuckpy as local path dependency
+- **persona**: make Gordie spicier with hot takes, roasts, and buddy ribbing
+- **news-digest**: add game-day filtering, lineup intelligence, and injury state tracking
+- **billing**: route limit messages through Gordie instead of hardcoded strings
+- **billing**: classify message intent to only count analysis questions for free tier
+- **billing**: enforce league connection limits per tier
+- **billing**: add pricing page, trial expiration email, and digest tracking
+- **billing**: add agent billing tools with on-demand context retrieval
+- **billing**: add tier enforcement for questions, digests, and alerts
+- **billing**: add Creem subscription data layer and webhook handler
+- **digests**: route digest notifications to SMS or email
+- **digests**: replace hardcoded templates with LLM-generated content
+- remove web chat
+- implement custom checkpointer
+- add SMS cold-start onboarding and phone signup support (Phase 4)
+- add SMS channel via Sinch with webhook, idempotency, and opt-out (Phase 2)
+- add channel abstraction layer for multi-channel support (Phase 1)
+- migrate from DuckDB to PostgreSQL
+- **frontend**: make signup success card fit theme
+- **email**: remove quoted reply
+- fix metrics export
+- **observability**: add conversation explorer and agent trace dashboards
+- **frontend**: initialize frontend
+- **news**: add news job
+- init weekly agent
+- **available**: give available agent more tools
+- **email**: improve player stat table reliability
+- improve onboarding process
+- make onboarding more deterministic
+- add cloudlfare tunnel
+- **email**: add beta note to email
+- another large addition of things
+- lots of new things
+- add more stats to pull
+- improve conversation context
+- give agents more tools
+- send users htm emails
+- init player add agent
+- give controller agent tools
+- remove email sending from webhook
+- create agent flow based on request
+- change email to html
+- init player comparison agent
+- add type safe repository files
+- add emai set up
+- add controller agent and tidy up onboarding
+- **onboarding**: add onboarding specific team
+- initialize onboarding
+- save basic stats to duckdb
+
+### Fix
+
+- **release**: invoke wrapped commands directly (#57)
+- make memory model anonymous (#23)
+- **types**: replace Any with object in weekly_digest roster parameters
+- **types**: add -> None return annotations to all __init__ methods
+- **types**: replace Any with DatabaseRow in repository layer
+- **checkpointer**: narrow silent except to specific deserialization errors
+- **yahoo_stats**: add league info serializer and fix scoreboard matchup extraction
+- **tools**: truncate large tool outputs and fix situation filter for teams table
+- **response**: don't log error for CLI channel
+- **sms**: separate analysis from persona to fix long SMS messages
+- **agent**: recover from bad column refs and URL-encode Yahoo player searches
+- **sms**: route SMS responses through sms_channel to strip markdown
+- **agent**: use SystemMessage for data quality feedback to prevent misinterpretation
+- **stats**: normalize GAE by games played to reduce low-GP bias
+- **stats**: enforce situation filter as required tool parameter
+- **stats**: download CSVs via requests instead of DuckDB httpfs
+- **news-digest**: prevent Gordie from appending unsolicited questions to digests
+- **billing**: unwrap Creem webhook object envelope and handle subscription.active
+- **context**: automatically onboard single active team
+- **logs**: disable logfire console exporter polluting server.log
+- **logs**: disable file logging during test runs
+- **sms**: deliver response as single SMS to prevent out-of-order messages
+- **send_message**: remove LLM-controlled routing params to prevent hallucination
+- **tests**: use .invoke() to test send_message tool
+- **server**: route Hypercorn logs through app logger instead of stderr
+- **checkpointer**: use langchain native checkpoint access
+- yahoo returns {} on single game
+- tool completely crashing program on failure
+- **telemetry**: logigng not appearing in server.log
+- gordie always asking to log in
+- **logger**: deprecated import
+- **email**: issue with onboarding thread_id
+- **email**: links not working
+- genearting + using old OAuth link
+
+### Refactor
+
+- remove MLB support and preserve NHL integrations (#55)
+- remove frontend from open source repository (#53)
+- **channels**: retire existing communication transports (#49)
+- **observability**: remove self-hosted monitoring (#30)
+- **billing**: simplify billing for hosted plan (#24)
+- **tools**: reorganize sport-specific tools into tools/hockey/ and tools/mlb/
+- **stats**: split query_stats_db into sport-specific tools
+- **agent**: extract context resolution into dedicated graph node
+- **agent**: extract response models to agent/response_models.py
+- **tests**: organize top-level tests into unit, integration, and evals directories
+- **prompts**: trim SMS channel guidelines to channel-specific concerns only
+- **evals**: replace LLM-as-judge with deterministic assertions
+- **ack**: remove auto-acknowledgement from agent graph
+- **logs**: route auto-tracing output to separate tracing.log
+- **ack**: replace static ack messages with LLM-generated Gordie responses
+- **agent**: consolidate system prompt into single assembled message
+- **data**: move alembic/ into data/ to colocate database concerns
+- **sms**: simplify thread resolution to one permanent thread per phone
+- **signup**: unify email/phone into single auto-detecting input
+- **send_message**: extract impl function for proper testability
+- migrate Flask to Quart for async route support
+- make OAuth callback fully async
+- **telemetry**: improve tracing
+- remove uneeded clarification_node
+- remove unused file
+- make sanitization more clear
+- move query to repo layer
+- make validate_and_build_system_message return proper struct
+- remove unnecessary validation_status
+- rename oauth to server appropriately
+- remove persona from subagents
+- make lots of things more simple/readable
+- rename controller -> supervisor
+- improve find player tool
+- improve logging
+- rename to be more appropriate
+- use langgraph tutorial supervisor agent
+- use agent-decision time routing
+- **oauth**: move oauth into single file
