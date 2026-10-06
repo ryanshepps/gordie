@@ -10,7 +10,7 @@ from threading import RLock
 from typing import cast
 
 from gordie.agent.memory_configuration import ConversationMemory, environment_memory
-from gordie.module.model_provider import EnvironmentModels
+from gordie.module.model_provider import DEFAULT_EMBEDDING_MODEL, OpenRouterModels
 from gordie.module.statistics import StatisticsFiles
 from gordie.plugins import Plugins
 
@@ -18,12 +18,16 @@ _active_runtime: ContextVar[Runtime | None] = ContextVar("gordie_runtime", defau
 
 
 class Runtime:
-    def __init__(self, plugins: Plugins) -> None:
+    def __init__(
+        self,
+        plugins: Plugins,
+        *,
+        openrouter_api_key: str,
+        model: str,
+        embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    ) -> None:
         self.plugins = plugins
-        self.model_provider = EnvironmentModels(
-            os.getenv("LLM_PROVIDER", "openai").lower(),
-            os.getenv("LLM_MODEL", "gpt-4o-mini"),
-        )
+        self.model_provider = OpenRouterModels(openrouter_api_key, model, embedding_model)
         self.data_directory = Path(
             os.getenv("GORDIE_DATA_DIR", str(Path.home() / ".local/share/gordie"))
         )
@@ -32,7 +36,7 @@ class Runtime:
 
     @cached_property
     def memory(self) -> ConversationMemory:
-        return environment_memory()
+        return environment_memory(self.model_provider)
 
     @cached_property
     def statistics(self) -> StatisticsFiles:

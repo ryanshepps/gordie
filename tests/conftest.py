@@ -11,7 +11,7 @@ from gordie.runtime import Runtime
 
 @pytest.fixture(autouse=True)
 def application_runtime() -> Iterator[Runtime]:
-    runtime = Runtime(default_plugins())
+    runtime = Runtime(default_plugins(), openrouter_api_key="test-key", model="openai/gpt-4o-mini")
     with runtime.activate():
         yield runtime
     runtime.close()

@@ -6,7 +6,6 @@ from collections.abc import Mapping
 
 from gordie.integrations.config_requirements import (
     ConfigRequirement,
-    LLMProvider,
     required_config_for_runtime,
 )
 from gordie.server.oauth_config import OAuthConfigurationError, normalize_oauth_base_url
@@ -42,20 +41,17 @@ class ConfigValidationError(RuntimeError):
 def validate_startup_config(env: Mapping[str, str]) -> None:
     """Validate startup env before database and server side effects."""
     invalid: list[str] = []
-    llm_provider = _parse_llm_provider(env, invalid)
     _validate_oauth_base_url(env, invalid)
     _validate_server_port(env, invalid)
 
     requirements: list[ConfigRequirement] = []
-    if llm_provider is not None:
-        requirements.extend(
-            required_config_for_runtime(
-                llm_provider=llm_provider,
-                values=env,
-                include_database_url=True,
-                include_admin_api_key=False,
-            )
+    requirements.extend(
+        required_config_for_runtime(
+            values=env,
+            include_database_url=True,
+            include_admin_api_key=False,
         )
+    )
 
     missing = tuple(
         requirement
@@ -64,16 +60,6 @@ def validate_startup_config(env: Mapping[str, str]) -> None:
     )
     if missing or invalid:
         raise ConfigValidationError(missing=missing, invalid=tuple(invalid))
-
-
-def _parse_llm_provider(env: Mapping[str, str], invalid: list[str]) -> LLMProvider | None:
-    raw_value = _env_value(env, "LLM_PROVIDER") or LLMProvider.OPENAI.value
-    try:
-        return LLMProvider(raw_value.lower())
-    except ValueError:
-        choices = ", ".join(provider.value for provider in LLMProvider)
-        invalid.append(f"LLM_PROVIDER must be one of: {choices}.")
-        return None
 
 
 def _validate_oauth_base_url(env: Mapping[str, str], invalid: list[str]) -> None:

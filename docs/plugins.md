@@ -1,8 +1,8 @@
 # Configuring Gordie integrations
 
-`create_app(plugins)` builds a Quart application. `create_agent(plugins)` builds
-an agent for callers that manage their own messaging service. Both accept the
-same immutable configuration with four extension points.
+`create_app(plugins, openrouter_api_key=..., model=...)` builds a Quart application.
+`create_agent` accepts the same model settings for callers that manage their own
+messaging service. Both accept `Plugins` with four extension points.
 
 ```python
 from gordie import Plugins, create_app
@@ -11,7 +11,7 @@ from gordie.integrations.postgres import PostgresStorage
 plugins = Plugins(
     storage=PostgresStorage(database_url="postgresql://localhost/gordie"),
 )
-app = create_app(plugins)
+app = create_app(plugins, openrouter_api_key="...", model="z-ai/glm-5.3-flash")
 ```
 
 ## Extension points
@@ -109,7 +109,7 @@ connections, application HTTP routes, and scheduled jobs are built into Gordie.
 Communication adapters can register their own transport endpoints through the
 communication contract. There is no general route or job plugin interface.
 Existing environment configuration still applies:
-`LLM_PROVIDER`, `LLM_MODEL`, model API credentials, `GORDIE_DATA_DIR`, and
+`GORDIE_DATA_DIR` and
 `ENABLED_SPORTS`.
 
 Yahoo callbacks and health endpoints are always registered. Gordie registers

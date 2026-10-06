@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 
 from hypercorn.asyncio import serve
@@ -22,7 +23,11 @@ class Server:
             plugins = default_plugins()
         self.host = host
         self.port = port
-        self.app = create_app(plugins)
+        self.app = create_app(
+            plugins,
+            openrouter_api_key=os.environ["OPENROUTER_API_KEY"],
+            model=os.environ["LLM_MODEL"],
+        )
 
     def run(self) -> None:
         config = Config()

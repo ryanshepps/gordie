@@ -16,7 +16,7 @@ def isolate_db(tmp_path, monkeypatch):
     from gordie.runtime import Runtime
 
     monkeypatch.setenv("GORDIE_DATA_DIR", str(tmp_path))
-    runtime = Runtime(default_plugins())
+    runtime = Runtime(default_plugins(), openrouter_api_key="test-key", model="z-ai/glm-5.3-flash")
     with runtime.activate():
         yield test_db_path
     runtime.close()

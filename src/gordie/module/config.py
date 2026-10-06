@@ -7,11 +7,6 @@ to keep behaviour deterministic. Override in tests via `monkeypatch.setenv` plus
 
 import os
 
-# LLM provider/model. Provider is informational; the factory in gordie.module.llm
-# picks the actual client based on this.
-LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai").lower()
-LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
-
 # Sports the agent should service. Comma-separated env, lowercased set.
 _RAW_SPORTS = os.getenv("ENABLED_SPORTS", "nhl")
 ENABLED_SPORTS: frozenset[str] = frozenset(

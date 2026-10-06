@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from enum import StrEnum
-
-
-class LLMProvider(StrEnum):
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,15 +12,8 @@ class ConfigRequirement:
     reason: str
 
 
-def default_llm_model(provider: LLMProvider) -> str:
-    if provider is LLMProvider.OPENAI:
-        return "gpt-4o-mini"
-    return "claude-sonnet-4-5"
-
-
 def required_config_for_runtime(
     *,
-    llm_provider: LLMProvider,
     values: Mapping[str, str],
     include_database_url: bool,
     include_admin_api_key: bool,
@@ -47,20 +34,17 @@ def required_config_for_runtime(
             ConfigRequirement("YAHOO_CLIENT_SECRET", "required for Yahoo Fantasy OAuth"),
         )
     )
-    if llm_provider is LLMProvider.OPENAI:
-        requirements.append(
-            ConfigRequirement("OPENAI_API_KEY", "required when LLM_PROVIDER=openai")
+    requirements.extend(
+        (
+            ConfigRequirement("OPENROUTER_API_KEY", "required for OpenRouter models"),
+            ConfigRequirement("LLM_MODEL", "required for the OpenRouter chat model"),
         )
-    else:
-        requirements.append(
-            ConfigRequirement("ANTHROPIC_API_KEY", "required when LLM_PROVIDER=anthropic")
-        )
+    )
     return tuple(requirements)
 
 
 def required_keys_for_runtime(
     *,
-    llm_provider: LLMProvider,
     values: Mapping[str, str],
     include_database_url: bool,
     include_admin_api_key: bool,
@@ -68,7 +52,6 @@ def required_keys_for_runtime(
     return tuple(
         requirement.key
         for requirement in required_config_for_runtime(
-            llm_provider=llm_provider,
             values=values,
             include_database_url=include_database_url,
             include_admin_api_key=include_admin_api_key,

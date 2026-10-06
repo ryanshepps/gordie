@@ -9,8 +9,8 @@
 | `NGROK_AUTHTOKEN` | Default Docker tunnel authentication |
 | `SERVER_HOST`, `SERVER_PORT` | HTTP bind address |
 | `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET` | Yahoo Fantasy OAuth |
-| `LLM_PROVIDER`, `LLM_MODEL` | Agent model selection |
-| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | Key for the selected model provider |
+| `LLM_MODEL` | OpenRouter chat model ID |
+| `OPENROUTER_API_KEY` | OpenRouter API key |
 | `ENABLED_SPORTS` | Stats refresh selection: `nhl` by default |
 | `OSS_GITHUB_URL` | Repository link in the maintenance server |
 
