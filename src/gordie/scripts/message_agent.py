@@ -200,6 +200,7 @@ def main() -> None:
     from dotenv import load_dotenv
 
     from gordie.integrations.defaults import default_plugins
+    from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
     from gordie.runtime import Runtime
 
     load_dotenv()
@@ -207,6 +208,10 @@ def main() -> None:
         default_plugins(),
         openrouter_api_key=os.environ["OPENROUTER_API_KEY"],
         model=os.environ["LLM_MODEL"],
+        embedding_model=os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+        embedding_dimensions=int(
+            os.getenv("EMBEDDING_DIMENSIONS", str(DEFAULT_EMBEDDING_DIMENSIONS))
+        ),
     )
     try:
         with runtime.activate():

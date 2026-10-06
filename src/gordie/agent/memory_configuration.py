@@ -14,6 +14,6 @@ class ConversationMemory:
 
 def environment_memory(models: OpenRouterModels) -> ConversationMemory:
     return ConversationMemory(
-        InMemoryStore(index={"dims": 1536, "embed": models.embeddings()}),
+        InMemoryStore(index={"dims": models.embedding_dimensions, "embed": models.embeddings()}),
         search_enabled=True,
     )

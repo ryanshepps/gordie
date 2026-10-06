@@ -25,6 +25,7 @@ import typer
 from gordie.integrations.config_requirements import (
     required_keys_for_runtime,
 )
+from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
 
 app = typer.Typer(help="Gordie developer and self-hosting utilities.")
 
@@ -109,6 +110,10 @@ def build_env_values(
         "OAUTH_BASE_URL": answers.values["OAUTH_BASE_URL"],
         "NGROK_AUTHTOKEN": answers.values.get("NGROK_AUTHTOKEN", ""),
         "LLM_MODEL": answers.values.get("LLM_MODEL", "z-ai/glm-5.3-flash"),
+        "EMBEDDING_MODEL": answers.values.get("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+        "EMBEDDING_DIMENSIONS": answers.values.get(
+            "EMBEDDING_DIMENSIONS", str(DEFAULT_EMBEDDING_DIMENSIONS)
+        ),
         "OPENROUTER_API_KEY": answers.values.get("OPENROUTER_API_KEY", ""),
         "YAHOO_CLIENT_ID": answers.values["YAHOO_CLIENT_ID"],
         "YAHOO_CLIENT_SECRET": answers.values["YAHOO_CLIENT_SECRET"],
@@ -308,6 +313,18 @@ def _prompt_llm_values(existing_values: Mapping[str, str]) -> dict[str, str]:
         ),
         "LLM_MODEL": _existing_or_prompt_text(
             "LLM_MODEL", "OpenRouter model", existing_values, default="z-ai/glm-5.3-flash"
+        ),
+        "EMBEDDING_MODEL": _existing_or_prompt_text(
+            "EMBEDDING_MODEL",
+            "OpenRouter embedding model",
+            existing_values,
+            default=DEFAULT_EMBEDDING_MODEL,
+        ),
+        "EMBEDDING_DIMENSIONS": _existing_or_prompt_text(
+            "EMBEDDING_DIMENSIONS",
+            "Embedding dimensions",
+            existing_values,
+            default=str(DEFAULT_EMBEDDING_DIMENSIONS),
         ),
     }
 
@@ -723,6 +740,15 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
     if missing:
         missing_list = ", ".join(missing)
         raise SetupInputError(f"Missing required setup values: {missing_list}.")
+
+    if not values["EMBEDDING_MODEL"].strip():
+        raise SetupInputError("EMBEDDING_MODEL must be a non-empty OpenRouter model ID.")
+    try:
+        dimensions = int(values["EMBEDDING_DIMENSIONS"])
+    except ValueError as exc:
+        raise SetupInputError("EMBEDDING_DIMENSIONS must be a positive integer.") from exc
+    if dimensions < 1:
+        raise SetupInputError("EMBEDDING_DIMENSIONS must be a positive integer.")
 
     _ = _normalize_https_base_url(values["OAUTH_BASE_URL"])
 

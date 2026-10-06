@@ -10,6 +10,8 @@
 | `SERVER_HOST`, `SERVER_PORT` | HTTP bind address |
 | `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET` | Yahoo Fantasy OAuth |
 | `LLM_MODEL` | OpenRouter chat model ID |
+| `EMBEDDING_MODEL` | OpenRouter model ID for conversation search; defaults to `openai/text-embedding-3-small` |
+| `EMBEDDING_DIMENSIONS` | Embedding vector size; must match the selected model (default `1536`) |
 | `OPENROUTER_API_KEY` | OpenRouter API key |
 | `ENABLED_SPORTS` | Stats refresh selection: `nhl` by default |
 | `OSS_GITHUB_URL` | Repository link in the maintenance server |

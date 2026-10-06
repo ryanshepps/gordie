@@ -3,6 +3,8 @@
 `create_app(plugins, openrouter_api_key=..., model=...)` builds a Quart application.
 `create_agent` accepts the same model settings for callers that manage their own
 messaging service. Both accept `Plugins` with four extension points.
+Pass `embedding_model` and its `embedding_dimensions` when using an embedding
+model other than `openai/text-embedding-3-small` (1536 dimensions).
 
 ```python
 from gordie import Plugins, create_app

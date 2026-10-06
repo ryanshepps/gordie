@@ -6,6 +6,7 @@ from pydantic import SecretStr
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+DEFAULT_EMBEDDING_DIMENSIONS = 1536
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,13 @@ class OpenRouterModels:
     api_key: str = field(repr=False)
     model: str
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS
+
+    def __post_init__(self) -> None:
+        if not self.embedding_model.strip():
+            raise ValueError("Embedding model must be non-empty.")
+        if self.embedding_dimensions < 1:
+            raise ValueError("Embedding dimensions must be positive.")
 
     def chat(self, *, temperature: float = 0, model: str | None = None) -> BaseChatModel:
         return ChatOpenAI(

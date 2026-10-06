@@ -43,6 +43,7 @@ def validate_startup_config(env: Mapping[str, str]) -> None:
     invalid: list[str] = []
     _validate_oauth_base_url(env, invalid)
     _validate_server_port(env, invalid)
+    _validate_embedding_settings(env, invalid)
 
     requirements: list[ConfigRequirement] = []
     requirements.extend(
@@ -81,6 +82,21 @@ def _validate_server_port(env: Mapping[str, str], invalid: list[str]) -> None:
         return
     if port < 1 or port > 65535:
         invalid.append("SERVER_PORT must be an integer from 1 to 65535.")
+
+
+def _validate_embedding_settings(env: Mapping[str, str], invalid: list[str]) -> None:
+    if "EMBEDDING_MODEL" in env and not _env_value(env, "EMBEDDING_MODEL"):
+        invalid.append("EMBEDDING_MODEL must be a non-empty OpenRouter model ID.")
+    raw_dimensions = _env_value(env, "EMBEDDING_DIMENSIONS")
+    if "EMBEDDING_DIMENSIONS" not in env:
+        return
+    try:
+        dimensions = int(raw_dimensions)
+    except ValueError:
+        invalid.append("EMBEDDING_DIMENSIONS must be a positive integer.")
+        return
+    if dimensions < 1:
+        invalid.append("EMBEDDING_DIMENSIONS must be a positive integer.")
 
 
 def _dedupe_requirements(

@@ -67,3 +67,10 @@ def test_validate_startup_config_reports_invalid_values_together() -> None:
     message = str(exc_info.value)
     assert "LLM_MODEL" in message
     assert "SERVER_PORT must be an integer from 1 to 65535" in message
+
+
+def test_validate_startup_config_rejects_invalid_embedding_dimensions() -> None:
+    with pytest.raises(
+        ConfigValidationError, match="EMBEDDING_DIMENSIONS must be a positive integer"
+    ):
+        validate_startup_config(_valid_env(EMBEDDING_DIMENSIONS="0"))

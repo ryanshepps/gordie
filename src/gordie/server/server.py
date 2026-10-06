@@ -9,6 +9,7 @@ from hypercorn.config import Config
 
 from gordie.application import create_app
 from gordie.module.logger import get_logger
+from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
 from gordie.plugins import Plugins
 
 _server_instance: Server | None = None
@@ -27,6 +28,10 @@ class Server:
             plugins,
             openrouter_api_key=os.environ["OPENROUTER_API_KEY"],
             model=os.environ["LLM_MODEL"],
+            embedding_model=os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+            embedding_dimensions=int(
+                os.getenv("EMBEDDING_DIMENSIONS", str(DEFAULT_EMBEDDING_DIMENSIONS))
+            ),
         )
 
     def run(self) -> None:

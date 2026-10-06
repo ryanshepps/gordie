@@ -31,11 +31,34 @@ def test_build_env_values_keeps_yahoo_without_retired_config() -> None:
     validate_startup_config(values)
     assert values["YAHOO_CLIENT_ID"] == "test-yahoo-id"
     assert values["LLM_MODEL"] == "z-ai/glm-5.3-flash"
+    assert values["EMBEDDING_MODEL"] == "openai/text-embedding-3-small"
+    assert values["EMBEDDING_DIMENSIONS"] == "1536"
     assert "CREEM_API_KEY" not in values
     assert "CHAT_MEDIA" not in values
     assert not any(
         key.startswith(("DISCORD_", "SINCH_", "MAILGUN_", "TELEGRAM_")) for key in values
     )
+
+
+def test_build_env_values_accepts_custom_embedding_settings() -> None:
+    answers = SetupAnswers(
+        deployment_target=DeploymentTarget.DOCKER,
+        values={
+            "OAUTH_BASE_URL": "https://gordie.example.com",
+            "NGROK_AUTHTOKEN": "test-tunnel",
+            "OPENROUTER_API_KEY": "test-key",
+            "YAHOO_CLIENT_ID": "test-yahoo-id",
+            "YAHOO_CLIENT_SECRET": "test-yahoo-secret",
+            "EMBEDDING_MODEL": "test/embedding-model",
+            "EMBEDDING_DIMENSIONS": "768",
+        },
+    )
+
+    values = build_env_values(answers, admin_api_key="test-admin")
+
+    validate_startup_config(values)
+    assert values["EMBEDDING_MODEL"] == "test/embedding-model"
+    assert values["EMBEDDING_DIMENSIONS"] == "768"
 
 
 def test_render_env_file_keeps_account_settings() -> None:

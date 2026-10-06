@@ -7,7 +7,7 @@ from hypercorn.typing import ASGIReceiveCallable, ASGISendCallable, Scope
 from quart import Quart
 
 from gordie.communication import receive_message
-from gordie.module.model_provider import DEFAULT_EMBEDDING_MODEL
+from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
 from gordie.plugins import IncomingMessage, OutgoingMessage, Plugins
 from gordie.runtime import Runtime
 from gordie.scheduled.jobs import register_application_jobs
@@ -32,9 +32,14 @@ def create_app(
     openrouter_api_key: str,
     model: str,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
 ) -> Application:
     runtime = Runtime(
-        plugins, openrouter_api_key=openrouter_api_key, model=model, embedding_model=embedding_model
+        plugins,
+        openrouter_api_key=openrouter_api_key,
+        model=model,
+        embedding_model=embedding_model,
+        embedding_dimensions=embedding_dimensions,
     )
     app = Application(runtime)
     register_oauth_routes(app)

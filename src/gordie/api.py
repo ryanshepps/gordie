@@ -4,7 +4,7 @@ from typing import cast
 from langchain_core.runnables import RunnableConfig
 
 from gordie.agent.agent_state import AgentState
-from gordie.module.model_provider import DEFAULT_EMBEDDING_MODEL
+from gordie.module.model_provider import DEFAULT_EMBEDDING_DIMENSIONS, DEFAULT_EMBEDDING_MODEL
 from gordie.plugins import IncomingMessage, OutgoingMessage, Plugins
 from gordie.runtime import Runtime
 
@@ -17,12 +17,14 @@ class Agent:
         openrouter_api_key: str,
         model: str,
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+        embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
     ) -> None:
         self.runtime = Runtime(
             plugins,
             openrouter_api_key=openrouter_api_key,
             model=model,
             embedding_model=embedding_model,
+            embedding_dimensions=embedding_dimensions,
         )
 
     def invoke(self, state: AgentState, config: RunnableConfig | None = None) -> AgentState:
@@ -52,7 +54,12 @@ def create_agent(
     openrouter_api_key: str,
     model: str,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    embedding_dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
 ) -> Agent:
     return Agent(
-        plugins, openrouter_api_key=openrouter_api_key, model=model, embedding_model=embedding_model
+        plugins,
+        openrouter_api_key=openrouter_api_key,
+        model=model,
+        embedding_model=embedding_model,
+        embedding_dimensions=embedding_dimensions,
     )
