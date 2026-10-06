@@ -19,6 +19,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Medium(StrEnum):
     EMAIL = "email"
+    PHONE = "phone"
 
 
 class Base(DeclarativeBase):
