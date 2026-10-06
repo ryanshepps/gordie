@@ -1,3 +1,9 @@
+## v0.3.0 (2026-10-06)
+
+### Feat
+
+- **oauth**: support phone-first Yahoo linking (#66)
+
 ## v0.2.0 (2026-10-06)
 
 ### Feat
