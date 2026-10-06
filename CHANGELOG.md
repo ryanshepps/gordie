@@ -1,3 +1,9 @@
+## v0.2.0 (2026-10-06)
+
+### Feat
+
+- use OpenRouter models per app (#64)
+
 ## v0.1.1 (2026-10-06)
 
 ### Refactor
