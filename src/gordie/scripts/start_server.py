@@ -1,4 +1,4 @@
-"""Start the server to handle Yahoo OAuth and billing."""
+"""Start the server to handle Yahoo OAuth."""
 
 import os
 import sys

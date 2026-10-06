@@ -52,7 +52,6 @@ def validate_startup_config(env: Mapping[str, str]) -> None:
             required_config_for_runtime(
                 llm_provider=llm_provider,
                 values=env,
-                billing_enabled=bool(_env_value(env, "CREEM_API_KEY")),
                 include_database_url=True,
                 include_admin_api_key=False,
             )

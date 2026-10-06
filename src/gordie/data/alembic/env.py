@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from gordie.data.models import Base
-from gordie.integrations.creem import models
 
 _ = load_dotenv()
 
@@ -21,7 +20,6 @@ _url = _raw_url.replace("postgresql://", "postgresql+psycopg://", 1) if _raw_url
 config.set_main_option("sqlalchemy.url", _url.replace("%", "%%"))
 
 target_metadata = Base.metadata
-_ = models.UserSubscription
 
 
 def run_migrations_offline() -> None:

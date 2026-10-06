@@ -1,6 +1,6 @@
 # Quickstart
 
-Gordie currently exposes Yahoo OAuth, optional billing, health checks, stats refresh, and a local command-line agent. User messaging is unavailable.
+Gordie currently exposes Yahoo OAuth, health checks, stats refresh, and a local command-line agent. User messaging is unavailable.
 
 ## Prerequisites
 

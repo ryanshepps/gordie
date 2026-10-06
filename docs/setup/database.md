@@ -1,6 +1,6 @@
 # Database Setup
 
-Gordie uses Postgres for application state (users, OAuth tokens, subscriptions, and conversation state) and for LangGraph conversation checkpoints.
+Gordie uses Postgres for application state (users, OAuth tokens, and conversation state) and for LangGraph conversation checkpoints.
 
 ## Local Postgres via Docker
 

@@ -1,10 +1,10 @@
 # Gordie — open source fantasy sports assistant
 
-Gordie contains a Yahoo Fantasy account integration, sports data tools, an AI agent, billing support, and scheduled stats refreshes. User-facing messaging is currently unavailable while the communication integration is rebuilt.
+Gordie contains a Yahoo Fantasy account integration, sports data tools, an AI agent, and scheduled stats refreshes. User-facing messaging is currently unavailable while the communication integration is rebuilt.
 
 ## Current runtime
 
-The Quart server exposes `/health`, Yahoo's `/callback`, and Creem billing routes when billing is configured. The scheduler refreshes NHL stats and cleans up expired OAuth requests. Weekly and news delivery jobs are inactive.
+The Quart server exposes `/health` and Yahoo's `/callback`. The scheduler refreshes NHL stats and cleans up expired OAuth requests. Weekly and news delivery jobs are inactive.
 
 The command-line agent can still be used for local development:
 
@@ -12,7 +12,7 @@ The command-line agent can still be used for local development:
 uv run python -m gordie.scripts.message_agent you@example.com "What can you do?"
 ```
 
-The account email remains the identity used by Yahoo and billing. The command prints the agent response locally.
+The account email remains the identity used by Yahoo. The command prints the agent response locally.
 
 ## Project layout
 
@@ -20,7 +20,7 @@ The account email remains the identity used by Yahoo and billing. The command pr
 - `src/gordie/client/`: Yahoo and sports data clients
 - `src/gordie/data/`: account, token, and sports data models
 - `src/gordie/scheduled/`: stats refresh and OAuth cleanup
-- `src/gordie/server/`: Yahoo OAuth and optional billing HTTP routes
+- `src/gordie/server/`: Yahoo OAuth HTTP routes
 - `src/gordie/tools/`: agent tools
 - `tests/`: focused unit, integration, and eval suites
 
@@ -51,8 +51,8 @@ Verify an installed wheel outside the checkout with
 Use `from gordie import Plugins, create_app, create_agent` to assemble Gordie with
 your own storage, access policy, extra tools, and communication adapter for incoming
 messages and outgoing replies. Models, memory, statistics, application routes, and
-background jobs remain built into Gordie. The existing PostgreSQL and
-Creem implementations remain in this repository under `gordie.integrations`.
+background jobs remain built into Gordie. The existing PostgreSQL implementation
+remains in this repository under `gordie.integrations`.
 
 See [the plugin interface and lifecycle guide](docs/plugins.md) for contracts,
 assembly examples, and the future private-package boundary.

@@ -44,11 +44,10 @@ class SetupAnswers:
     deployment_target: DeploymentTarget
     llm_provider: LLMProvider
     values: Mapping[str, str]
-    hosted: bool
 
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*?)(\s+#.*)?$")
-_RETIRED_CHANNEL_KEYS = frozenset(
+_RETIRED_CONFIG_KEYS = frozenset(
     {
         "CHAT_MEDIA",
         "TELEGRAM_BOT_TOKEN",
@@ -67,13 +66,15 @@ _RETIRED_CHANNEL_KEYS = frozenset(
         "SINCH_API_TOKEN",
         "SINCH_FROM_NUMBER",
         "SINCH_WEBHOOK_TOKEN",
+        "CREEM_API_KEY",
+        "CREEM_WEBHOOK_SECRET",
+        "CREEM_API_BASE_URL",
+        "CREEM_PRODUCT_HOSTED_MONTHLY",
     }
 )
 _OPENAI_API_KEYS_URL: Final = "https://platform.openai.com/api-keys"
 _ANTHROPIC_API_KEYS_URL: Final = "https://console.anthropic.com/settings/keys"
 _YAHOO_APP_URL = "https://developer.yahoo.com/apps/"
-_CREEM_DASHBOARD_URL: Final = "https://www.creem.io/dashboard"
-_CREEM_PRODUCTS_URL: Final = "https://www.creem.io/dashboard/products"
 _DEFAULT_ENV_FILE: Final = Path(".env")
 _DEFAULT_TEMPLATE_FILE: Final = Path(str(files("gordie").joinpath("resources/env.example")))
 _NGROK_AUTHTOKEN_URL: Final = "https://dashboard.ngrok.com/get-started/your-authtoken"
@@ -122,30 +123,6 @@ def build_env_values(
     else:
         values["ANTHROPIC_API_KEY"] = answers.values["ANTHROPIC_API_KEY"]
 
-    if answers.hosted:
-        values.update(
-            {
-                "CREEM_API_KEY": answers.values["CREEM_API_KEY"],
-                "CREEM_WEBHOOK_SECRET": answers.values["CREEM_WEBHOOK_SECRET"],
-                "CREEM_API_BASE_URL": answers.values["CREEM_API_BASE_URL"],
-                "CREEM_PRODUCT_HOSTED_MONTHLY": answers.values["CREEM_PRODUCT_HOSTED_MONTHLY"],
-            }
-        )
-    else:
-        values.update(
-            {
-                "CREEM_API_KEY": answers.values.get("CREEM_API_KEY", ""),
-                "CREEM_WEBHOOK_SECRET": answers.values.get("CREEM_WEBHOOK_SECRET", ""),
-                "CREEM_API_BASE_URL": answers.values.get(
-                    "CREEM_API_BASE_URL",
-                    "https://test-api.creem.io/v1",
-                ),
-                "CREEM_PRODUCT_HOSTED_MONTHLY": answers.values.get(
-                    "CREEM_PRODUCT_HOSTED_MONTHLY", ""
-                ),
-            }
-        )
-
     _validate_required_values(values, answers)
     return values
 
@@ -191,13 +168,6 @@ def render_env_file(template_text: str, values: Mapping[str, str]) -> str:
 
 @app.command("init")
 def init(
-    hosted: Annotated[
-        bool,
-        typer.Option(
-            "--hosted",
-            help="Prompt for hosted billing credentials. Self-hosted setup skips billing.",
-        ),
-    ] = False,
     env_file: Annotated[
         Path,
         typer.Option("--env-file", help="Path to write the generated dotenv file."),
@@ -240,7 +210,6 @@ def init(
             typer.echo(f"Using existing values from {env_file}")
 
         answers = _prompt_for_answers(
-            hosted=hosted,
             skip_docker_check=skip_docker_check,
             skip_ngrok_automation=skip_ngrok_automation,
             existing_values=existing_values,
@@ -250,7 +219,7 @@ def init(
             admin_api_key=_existing_value(existing_values, "ADMIN_API_KEY"),
         )
         retained_values = {
-            key: value for key, value in existing_values.items() if key not in _RETIRED_CHANNEL_KEYS
+            key: value for key, value in existing_values.items() if key not in _RETIRED_CONFIG_KEYS
         }
         env_text = render_env_file(template_file.read_text(), retained_values | generated_values)
         _ = env_file.write_text(env_text)
@@ -281,14 +250,13 @@ def parse_env_values(env_text: str) -> dict[str, str]:
 
 def _prompt_for_answers(
     *,
-    hosted: bool,
     skip_docker_check: bool,
     skip_ngrok_automation: bool,
     existing_values: Mapping[str, str],
 ) -> SetupAnswers:
     typer.echo("Gordie setup")
     typer.echo("")
-    _print_setup_summary(hosted=hosted)
+    _print_setup_summary()
 
     deployment_target = _prompt_enum(
         "Deployment target",
@@ -334,14 +302,10 @@ def _prompt_for_answers(
         help_label="Yahoo developer apps",
     )
 
-    if hosted:
-        values.update(_prompt_billing_values(existing_values))
-
     return SetupAnswers(
         deployment_target=deployment_target,
         llm_provider=llm_provider,
         values=dict(existing_values) | values,
-        hosted=hosted,
     )
 
 
@@ -604,42 +568,6 @@ def _prompt_https_oauth_base_url(existing_values: Mapping[str, str]) -> str:
             typer.secho(str(exc), fg=typer.colors.RED)
 
 
-def _prompt_billing_values(existing_values: Mapping[str, str]) -> dict[str, str]:
-    typer.echo("")
-    typer.echo("Hosted billing setup (Creem)")
-    return {
-        "CREEM_API_KEY": _existing_or_prompt_required(
-            "CREEM_API_KEY",
-            "Creem API key",
-            existing_values,
-            hide_input=True,
-            help_url=_CREEM_DASHBOARD_URL,
-            help_label="Creem dashboard API keys",
-        ),
-        "CREEM_WEBHOOK_SECRET": _existing_or_prompt_required(
-            "CREEM_WEBHOOK_SECRET",
-            "Creem webhook secret",
-            existing_values,
-            hide_input=True,
-            help_url=_CREEM_DASHBOARD_URL,
-            help_label="Creem dashboard webhooks",
-        ),
-        "CREEM_API_BASE_URL": _existing_or_prompt_text(
-            "CREEM_API_BASE_URL",
-            "Creem API base URL",
-            existing_values,
-            default="https://test-api.creem.io/v1",
-        ),
-        "CREEM_PRODUCT_HOSTED_MONTHLY": _existing_or_prompt_required(
-            "CREEM_PRODUCT_HOSTED_MONTHLY",
-            "Creem hosted monthly product ID",
-            existing_values,
-            help_url=_CREEM_PRODUCTS_URL,
-            help_label="Creem products",
-        ),
-    }
-
-
 def _prompt_enum[T: StrEnum](
     label: str,
     enum_type: type[T],
@@ -723,14 +651,10 @@ def _prompt_text(
     return str(prompted)
 
 
-def _print_setup_summary(*, hosted: bool) -> None:
+def _print_setup_summary() -> None:
     typer.echo("This wizard will:")
     typer.echo("  - write .env and reuse existing values when present")
     typer.echo("  - collect required Docker, LLM, ngrok, and Yahoo settings")
-    if hosted:
-        typer.echo("  - collect hosted billing credentials")
-    else:
-        typer.echo("  - skip hosted billing unless you pass --hosted")
     typer.echo("  - start Docker Compose for the local stack")
     typer.echo("")
 
@@ -817,7 +741,6 @@ def _validate_required_values(values: Mapping[str, str], answers: SetupAnswers) 
         *required_keys_for_runtime(
             llm_provider=answers.llm_provider,
             values=values,
-            billing_enabled=answers.hosted,
             include_database_url=False,
             include_admin_api_key=True,
         ),

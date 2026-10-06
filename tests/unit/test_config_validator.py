@@ -66,12 +66,3 @@ def test_validate_startup_config_reports_invalid_values_together() -> None:
     message = str(exc_info.value)
     assert "LLM_PROVIDER must be one of: openai, anthropic" in message
     assert "SERVER_PORT must be an integer from 1 to 65535" in message
-
-
-def test_validate_startup_config_requires_hosted_product_when_billing_enabled() -> None:
-    with pytest.raises(ConfigValidationError) as exc_info:
-        validate_startup_config(
-            _valid_env(CREEM_API_KEY="creem-key", CREEM_WEBHOOK_SECRET="creem-webhook")
-        )
-
-    assert "CREEM_PRODUCT_HOSTED_MONTHLY" in str(exc_info.value)

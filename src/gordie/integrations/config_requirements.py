@@ -28,7 +28,6 @@ def required_config_for_runtime(
     *,
     llm_provider: LLMProvider,
     values: Mapping[str, str],
-    billing_enabled: bool,
     include_database_url: bool,
     include_admin_api_key: bool,
 ) -> tuple[ConfigRequirement, ...]:
@@ -56,16 +55,6 @@ def required_config_for_runtime(
         requirements.append(
             ConfigRequirement("ANTHROPIC_API_KEY", "required when LLM_PROVIDER=anthropic")
         )
-    if billing_enabled:
-        requirements.extend(
-            (
-                ConfigRequirement("CREEM_API_KEY", "required when Creem billing is enabled"),
-                ConfigRequirement("CREEM_WEBHOOK_SECRET", "required when Creem billing is enabled"),
-                ConfigRequirement(
-                    "CREEM_PRODUCT_HOSTED_MONTHLY", "required when Creem billing is enabled"
-                ),
-            )
-        )
     return tuple(requirements)
 
 
@@ -73,7 +62,6 @@ def required_keys_for_runtime(
     *,
     llm_provider: LLMProvider,
     values: Mapping[str, str],
-    billing_enabled: bool,
     include_database_url: bool,
     include_admin_api_key: bool,
 ) -> tuple[str, ...]:
@@ -82,7 +70,6 @@ def required_keys_for_runtime(
         for requirement in required_config_for_runtime(
             llm_provider=llm_provider,
             values=values,
-            billing_enabled=billing_enabled,
             include_database_url=include_database_url,
             include_admin_api_key=include_admin_api_key,
         )

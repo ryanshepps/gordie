@@ -15,7 +15,7 @@ from gordie.scripts.setup import (
 )
 
 
-def test_build_env_values_keeps_yahoo_and_billing_without_channel_keys() -> None:
+def test_build_env_values_keeps_yahoo_without_retired_config() -> None:
     answers = SetupAnswers(
         deployment_target=DeploymentTarget.DOCKER,
         llm_provider=LLMProvider.OPENAI,
@@ -25,19 +25,14 @@ def test_build_env_values_keeps_yahoo_and_billing_without_channel_keys() -> None
             "OPENAI_API_KEY": "test-model",
             "YAHOO_CLIENT_ID": "test-yahoo-id",
             "YAHOO_CLIENT_SECRET": "test-yahoo-secret",
-            "CREEM_API_KEY": "test-creem",
-            "CREEM_WEBHOOK_SECRET": "test-webhook",
-            "CREEM_API_BASE_URL": "https://test-api.creem.io/v1",
-            "CREEM_PRODUCT_HOSTED_MONTHLY": "test-product",
         },
-        hosted=True,
     )
 
     values = build_env_values(answers, admin_api_key="test-admin")
 
     validate_startup_config(values)
     assert values["YAHOO_CLIENT_ID"] == "test-yahoo-id"
-    assert values["CREEM_PRODUCT_HOSTED_MONTHLY"] == "test-product"
+    assert "CREEM_API_KEY" not in values
     assert "CHAT_MEDIA" not in values
     assert not any(
         key.startswith(("DISCORD_", "SINCH_", "MAILGUN_", "TELEGRAM_")) for key in values
@@ -73,11 +68,13 @@ def test_init_rejects_missing_template(tmp_path: Path) -> None:
     assert "does not exist" in result.output
 
 
-def test_init_removes_retired_channel_config(tmp_path: Path, monkeypatch) -> None:
+def test_init_removes_retired_config(tmp_path: Path, monkeypatch) -> None:
     template = tmp_path / ".env.example"
     env_file = tmp_path / ".env"
     template.write_text("OAUTH_BASE_URL=\nYAHOO_CLIENT_ID=\n")
-    env_file.write_text("CHAT_MEDIA=telegram\nTELEGRAM_BOT_TOKEN=test-retired\n")
+    env_file.write_text(
+        "CHAT_MEDIA=telegram\nTELEGRAM_BOT_TOKEN=test-retired\nCREEM_API_KEY=test-retired\n"
+    )
     answers = SetupAnswers(
         deployment_target=DeploymentTarget.DOCKER,
         llm_provider=LLMProvider.OPENAI,
@@ -88,7 +85,6 @@ def test_init_removes_retired_channel_config(tmp_path: Path, monkeypatch) -> Non
             "YAHOO_CLIENT_ID": "test-yahoo-id",
             "YAHOO_CLIENT_SECRET": "test-yahoo-secret",
         },
-        hosted=False,
     )
     monkeypatch.setattr("gordie.scripts.setup._prompt_for_answers", lambda **_kwargs: answers)
 
@@ -108,4 +104,5 @@ def test_init_removes_retired_channel_config(tmp_path: Path, monkeypatch) -> Non
     generated = env_file.read_text()
     assert "TELEGRAM_BOT_TOKEN" not in generated
     assert "CHAT_MEDIA" not in generated
+    assert "CREEM_API_KEY" not in generated
     assert "YAHOO_CLIENT_ID=test-yahoo-id" in generated

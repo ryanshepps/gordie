@@ -17,7 +17,7 @@ def main() -> None:
             key: value
             for key, value in os.environ.items()
             if not key.endswith(("_API_KEY", "_SECRET"))
-            and key not in {"PYTHONPATH", "DATABASE_URL", "CREEM_PRODUCT_HOSTED_MONTHLY"}
+            and key not in {"PYTHONPATH", "DATABASE_URL"}
         }
         env["GORDIE_DATA_DIR"] = str(root / "data")
         env["GORDIE_LOG_FILE"] = "stderr"
